@@ -431,7 +431,7 @@ var state = {
 
 // ===================== UTILS =====================
 // ===================== API CONFIG =====================
-var API_BASE = 'http://localhost:8080';
+var API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8080' : '';
 
 async function apiCall(endpoint, method, body){
   var opts = { method: method||'GET', headers: {'Content-Type':'application/json'} };
@@ -4693,7 +4693,7 @@ async function verifyRegOTP(){
   var data = authState.regData;
 
   try {
-    const res = await fetch(API_BASE + '/api/signup', {
+    const res = await fetch((API_BASE || '') + '/api/signup', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -4795,7 +4795,7 @@ window.doLogin = async function(){
   }
 
   try {
-    const res = await fetch(API_BASE + "/api/login", {
+    const res = await fetch((API_BASE || '') + "/api/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -5056,7 +5056,7 @@ async function checkAutoLogin(){
 }
 async function loadUsers(){
   try{
-    var res=await fetch(API_BASE+'/api/users');
+    var res=await fetch((API_BASE||'')+'/api/users');
     if(!res.ok) throw new Error('HTTP '+res.status);
     authState.users=await res.json();
     console.log('Users loaded:',authState.users.length);
