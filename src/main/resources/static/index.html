@@ -4957,7 +4957,7 @@ document.addEventListener('keydown',function(){if(authState.currentUser&&!authSt
 
 // ===================== LOCAL CACHE (offline fallback only) =====================
 function saveToStorage(){
-      // Keep localStorage as an offline cache — real data lives in H2
+  // Keep localStorage as an offline cache — real data lives in H2
   try{
     localStorage.setItem('pranita_state', JSON.stringify({
       expenditure:state.expenditure, expenseEntries:state.expenseEntries,
