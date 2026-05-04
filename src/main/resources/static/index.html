@@ -629,7 +629,11 @@ if(!state.notes) state.notes = [];
 
 function renderNotesPage(){
   loadNotesFromStorage();
-  var notes = state.notes||[];
+  var notes = (state.notes||[]).filter(function(n){
+    var activeTab = state.notesTab||'All';
+    if(activeTab==='All') return true;
+    return (n.type||'').toLowerCase() === activeTab.toLowerCase();
+  });
 
   var grid = notes.length===0
     ? '<div style="text-align:center;padding:60px 20px;color:var(--text3)">'+
@@ -680,7 +684,7 @@ function renderNotesPage(){
     // Type filter tabs
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">'+
     ['All','Text','PDF','Excel','Image'].map(function(t){
-      var cnt = t==='All'?notes.length:notes.filter(function(n){return n.type===t.toLowerCase();}).length;
+      var cnt = t==='All'?(state.notes||[]).length:(state.notes||[]).filter(function(n){return (n.type||'').toLowerCase()===t.toLowerCase();}).length;
       var active = (state.notesTab||'All')===t;
       return '<button onclick="state.notesTab=\''+t+'\';renderPage()" '+
         'style="padding:6px 14px;border-radius:20px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
@@ -1840,14 +1844,14 @@ function renderProducts(){
 
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">'+
   '<div><div class="section-title">Products Inventory</div><div class="section-sub">Paper plate and cup product catalog</div></div>'+
-  '<button class="btn btn-primary" onclick="showAddProductModal()">+ Add Product</button></div>'+
-
-  // Search bar
-  '<div style="margin-bottom:14px">'+
-  '<input type="text" id="prod-search" value="'+( state.productSearch||'')+'" '+
-  'placeholder="🔍 Search by name, type, size or HSN..." '+
-  'oninput="state.productSearch=this.value;renderPage()" '+
-  'style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text)"></div>'+
+  // Search + Add button on same row
+  '<div style="display:flex;align-items:center;gap:10px">'+
+  '<input type="text" id="prod-search" value="'+(state.productSearch||'')+'" '+
+  'placeholder="🔍 Search products..." '+
+  'oninput="prodSearchFilter(this.value)" '+
+  'style="padding:9px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);width:240px">'+
+  '<button class="btn btn-primary" onclick="showAddProductModal()">+ Add Product</button>'+
+  '</div></div>'+
 
   // Tabs
   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">'+
@@ -1872,8 +1876,8 @@ function renderProducts(){
     return '<tr>'+
       '<td><strong>'+p.name+'</strong></td>'+
       '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
-      '<td>'+( p.size||'—')+'</td>'+
-      '<td>'+( p.hsn||'—')+'</td>'+
+      '<td>'+(p.size||'—')+'</td>'+
+      '<td>'+(p.hsn||'—')+'</td>'+
       '<td><span class="badge '+stockBadge+'">'+p.stock+' pcs</span></td>'+
       '<td class="fw600">'+fmt(p.price)+'</td>'+
       '<td><div class="gap-12">'+
@@ -1885,6 +1889,39 @@ function renderProducts(){
   '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+
   (search?'No products matching "'+state.productSearch+'"':'No products found')+'</td></tr>')+
   '</tbody></table></div></div>';
+}
+
+// Filter without full re-render — updates table rows only
+function prodSearchFilter(val){
+  state.productSearch = val;
+  var tab = state.productTab||'All';
+  var search = val.toLowerCase();
+  var filtered = state.products.filter(function(p){
+    var matchTab = tab==='All'||p.type===tab;
+    var matchSearch = !search||
+      (p.name&&p.name.toLowerCase().includes(search))||
+      (p.type&&p.type.toLowerCase().includes(search))||
+      (p.size&&p.size.toLowerCase().includes(search))||
+      (p.hsn&&p.hsn.toLowerCase().includes(search));
+    return matchTab&&matchSearch;
+  });
+  var tbody = document.querySelector('#pageContent tbody');
+  if(!tbody){renderPage();return;}
+  tbody.innerHTML = sortDesc(filtered,'id').map(function(p){
+    var stockBadge=p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green';
+    return '<tr>'+
+      '<td><strong>'+p.name+'</strong></td>'+
+      '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
+      '<td>'+(p.size||'—')+'</td>'+
+      '<td>'+(p.hsn||'—')+'</td>'+
+      '<td><span class="badge '+stockBadge+'">'+p.stock+' pcs</span></td>'+
+      '<td class="fw600">'+fmt(p.price)+'</td>'+
+      '<td><div class="gap-12">'+
+      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteProduct('+p.id+')">Delete</button>'+
+      '</div></td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No products matching "'+val+'"</td></tr>';
 }
 function showAddProductModal(){
   showModal('Add Product',
@@ -5950,6 +5987,7 @@ window.showWhatsAppPickerModal=showWhatsAppPickerModal;
 window.showWAToast=showWAToast;
 window.renderNotesPage=renderNotesPage;
 window.buildInvoicePDFBlob=buildInvoicePDFBlob;
+window.prodSearchFilter=prodSearchFilter;
 </script>
 </body>
 </html>
