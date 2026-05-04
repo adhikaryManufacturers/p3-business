@@ -2474,7 +2474,7 @@ function renderInvoices(){
 }
 
 // ===================== WHATSAPP SHARE =====================
-function shareInvoiceWhatsApp(invId){
+async function shareInvoiceWhatsApp(invId){
   var inv = state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
   var cust = getCustomer(inv.custId);
@@ -2482,7 +2482,6 @@ function shareInvoiceWhatsApp(invId){
   var due  = getInvoiceDue(inv);
   var phone = (cust.phone||'').replace(/\D/g,'');
 
-  // Build invoice message
   var msg = '🧾 *Invoice #'+inv.id+' — Pranita Paper Plates & Cups*\n\n'+
     '👤 Customer: '+cust.name+'\n'+
     '📅 Date: '+inv.date+'\n'+
@@ -2495,48 +2494,119 @@ function shareInvoiceWhatsApp(invId){
     (due>0?'*Balance Due: ₹'+due.toFixed(2)+'*\n':'✅ Fully Paid\n')+
     '\n📦 *Items*\n'+
     (inv.items||[]).map(function(it){
-      var p = getProduct(it.productId);
+      var p=getProduct(it.productId);
       return '• '+(p.name||it.desc||'Item')+' × '+it.qty+' @ ₹'+it.rate+' = ₹'+(it.qty*it.rate).toFixed(2);
     }).join('\n')+
-    '\n\n📎 _PDF invoice attached_\nThank you for your business! 🙏';
+    '\n\nThank you for your business! 🙏';
 
-  // Step 1 — download PDF first
-  downloadInvoicePDF(invId);
-
-  // Step 2 — open WhatsApp after short delay (so PDF download starts)
-  setTimeout(function(){
-    if(phone && phone.length >= 10){
-      var url = 'https://wa.me/91'+phone.slice(-10)+'?text='+encodeURIComponent(msg);
-      window.open(url,'_blank');
-    } else {
-      showWhatsAppPickerModal(msg, 'invoice');
+  // ── Mobile: use Web Share API to share PDF directly ──
+  if(navigator.share){
+    try{
+      // Try to share with PDF file
+      var pdfBlob = await buildInvoicePDFBlob(inv, cust, c2, due);
+      if(pdfBlob && navigator.canShare && navigator.canShare({files:[pdfBlob]})){
+        await navigator.share({
+          title: 'Invoice #'+inv.id+' — '+cust.name,
+          text: msg,
+          files: [pdfBlob]
+        });
+        return;
+      }
+      // Share text only
+      await navigator.share({title:'Invoice #'+inv.id, text:msg});
+      return;
+    }catch(e){
+      if(e.name==='AbortError') return;
+      console.warn('Web Share API failed:', e.message);
     }
-  }, 800);
+  }
 
-  // Show instruction toast
-  showWAToast('PDF downloading... Attach it in WhatsApp after it opens 📎');
+  // ── Desktop: open WhatsApp + download PDF ──
+  if(phone && phone.length>=10){
+    var url='https://wa.me/91'+phone.slice(-10)+'?text='+encodeURIComponent(msg);
+    window.open(url,'_blank');
+    setTimeout(function(){downloadInvoicePDF(invId);},400);
+    showWAToast('WhatsApp opened! PDF downloading — attach it in the chat 📎');
+  }else{
+    showWhatsAppPickerModal(msg,'invoice');
+  }
 }
 
-function shareNoteWhatsApp(i){
+async function buildInvoicePDFBlob(inv, cust, c2, due){
+  try{
+    var jsPDFLib=(typeof window.jsPDF!=='undefined')?window.jsPDF:
+      (typeof window.jspdf!=='undefined'?window.jspdf.jsPDF:null);
+    if(!jsPDFLib) return null;
+    var doc=new jsPDFLib({orientation:'portrait',unit:'mm',format:'a4'});
+    doc.setFontSize(16);doc.setFont('helvetica','bold');
+    doc.text('INVOICE #'+inv.id,105,18,{align:'center'});
+    doc.setFontSize(10);doc.setFont('helvetica','normal');
+    doc.text('Pranita Paper Plates & Cups',105,25,{align:'center'});
+    doc.setFontSize(10);
+    doc.text('Customer: '+cust.name,15,38);
+    doc.text('Date: '+inv.date,15,44);
+    doc.text('Delivery: '+inv.deliveryDate,15,50);
+    var y=64;
+    doc.setFont('helvetica','bold');
+    doc.text('Item',15,y);doc.text('Qty',110,y);doc.text('Rate',140,y);doc.text('Total',170,y);
+    doc.line(15,y+2,195,y+2);
+    doc.setFont('helvetica','normal');y+=8;
+    (inv.items||[]).forEach(function(it){
+      var p=getProduct(it.productId);
+      var name=(p.name||it.desc||'Item').substring(0,45);
+      doc.text(name,15,y);
+      doc.text(String(it.qty),110,y);
+      doc.text('₹'+it.rate,140,y);
+      doc.text('₹'+(it.qty*it.rate).toFixed(2),170,y);
+      y+=7;
+    });
+    y+=4;doc.line(15,y,195,y);y+=6;
+    doc.setFont('helvetica','bold');
+    doc.text('Grand Total: ₹'+c2.grand.toFixed(2),170,y,{align:'right'});y+=6;
+    doc.text('Paid: ₹'+(inv.paid||0).toFixed(2),170,y,{align:'right'});y+=6;
+    if(due>0){doc.setTextColor(220,53,69);doc.text('Balance Due: ₹'+due.toFixed(2),170,y,{align:'right'});}
+    var blob=doc.output('blob');
+    return new File([blob],'Invoice_'+inv.id+'_'+cust.name+'.pdf',{type:'application/pdf'});
+  }catch(e){console.warn('PDF blob error:',e.message);return null;}
+}
+
+async function shareNoteWhatsApp(i){
   var n = state.notes[i];
   if(!n){alert('Note not found');return;}
+  var fileData=n.fileData||n.data||'';
 
-  var msg;
-  if(n.type==='text'){
-    msg = '📝 *'+n.title+'*\n\n'+n.content+'\n\n_Shared from Pranita P3 Business Suite_';
-    showWhatsAppPickerModal(msg,'note');
-  } else {
-    msg = '📎 *'+n.title+'*\n\n'+
-      'File: '+(n.filename||n.title)+'\n'+
-      'Date: '+n.date+'\n\n'+
-      '_Shared from Pranita P3 Business Suite_\n'+
-      '📎 _File attached separately_';
-    // Download file first
+  var msg = n.type==='text'
+    ? '📝 *'+n.title+'*\n\n'+n.content+'\n\n_Shared from Pranita P3 Business Suite_'
+    : '📎 *'+n.title+'*\n\nFile: '+(n.filename||n.title)+'\nDate: '+(n.noteDate||n.date||'')+'\n\n_Shared from Pranita P3 Business Suite_';
+
+  // Mobile: Web Share API — share file directly
+  if(navigator.share){
+    try{
+      if(n.type!=='text' && fileData){
+        var res=await fetch(fileData);
+        var blob=await res.blob();
+        var mimeMap={pdf:'application/pdf',excel:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',image:'image/jpeg'};
+        var file=new File([blob],n.filename||n.title,{type:mimeMap[n.type]||'application/octet-stream'});
+        if(navigator.canShare&&navigator.canShare({files:[file]})){
+          await navigator.share({title:n.title,text:msg,files:[file]});
+          return;
+        }
+      }
+      await navigator.share({title:n.title,text:msg});
+      return;
+    }catch(e){
+      if(e.name==='AbortError') return;
+      console.warn('Web Share failed:',e.message);
+    }
+  }
+
+  // Desktop fallback
+  if(n.type!=='text' && fileData){
     downloadNote(i);
-    setTimeout(function(){
-      showWhatsAppPickerModal(msg,'note');
-    }, 600);
-    showWAToast('File downloading... Attach it in WhatsApp after selecting contact 📎');
+    setTimeout(function(){showWhatsAppPickerModal(msg,'note');},500);
+    showWAToast('File downloading... Attach it in WhatsApp 📎');
+  }else{
+    showWhatsAppPickerModal(msg,'note');
   }
 }
 
@@ -5879,6 +5949,7 @@ window.shareNoteWhatsApp=shareNoteWhatsApp;
 window.showWhatsAppPickerModal=showWhatsAppPickerModal;
 window.showWAToast=showWAToast;
 window.renderNotesPage=renderNotesPage;
+window.buildInvoicePDFBlob=buildInvoicePDFBlob;
 </script>
 </body>
 </html>
