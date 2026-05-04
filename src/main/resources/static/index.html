@@ -360,18 +360,12 @@ tr:hover td{background:var(--green-50);}
 
     </div>
 
-    <!-- Notes — just before Logout -->
-    <div class="nav-section" style="padding:8px 12px 4px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1.5px;">Notes & Files</span>
-        <button onclick="showAddNoteModal()" style="background:rgba(255,255,255,0.12);border:none;color:rgba(255,255,255,0.7);width:20px;height:20px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;" title="Add Note">+</button>
-      </div>
-      <div id="notesList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;">
-        <!-- notes rendered here -->
-      </div>
+    <!-- Notes nav item — just before Logout -->
+    <div class="nav-section" style="padding:0 0 4px 0;">
+      <div class="nav-item" onclick="navigate('notes')"><span class="nav-icon">📝</span> Notes & Files</div>
     </div>
 
-    <!-- Logout — after Notes -->
+    <!-- Logout -->
     <div class="nav-section" style="padding-bottom:12px;">
       <div class="nav-item" onclick="doLogout()" style="color:rgba(255,100,100,0.8)"><span class="nav-icon">&#128682;</span> Logout</div>
     </div>
@@ -448,7 +442,7 @@ var state = {
   expenseEntries:[],
   nextInvoiceId:1001, nextProspectId:1,
   nextCustomerOrderId:1, nextPOId:1,
-  attDate:null, payrollMonth:null, holidays:{},
+  attDate:null, payrollMonth:null, holidays:{}, notesTab:'All',
 };
 
 // ===================== UTILS =====================
@@ -633,24 +627,74 @@ function getStaffTotalUnpaidBalance(empId){
 // ===================== NOTES & FILES =====================
 if(!state.notes) state.notes = [];
 
+function renderNotesPage(){
+  loadNotesFromStorage();
+  var notes = state.notes||[];
+
+  var grid = notes.length===0
+    ? '<div style="text-align:center;padding:60px 20px;color:var(--text3)">'+
+      '<div style="font-size:48px;margin-bottom:12px">📝</div>'+
+      '<div style="font-size:16px;font-weight:600">No notes yet</div>'+
+      '<div style="font-size:13px;margin-top:6px">Click + Add Note to create your first note or upload a file</div>'+
+      '</div>'
+    : '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;padding:4px 0">'+
+      notes.map(function(n,i){
+        var icon  = n.type==='text'?'📝':n.type==='pdf'?'📄':n.type==='excel'?'📊':'🖼️';
+        var bg    = n.type==='text'?'#fffde7':n.type==='image'?'#fce4ec':'#e3f2fd';
+        var border= n.type==='text'?'#f9a825':n.type==='image'?'#c62828':'#1565c0';
+        var preview = n.type==='text'
+          ? (n.content||'').substring(0,80)+(n.content&&n.content.length>80?'...':'')
+          : (n.filename||'');
+        return '<div style="background:'+bg+';border-radius:10px;padding:16px;border-left:4px solid '+border+';'+
+          'box-shadow:2px 4px 12px rgba(0,0,0,0.1);cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;position:relative;" '+
+          'onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'2px 8px 20px rgba(0,0,0,0.15)\'" '+
+          'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'2px 4px 12px rgba(0,0,0,0.1)\'" '+
+          'onclick="viewNote('+i+')">'+
+          // Icon + type badge
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+          '<span style="font-size:28px">'+icon+'</span>'+
+          '<span style="font-size:10px;font-weight:700;background:'+border+';color:#fff;padding:2px 8px;border-radius:10px;text-transform:uppercase">'+n.type+'</span>'+
+          '</div>'+
+          // Title
+          '<div style="font-size:14px;font-weight:700;color:#333;margin-bottom:6px;line-height:1.3">'+n.title+'</div>'+
+          // Preview
+          '<div style="font-size:12px;color:#666;line-height:1.5;min-height:32px">'+preview+'</div>'+
+          // Date
+          '<div style="font-size:11px;color:#999;margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.08)">'+n.date+'</div>'+
+          // Action buttons
+          '<div style="display:flex;gap:6px;margin-top:10px">'+
+          (n.type==='text'?'<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();editNote('+i+')">✏️ Edit</button>':''+
+          '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();downloadNote('+i+')">⬇ Download</button>')+
+          '<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="event.stopPropagation();shareNoteWhatsApp('+i+')">📲</button>'+
+          '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteNote('+i+')">🗑️</button>'+
+          '</div>'+
+          '</div>';
+      }).join('')+
+      '</div>';
+
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">'+
+    '<div><div class="section-title">📝 Notes & Files</div>'+
+    '<div class="section-sub">Your personal notes, PDFs, Excel files and images</div></div>'+
+    '<button class="btn btn-primary" onclick="showAddNoteModal()">+ Add Note / File</button>'+
+    '</div>'+
+    // Type filter tabs
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">'+
+    ['All','Text','PDF','Excel','Image'].map(function(t){
+      var cnt = t==='All'?notes.length:notes.filter(function(n){return n.type===t.toLowerCase();}).length;
+      var active = (state.notesTab||'All')===t;
+      return '<button onclick="state.notesTab=\''+t+'\';renderPage()" '+
+        'style="padding:6px 14px;border-radius:20px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
+        'background:'+(active?'var(--primary)':'var(--surface)')+';color:'+(active?'#fff':'var(--text2)')+';'+
+        'font-size:12.5px;font-weight:'+(active?'700':'500')+';cursor:pointer">'+
+        t+(cnt>0?' ('+cnt+')':'')+
+        '</button>';
+    }).join('')+
+    '</div>'+
+    grid;
+}
+
 function renderNotesList(){
-  var container = document.getElementById('notesList');
-  if(!container) return;
-  if(!state.notes||state.notes.length===0){
-    container.innerHTML = '<div style="font-size:10px;color:rgba(255,255,255,0.3);text-align:center;padding:8px 0;font-style:italic">No notes yet</div>';
-    return;
-  }
-  container.innerHTML = state.notes.map(function(n,i){
-    var icon = n.type==="text"?"📝":n.type==="pdf"?"📄":n.type==="excel"?"📊":"🖼️";
-    var cls  = n.type==="text"?"note-sticker":n.type==="image"?"note-sticker img-note":"note-sticker file-note";
-    return "<div class=\""+cls+"\" onclick=\"viewNote("+i+")\">"+
-      "<div class=\"note-title\"><span class=\"note-icon\">"+icon+"</span>"+n.title+"</div>"+
-      "<div class=\"note-preview\">"+(n.type==="text"?(n.content||"").substring(0,30)+"...":(n.filename||""))+"</div>"+
-      "<div class=\"note-actions\">"+
-      "<button onclick=\"event.stopPropagation();editNote("+i+")\" title=\"Edit\">✏️</button>"+
-      "<button onclick=\"event.stopPropagation();deleteNote("+i+")\" title=\"Delete\">🗑️</button>"+
-      "</div></div>";
-  }).join("");
+  // Keep for backward compat — no longer used in sidebar
 }
 
 function showAddNoteModal(){
@@ -684,22 +728,32 @@ function toggleNoteFields(){
   if(ff) ff.style.display=type!=="text"?"block":"none";
 }
 
-function saveNote(){
+async function saveNote(){
   var title=(document.getElementById("note-title")||{}).value||"";
   var type=(document.getElementById("note-type")||{}).value||"text";
   if(!title.trim()){alert("Please enter a title");return;}
   if(type==="text"){
     var content=(document.getElementById("note-content")||{}).value||"";
-    state.notes.push({title:title.trim(),type:"text",content:content,date:today()});
-    saveNotesToStorage();closeModal();renderNotesList();
+    var note={title:title.trim(),type:"text",content:content,noteDate:today()};
+    try{
+      var saved=await apiCall("/api/notes","POST",note);
+      state.notes.push(saved);
+      closeModal();
+      if(state.currentPage==="notes") renderPage();
+    }catch(e){alert("Failed to save note: "+e.message);}
   }else{
     var fileInput=document.getElementById("note-file");
     if(!fileInput||!fileInput.files||!fileInput.files[0]){alert("Please select a file");return;}
     var file=fileInput.files[0];
     var reader=new FileReader();
-    reader.onload=function(e){
-      state.notes.push({title:title.trim(),type:type,filename:file.name,data:e.target.result,date:today()});
-      saveNotesToStorage();closeModal();renderNotesList();
+    reader.onload=async function(e){
+      var note={title:title.trim(),type:type,filename:file.name,fileData:e.target.result,noteDate:today()};
+      try{
+        var saved=await apiCall("/api/notes","POST",note);
+        state.notes.push(saved);
+        closeModal();
+        if(state.currentPage==="notes") renderPage();
+      }catch(err){alert("Failed to save file: "+err.message);}
     };
     reader.readAsDataURL(file);
   }
@@ -719,32 +773,45 @@ function editNote(i){
   );
 }
 
-function saveEditNote(i){
+async function saveEditNote(i){
   var title=(document.getElementById("edit-note-title")||{}).value||"";
   var content=(document.getElementById("edit-note-content")||{}).value||"";
   if(!title.trim()){alert("Title required");return;}
-  state.notes[i].title=title.trim();state.notes[i].content=content;
-  saveNotesToStorage();closeModal();renderNotesList();
+  var n=state.notes[i];
+  n.title=title.trim();n.content=content;
+  try{
+    await apiCall("/api/notes/"+parseInt(n.id),"PUT",n);
+    state.notes=await apiCall("/api/notes","GET")||[];
+    closeModal();
+    if(state.currentPage==="notes") renderPage();
+  }catch(e){alert("Failed to update note: "+e.message);}
 }
 
-function deleteNote(i){
+async function deleteNote(i){
   if(!confirm("Delete this note?"))return;
-  state.notes.splice(i,1);saveNotesToStorage();renderNotesList();
+  var n=state.notes[i];
+  try{
+    await apiCall("/api/notes/"+parseInt(n.id),"DELETE");
+    state.notes=await apiCall("/api/notes","GET")||[];
+    if(state.currentPage==="notes") renderPage();
+  }catch(e){alert("Failed to delete note: "+e.message);}
 }
 
 function viewNote(i){
   var n=state.notes[i];if(!n)return;
+  var fileData=n.fileData||n.data||"";
+  var noteDate=n.noteDate||n.date||"";
   if(n.type==="text"){
     showModal("📝 "+n.title,
       "<div style=\"white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--primary-light);padding:16px;border-radius:8px;max-height:400px;overflow-y:auto\">"+(n.content||"(empty)")+"</div>"+
-      "<div style=\"font-size:11px;color:var(--text3);margin-top:8px\">Added: "+n.date+"</div>",
+      "<div style=\"font-size:11px;color:var(--text3);margin-top:8px\">Added: "+noteDate+"</div>",
       "<button class=\"btn btn-secondary\" onclick=\"closeModal();editNote("+i+")\">Edit</button>"+
       "<button class=\"btn btn-sm\" style=\"background:#25D366;color:#fff\" onclick=\"shareNoteWhatsApp("+i+")\">&#128362; WhatsApp</button>"+
       "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
   }else if(n.type==="image"){
     showModal("🖼️ "+n.title,
-      "<img src=\""+n.data+"\" style=\"width:100%;max-height:450px;object-fit:contain;border-radius:8px\">"+
-      "<div style=\"font-size:11px;color:var(--text3);margin-top:8px\">"+n.filename+" — "+n.date+"</div>",
+      "<img src=\""+fileData+"\" style=\"width:100%;max-height:450px;object-fit:contain;border-radius:8px\">"+
+      "<div style=\"font-size:11px;color:var(--text3);margin-top:8px\">"+n.filename+" — "+noteDate+"</div>",
       "<button class=\"btn btn-primary\" onclick=\"downloadNote("+i+")\">⬇ Download</button>"+
       "<button class=\"btn btn-sm\" style=\"background:#25D366;color:#fff\" onclick=\"shareNoteWhatsApp("+i+")\">&#128362; WhatsApp</button>"+
       "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
@@ -753,7 +820,7 @@ function viewNote(i){
       "<div style=\"text-align:center;padding:30px 20px\">"+
       "<div style=\"font-size:48px;margin-bottom:12px\">"+(n.type==="pdf"?"📄":"📊")+"</div>"+
       "<div style=\"font-size:15px;font-weight:600\">"+n.filename+"</div>"+
-      "<div style=\"font-size:12px;color:var(--text3);margin-top:6px\">Added: "+n.date+"</div></div>",
+      "<div style=\"font-size:12px;color:var(--text3);margin-top:6px\">Added: "+noteDate+"</div></div>",
       "<button class=\"btn btn-primary\" onclick=\"downloadNote("+i+")\">⬇ Download File</button>"+
       "<button class=\"btn btn-sm\" style=\"background:#25D366;color:#fff\" onclick=\"shareNoteWhatsApp("+i+")\">&#128362; WhatsApp</button>"+
       "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
@@ -761,20 +828,31 @@ function viewNote(i){
 }
 
 function downloadNote(i){
-  var n=state.notes[i];if(!n||!n.data)return;
-  var a=document.createElement("a");a.href=n.data;a.download=n.filename||n.title;a.click();
+  var n=state.notes[i];
+  var fileData=n.fileData||n.data||"";
+  if(!n||!fileData)return;
+  var a=document.createElement("a");a.href=fileData;a.download=n.filename||n.title;a.click();
 }
 
-function saveNotesToStorage(){
-  try{localStorage.setItem("pranita_notes",JSON.stringify(state.notes));}
-  catch(e){console.warn("Notes storage full:",e.message);}
-}
+function saveNotesToStorage(){ localStorage.removeItem("pranita_notes"); }
 
-function loadNotesFromStorage(){
+async function loadNotesFromStorage(){
   try{
-    var saved=localStorage.getItem("pranita_notes");
-    if(saved) state.notes=JSON.parse(saved);
-  }catch(e){state.notes=[];}
+    state.notes=await safeGet("/api/notes");
+    var old=localStorage.getItem("pranita_notes");
+    if(old&&state.notes.length===0){
+      var oldNotes=JSON.parse(old);
+      for(var i=0;i<oldNotes.length;i++){
+        var n=oldNotes[i];
+        try{await apiCall("/api/notes","POST",{title:n.title,type:n.type,content:n.content,filename:n.filename,fileData:n.data,noteDate:n.date||today()});}catch(e){}
+      }
+      state.notes=await safeGet("/api/notes");
+      localStorage.removeItem("pranita_notes");
+    }
+  }catch(e){
+    console.warn("Notes backend not ready");
+    try{var s=localStorage.getItem("pranita_notes");if(s)state.notes=JSON.parse(s);}catch(e2){state.notes=[];}
+  }
 }
 
 // ===================== NAVIGATION =====================
@@ -1137,7 +1215,9 @@ var PAGE_TITLES = {
   'vendor-dashboard'  : 'Vendor Dashboard',
   'vendors'           : 'Vendors',
   'purchase-orders'   : 'Purchase Orders',
-  'vendor-payments'   : 'Vendor Payments'
+  'vendor-payments'   : 'Vendor Payments',
+  'settings'          : 'Account Settings',
+  'notes'             : 'Notes & Files'
 };
 
 function updateHeaderTitle(page){
@@ -1232,6 +1312,7 @@ function renderPage(){
   else if(p==='vendor-payments') c.innerHTML=renderVendorPayments();
   else if(p==='customer-payments') c.innerHTML=renderCustomerPayments();
   else if(p==='settings'){ state.currentPage='settings'; loadSettingsUser(); return; }
+  else if(p==='notes') c.innerHTML=renderNotesPage();
   bindEvents();
   saveToStorage();
 }
@@ -5362,7 +5443,6 @@ async function bootApp(fromLogin = false){
   updateUserTime();
   loadSavedTheme();
   loadNotesFromStorage();
-  setTimeout(renderNotesList, 100);
 
   if(!authState.isMobile) startSessionTimer();
 
@@ -5468,6 +5548,7 @@ async function loadFromStorage(){
   state.prospects      = await safeGet('/api/prospects');
   state.customerOrders = await safeGet('/api/orders');
   state.expenseEntries = await safeGet('/api/expenses');
+  state.notes          = await safeGet('/api/notes');
   console.log('Data loaded — staff:'+state.staff.length+' customers:'+state.customers.length+' products:'+state.products.length);
 }
 
@@ -5797,6 +5878,7 @@ window.shareInvoiceWhatsApp=shareInvoiceWhatsApp;
 window.shareNoteWhatsApp=shareNoteWhatsApp;
 window.showWhatsAppPickerModal=showWhatsAppPickerModal;
 window.showWAToast=showWAToast;
+window.renderNotesPage=renderNotesPage;
 </script>
 </body>
 </html>
