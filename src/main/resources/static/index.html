@@ -426,7 +426,7 @@ var state = {
   expenseEntries:[],
   nextInvoiceId:1001, nextProspectId:1,
   nextCustomerOrderId:1, nextPOId:1,
-  attDate:null, payrollMonth:null,
+  attDate:null, payrollMonth:null, holidays:{},
 };
 
 // ===================== UTILS =====================
@@ -1395,14 +1395,35 @@ async function savePayroll(empId){
 // ===================== ATTENDANCE =====================
 function renderAttendance(){
   var d=state.attDate||today();
-  var isWeekend=new Date(d).getDay()===0;
+  var dayOfWeek=new Date(d).getDay();
+  var isWeekend=dayOfWeek===0; // Sunday
+  var isHoliday=state.holidays&&state.holidays[d]; // manually marked holiday
+  var holidayName=isHoliday?state.holidays[d]:'';
+
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
   '<div><div class="section-title">Daily Attendance</div><div class="section-sub">Click employee card to cycle P → A → H</div></div>'+
-  '<div class="form-row"><input type="date" value="'+d+'" id="attDatePicker" onchange="state.attDate=this.value;renderPage()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+
-  (isWeekend?'<span class="badge badge-amber">Sunday — Holiday</span>':'')+
+  '<div class="form-row" style="gap:10px">'+
+  '<input type="date" value="'+d+'" id="attDatePicker" onchange="state.attDate=this.value;renderPage()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+
+  (isWeekend?'<span class="badge badge-amber">Sunday — Weekly Off</span>':'')+
+  (isHoliday?'<span class="badge badge-amber">🎉 '+holidayName+'</span>':'')+
+  (!isWeekend&&!isHoliday?'<button class="btn btn-secondary btn-sm" onclick="markHoliday(\''+d+'\')">🎉 Mark as Holiday</button>':'')+
+  (!isWeekend&&isHoliday?'<button class="btn btn-ghost btn-sm" onclick="unmarkHoliday(\''+d+'\')">✕ Remove Holiday</button>':'')+
   '</div></div>'+
-  (isWeekend?'<div class="card"><div class="card-body"><div class="empty-state"><div class="icon">🌴</div><p>Sunday is a mandatory holiday.</p></div></div></div>':
-  '<div class="card" style="margin-bottom:16px"><div class="card-header"><div class="card-title">Mark Attendance — '+new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</div><div class="gap-12"><span class="badge badge-green">P = Present</span><span class="badge badge-red">A = Absent</span><span class="badge badge-amber">H = Half Day</span></div></div>'+
+
+  // Holiday banner
+  (isWeekend||isHoliday?
+    '<div class="card"><div class="card-body"><div class="empty-state">'+
+    '<div class="icon">'+(isWeekend?'🌴':'🎉')+'</div>'+
+    '<p style="font-weight:600;font-size:16px">'+(isWeekend?'Sunday — Weekly Off':holidayName)+'</p>'+
+    '<p style="color:var(--text3);font-size:13px">No attendance required. All employees marked as Holiday.</p>'+
+    (isHoliday?'<button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="unmarkHoliday(\''+d+'\')">✕ Remove Holiday</button>':'')+
+    '</div></div></div>'
+  :
+  // Attendance grid
+  '<div class="card" style="margin-bottom:16px"><div class="card-header">'+
+  '<div class="card-title">Mark Attendance — '+new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</div>'+
+  '<div class="gap-12"><span class="badge badge-green">P = Present</span><span class="badge badge-red">A = Absent</span><span class="badge badge-amber">H = Half Day</span></div>'+
+  '</div>'+
   '<div class="card-body"><div class="att-grid">'+
   state.staff.map(function(s){
     var key=d+'-'+s.id;
@@ -1412,6 +1433,8 @@ function renderAttendance(){
       '<div class="name">'+s.name.split(' ')[0]+'</div>'+
       '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+s.role+'</div></div>';
   }).join('')+'</div></div></div>'+
+
+  // Summary
   '<div class="card"><div class="card-header"><div class="card-title">Summary</div></div><div class="card-body">'+
   ['P','A','H'].map(function(st){
     var count=state.staff.filter(function(emp){return (state.attendance[d+'-'+emp.id]||'P')===st;}).length;
@@ -1420,6 +1443,38 @@ function renderAttendance(){
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span>'+label+'</span><span class="badge '+cls+'">'+count+' employees</span></div>';
   }).join('')+'</div></div>');
 }
+
+function markHoliday(date){
+  var name = prompt('Enter holiday name (e.g. Diwali, Eid, Local Festival):');
+  if(!name||!name.trim()) return;
+  if(!state.holidays) state.holidays={};
+  state.holidays[date] = name.trim();
+  // Mark all staff as Holiday for this date
+  state.staff.forEach(function(s){
+    state.attendance[date+'-'+s.id] = 'H';
+  });
+  // Save to backend
+  state.staff.forEach(async function(s){
+    try{ await apiCall('/api/attendance','POST',{date:date,empId:s.id,status:'H'}); }
+    catch(e){}
+  });
+  renderPage();
+}
+
+function unmarkHoliday(date){
+  if(!confirm('Remove holiday for this date? Attendance will revert to Present for all.')) return;
+  if(state.holidays) delete state.holidays[date];
+  // Revert all staff to Present
+  state.staff.forEach(function(s){
+    state.attendance[date+'-'+s.id] = 'P';
+  });
+  state.staff.forEach(async function(s){
+    try{ await apiCall('/api/attendance','POST',{date:date,empId:s.id,status:'P'}); }
+    catch(e){}
+  });
+  renderPage();
+}
+
 async function cycleAtt(date,empId){
   var key=date+'-'+empId;
   var cur=state.attendance[key]||'P';
@@ -5310,6 +5365,8 @@ window.loadSettingsUser=loadSettingsUser;
 window.refreshSettingsPage=refreshSettingsPage;
 window.saveFieldDirect=saveFieldDirect;
 window.showEditField=showEditField;
+window.markHoliday=markHoliday;
+window.unmarkHoliday=unmarkHoliday;
 </script>
 </body>
 </html>
