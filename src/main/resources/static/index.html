@@ -48,6 +48,17 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .nav-group-items .nav-item.active{color:#C0DD97;}
 .sidebar-close{position:absolute;top:12px;right:12px;background:none;border:none;color:rgba(255,255,255,0.6);font-size:22px;cursor:pointer;line-height:1;}
 .sidebar-close:hover{color:#fff;}
+/* ── NOTES STICKER STYLES ── */
+.note-sticker{background:#fffde7;border-radius:6px;padding:7px 8px;cursor:pointer;position:relative;box-shadow:2px 2px 6px rgba(0,0,0,0.25);transition:transform 0.15s;border-left:3px solid #f9a825;}
+.note-sticker:hover{transform:scale(1.02);}
+.note-sticker.file-note{background:#e3f2fd;border-left-color:#1565c0;}
+.note-sticker.img-note{background:#fce4ec;border-left-color:#c62828;}
+.note-sticker .note-title{font-size:11px;font-weight:700;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;}
+.note-sticker .note-preview{font-size:10px;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;}
+.note-sticker .note-actions{position:absolute;top:4px;right:4px;display:none;gap:3px;}
+.note-sticker:hover .note-actions{display:flex;}
+.note-sticker .note-actions button{background:rgba(0,0,0,0.12);border:none;border-radius:3px;padding:1px 5px;font-size:10px;cursor:pointer;color:#333;}
+.note-sticker .note-icon{font-size:14px;margin-right:4px;}
 /* ── THEMES ── */
 body[data-theme="ocean"]{--primary:#0C447C;--primary-light:#E6F1FB;--bg:#f0f7ff;--surface:#fff;--text:#0a1e2e;--text2:#1a4a6a;--text3:#3a7090;--sidebar-bg:#0a2d52;--green-800:#0a2d52;--green-100:#90c8f0;--green-50:#E6F1FB;}
 body[data-theme="sunset"]{--primary:#BA7517;--primary-light:#FAEEDA;--bg:#fff8f0;--surface:#fff;--text:#2e1a0a;--text2:#6a3a1a;--text3:#9a6a3a;--sidebar-bg:#7a3d0a;--green-800:#7a3d0a;--green-100:#f0c060;--green-50:#FAEEDA;}
@@ -349,7 +360,18 @@ tr:hover td{background:var(--green-50);}
 
     </div>
 
-    <!-- Logout — after Finance -->
+    <!-- Notes — just before Logout -->
+    <div class="nav-section" style="padding:8px 12px 4px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1.5px;">Notes & Files</span>
+        <button onclick="showAddNoteModal()" style="background:rgba(255,255,255,0.12);border:none;color:rgba(255,255,255,0.7);width:20px;height:20px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;" title="Add Note">+</button>
+      </div>
+      <div id="notesList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;">
+        <!-- notes rendered here -->
+      </div>
+    </div>
+
+    <!-- Logout — after Notes -->
     <div class="nav-section" style="padding-bottom:12px;">
       <div class="nav-item" onclick="doLogout()" style="color:rgba(255,100,100,0.8)"><span class="nav-icon">&#128682;</span> Logout</div>
     </div>
@@ -606,6 +628,150 @@ function getStaffTotalUnpaidBalance(empId){
     if(mo.paid<net) total+=(net-mo.paid);
   });
   return total;
+}
+
+// ===================== NOTES & FILES =====================
+if(!state.notes) state.notes = [];
+
+function renderNotesList(){
+  var container = document.getElementById('notesList');
+  if(!container) return;
+  if(!state.notes||state.notes.length===0){
+    container.innerHTML = '<div style="font-size:10px;color:rgba(255,255,255,0.3);text-align:center;padding:8px 0;font-style:italic">No notes yet</div>';
+    return;
+  }
+  container.innerHTML = state.notes.map(function(n,i){
+    var icon = n.type==="text"?"📝":n.type==="pdf"?"📄":n.type==="excel"?"📊":"🖼️";
+    var cls  = n.type==="text"?"note-sticker":n.type==="image"?"note-sticker img-note":"note-sticker file-note";
+    return "<div class=\""+cls+"\" onclick=\"viewNote("+i+")\">"+
+      "<div class=\"note-title\"><span class=\"note-icon\">"+icon+"</span>"+n.title+"</div>"+
+      "<div class=\"note-preview\">"+(n.type==="text"?(n.content||"").substring(0,30)+"...":(n.filename||""))+"</div>"+
+      "<div class=\"note-actions\">"+
+      "<button onclick=\"event.stopPropagation();editNote("+i+")\" title=\"Edit\">✏️</button>"+
+      "<button onclick=\"event.stopPropagation();deleteNote("+i+")\" title=\"Delete\">🗑️</button>"+
+      "</div></div>";
+  }).join("");
+}
+
+function showAddNoteModal(){
+  showModal("Add Note / File",
+    "<div style=\"display:flex;flex-direction:column;gap:14px\">"+
+    "<div class=\"form-group\"><label>Title <span style=\"color:var(--red-400)\">*</span></label>"+
+    "<input type=\"text\" id=\"note-title\" placeholder=\"Note title...\"></div>"+
+    "<div class=\"form-group\"><label>Type</label>"+
+    "<select id=\"note-type\" onchange=\"toggleNoteFields()\">"+
+    "<option value=\"text\">📝 Text Note</option>"+
+    "<option value=\"pdf\">📄 PDF File</option>"+
+    "<option value=\"excel\">📊 Excel File</option>"+
+    "<option value=\"image\">🖼️ Image</option>"+
+    "</select></div>"+
+    "<div id=\"note-text-field\" class=\"form-group\"><label>Note Content</label>"+
+    "<textarea id=\"note-content\" rows=\"5\" placeholder=\"Write your note here...\" style=\"width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical\"></textarea></div>"+
+    "<div id=\"note-file-field\" style=\"display:none\" class=\"form-group\"><label>Upload File</label>"+
+    "<input type=\"file\" id=\"note-file\" accept=\".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp\" style=\"padding:8px;border:1px solid var(--border);border-radius:8px;width:100%\">"+
+    "<div style=\"font-size:11px;color:var(--text3);margin-top:4px\">Supported: PDF, Excel, JPG, PNG</div></div>"+
+    "</div>",
+    "<button class=\"btn btn-primary\" onclick=\"saveNote()\">Save</button>"+
+    "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Cancel</button>"
+  );
+}
+
+function toggleNoteFields(){
+  var type=(document.getElementById("note-type")||{}).value||"text";
+  var tf=document.getElementById("note-text-field");
+  var ff=document.getElementById("note-file-field");
+  if(tf) tf.style.display=type==="text"?"block":"none";
+  if(ff) ff.style.display=type!=="text"?"block":"none";
+}
+
+function saveNote(){
+  var title=(document.getElementById("note-title")||{}).value||"";
+  var type=(document.getElementById("note-type")||{}).value||"text";
+  if(!title.trim()){alert("Please enter a title");return;}
+  if(type==="text"){
+    var content=(document.getElementById("note-content")||{}).value||"";
+    state.notes.push({title:title.trim(),type:"text",content:content,date:today()});
+    saveNotesToStorage();closeModal();renderNotesList();
+  }else{
+    var fileInput=document.getElementById("note-file");
+    if(!fileInput||!fileInput.files||!fileInput.files[0]){alert("Please select a file");return;}
+    var file=fileInput.files[0];
+    var reader=new FileReader();
+    reader.onload=function(e){
+      state.notes.push({title:title.trim(),type:type,filename:file.name,data:e.target.result,date:today()});
+      saveNotesToStorage();closeModal();renderNotesList();
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function editNote(i){
+  var n=state.notes[i];if(!n)return;
+  if(n.type!=="text"){alert("Only text notes can be edited.");return;}
+  showModal("Edit Note",
+    "<div style=\"display:flex;flex-direction:column;gap:14px\">"+
+    "<div class=\"form-group\"><label>Title</label><input type=\"text\" id=\"edit-note-title\" value=\""+n.title+"\"></div>"+
+    "<div class=\"form-group\"><label>Content</label>"+
+    "<textarea id=\"edit-note-content\" rows=\"6\" style=\"width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical\">"+n.content+"</textarea></div>"+
+    "</div>",
+    "<button class=\"btn btn-primary\" onclick=\"saveEditNote("+i+")\">Update</button>"+
+    "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Cancel</button>"
+  );
+}
+
+function saveEditNote(i){
+  var title=(document.getElementById("edit-note-title")||{}).value||"";
+  var content=(document.getElementById("edit-note-content")||{}).value||"";
+  if(!title.trim()){alert("Title required");return;}
+  state.notes[i].title=title.trim();state.notes[i].content=content;
+  saveNotesToStorage();closeModal();renderNotesList();
+}
+
+function deleteNote(i){
+  if(!confirm("Delete this note?"))return;
+  state.notes.splice(i,1);saveNotesToStorage();renderNotesList();
+}
+
+function viewNote(i){
+  var n=state.notes[i];if(!n)return;
+  if(n.type==="text"){
+    showModal("📝 "+n.title,
+      "<div style=\"white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--primary-light);padding:16px;border-radius:8px;max-height:400px;overflow-y:auto\">"+(n.content||"(empty)")+"</div>"+
+      "<div style=\"font-size:11px;color:var(--text3);margin-top:8px\">Added: "+n.date+"</div>",
+      "<button class=\"btn btn-secondary\" onclick=\"closeModal();editNote("+i+")\">Edit</button>"+
+      "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
+  }else if(n.type==="image"){
+    showModal("🖼️ "+n.title,
+      "<img src=\""+n.data+"\" style=\"width:100%;max-height:450px;object-fit:contain;border-radius:8px\">"+
+      "<div style=\"font-size:11px;color:var(--text3);margin-top:8px\">"+n.filename+" — "+n.date+"</div>",
+      "<button class=\"btn btn-primary\" onclick=\"downloadNote("+i+")\">⬇ Download</button>"+
+      "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
+  }else{
+    showModal((n.type==="pdf"?"📄":"📊")+" "+n.title,
+      "<div style=\"text-align:center;padding:30px 20px\">"+
+      "<div style=\"font-size:48px;margin-bottom:12px\">"+(n.type==="pdf"?"📄":"📊")+"</div>"+
+      "<div style=\"font-size:15px;font-weight:600\">"+n.filename+"</div>"+
+      "<div style=\"font-size:12px;color:var(--text3);margin-top:6px\">Added: "+n.date+"</div></div>",
+      "<button class=\"btn btn-primary\" onclick=\"downloadNote("+i+")\">⬇ Download File</button>"+
+      "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
+  }
+}
+
+function downloadNote(i){
+  var n=state.notes[i];if(!n||!n.data)return;
+  var a=document.createElement("a");a.href=n.data;a.download=n.filename||n.title;a.click();
+}
+
+function saveNotesToStorage(){
+  try{localStorage.setItem("pranita_notes",JSON.stringify(state.notes));}
+  catch(e){console.warn("Notes storage full:",e.message);}
+}
+
+function loadNotesFromStorage(){
+  try{
+    var saved=localStorage.getItem("pranita_notes");
+    if(saved) state.notes=JSON.parse(saved);
+  }catch(e){state.notes=[];}
 }
 
 // ===================== NAVIGATION =====================
@@ -1562,24 +1728,85 @@ function showPayrollHistoryModal(empId, month){
 }
 
 // ===================== PRODUCTS =====================
+var PRODUCT_TYPES = ['All','Plate','Cup','Plastic Glass','Bowls','Others'];
+if(!state.productTab) state.productTab = 'All';
+if(state.productSearch===undefined) state.productSearch = '';
+
 function renderProducts(){
-  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
+  var tab = state.productTab||'All';
+  var search = (state.productSearch||'').toLowerCase();
+
+  // Filter products
+  var filtered = state.products.filter(function(p){
+    var matchTab = tab==='All' || p.type===tab;
+    var matchSearch = !search ||
+      (p.name&&p.name.toLowerCase().includes(search)) ||
+      (p.type&&p.type.toLowerCase().includes(search)) ||
+      (p.size&&p.size.toLowerCase().includes(search)) ||
+      (p.hsn&&p.hsn.toLowerCase().includes(search));
+    return matchTab && matchSearch;
+  });
+
+  // Tab counts
+  var tabCounts = {};
+  PRODUCT_TYPES.forEach(function(t){
+    tabCounts[t] = t==='All' ? state.products.length :
+      state.products.filter(function(p){return p.type===t;}).length;
+  });
+
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">'+
   '<div><div class="section-title">Products Inventory</div><div class="section-sub">Paper plate and cup product catalog</div></div>'+
   '<button class="btn btn-primary" onclick="showAddProductModal()">+ Add Product</button></div>'+
-  '<div class="card"><div class="table-wrap"><table><thead><tr><th>Product Name</th><th>Type & Size</th><th>HSN</th><th>Stock</th><th>Price/Pc</th><th>Actions</th></tr></thead><tbody>'+
-  (sortDesc(state.products,'id').map(function(p){
-    return '<tr><td><strong>'+p.name+'</strong></td><td>'+p.type+' — '+p.size+'</td><td>'+p.hsn+'</td>'+
-      '<td><span class="badge '+(p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green')+'">'+p.stock+' pcs</span></td>'+
+
+  // Search bar
+  '<div style="margin-bottom:14px">'+
+  '<input type="text" id="prod-search" value="'+( state.productSearch||'')+'" '+
+  'placeholder="🔍 Search by name, type, size or HSN..." '+
+  'oninput="state.productSearch=this.value;renderPage()" '+
+  'style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text)"></div>'+
+
+  // Tabs
+  '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">'+
+  PRODUCT_TYPES.map(function(t){
+    var active = t===tab;
+    var cnt = tabCounts[t];
+    return '<button onclick="state.productTab=\''+t+'\';renderPage()" '+
+      'style="padding:7px 14px;border-radius:20px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
+      'background:'+(active?'var(--primary)':'var(--surface)')+';'+
+      'color:'+(active?'#fff':'var(--text2)')+';font-size:12.5px;font-weight:'+(active?'700':'500')+';cursor:pointer;transition:all 0.15s">'+
+      t+(cnt>0?' <span style="background:'+(active?'rgba(255,255,255,0.25)':'var(--primary-light)')+';color:'+(active?'#fff':'var(--primary)')+';padding:1px 7px;border-radius:10px;font-size:11px;margin-left:4px">'+cnt+'</span>':'')+
+      '</button>';
+  }).join('')+
+  '</div>'+
+
+  // Table
+  '<div class="card"><div class="table-wrap"><table><thead><tr>'+
+  '<th>Product Name</th><th>Type</th><th>Size</th><th>HSN</th><th>Stock</th><th>Price/Pc</th><th>Actions</th>'+
+  '</tr></thead><tbody>'+
+  (sortDesc(filtered,'id').map(function(p){
+    var stockBadge = p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green';
+    return '<tr>'+
+      '<td><strong>'+p.name+'</strong></td>'+
+      '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
+      '<td>'+( p.size||'—')+'</td>'+
+      '<td>'+( p.hsn||'—')+'</td>'+
+      '<td><span class="badge '+stockBadge+'">'+p.stock+' pcs</span></td>'+
       '<td class="fw600">'+fmt(p.price)+'</td>'+
-      '<td><div class="gap-12"><button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button><button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button><button class="btn btn-danger btn-sm" onclick="deleteProduct('+p.id+')">Delete</button></div></td></tr>';
-  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No records found</td></tr>')
-  +'</tbody></table></div></div>';
+      '<td><div class="gap-12">'+
+      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteProduct('+p.id+')">Delete</button>'+
+      '</div></td></tr>';
+  }).join('')||
+  '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+
+  (search?'No products matching "'+state.productSearch+'"':'No products found')+'</td></tr>')+
+  '</tbody></table></div></div>';
 }
 function showAddProductModal(){
   showModal('Add Product',
     '<div class="form-grid">'+
     '<div class="form-group full"><label>Product Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="pd-name" placeholder="e.g. SKP Paper Plate 7 inch"></div>'+
-    '<div class="form-group"><label>Type</label><select id="pd-type"><option>Plate</option><option>Cup</option></select></div>'+
+    '<div class="form-group"><label>Type</label><select id="pd-type"><option>Plate</option><option>Cup</option><option>Plastic Glass</option><option>Bowls</option><option>Others</option></select></div>'+
     '<div class="form-group"><label>Size</label><input type="text" id="pd-size" placeholder="e.g. 7 inch, 120ml"></div>'+
     '<div class="form-group"><label>HSN Code</label><input type="text" id="pd-hsn" value="4823"></div>'+
     '<div class="form-group"><label>Initial Stock (Pcs)</label><input type="number" id="pd-stock" value="0"></div>'+
@@ -1602,7 +1829,9 @@ function showEditProductModal(id){
   showModal('Edit Product',
     '<div class="form-grid">'+
     '<div class="form-group full"><label>Product Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ep-name" value="'+p.name+'"></div>'+
-    '<div class="form-group"><label>Type</label><select id="ep-type"><option '+(p.type==='Plate'?'selected':'')+'>Plate</option><option '+(p.type==='Cup'?'selected':'')+'>Cup</option></select></div>'+
+    '<div class="form-group"><label>Type</label><select id="ep-type">'+
+    ['Plate','Cup','Plastic Glass','Bowls','Others'].map(function(t){return '<option '+(p.type===t?'selected':'')+'>'+t+'</option>';}).join('')+
+    '</select></div>'+
     '<div class="form-group"><label>Size</label><input type="text" id="ep-size" value="'+p.size+'"></div>'+
     '<div class="form-group"><label>HSN Code</label><input type="text" id="ep-hsn" value="'+p.hsn+'"></div>'+
     '<div class="form-group"><label>Stock</label><input type="number" id="ep-stock" value="'+p.stock+'"></div>'+
@@ -4952,6 +5181,8 @@ async function bootApp(fromLogin = false){
   updateUserHeader();
   updateUserTime();
   loadSavedTheme();
+  loadNotesFromStorage();
+  setTimeout(renderNotesList, 100);
 
   if(!authState.isMobile) startSessionTimer();
 
@@ -5367,6 +5598,17 @@ window.saveFieldDirect=saveFieldDirect;
 window.showEditField=showEditField;
 window.markHoliday=markHoliday;
 window.unmarkHoliday=unmarkHoliday;
+window.deleteNote=deleteNote;
+window.downloadNote=downloadNote;
+window.editNote=editNote;
+window.loadNotesFromStorage=loadNotesFromStorage;
+window.renderNotesList=renderNotesList;
+window.saveEditNote=saveEditNote;
+window.saveNote=saveNote;
+window.saveNotesToStorage=saveNotesToStorage;
+window.showAddNoteModal=showAddNoteModal;
+window.toggleNoteFields=toggleNoteFields;
+window.viewNote=viewNote;
 </script>
 </body>
 </html>
