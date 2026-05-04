@@ -739,12 +739,14 @@ function viewNote(i){
       "<div style=\"white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--primary-light);padding:16px;border-radius:8px;max-height:400px;overflow-y:auto\">"+(n.content||"(empty)")+"</div>"+
       "<div style=\"font-size:11px;color:var(--text3);margin-top:8px\">Added: "+n.date+"</div>",
       "<button class=\"btn btn-secondary\" onclick=\"closeModal();editNote("+i+")\">Edit</button>"+
+      "<button class=\"btn btn-sm\" style=\"background:#25D366;color:#fff\" onclick=\"shareNoteWhatsApp("+i+")\">&#128362; WhatsApp</button>"+
       "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
   }else if(n.type==="image"){
     showModal("🖼️ "+n.title,
       "<img src=\""+n.data+"\" style=\"width:100%;max-height:450px;object-fit:contain;border-radius:8px\">"+
       "<div style=\"font-size:11px;color:var(--text3);margin-top:8px\">"+n.filename+" — "+n.date+"</div>",
       "<button class=\"btn btn-primary\" onclick=\"downloadNote("+i+")\">⬇ Download</button>"+
+      "<button class=\"btn btn-sm\" style=\"background:#25D366;color:#fff\" onclick=\"shareNoteWhatsApp("+i+")\">&#128362; WhatsApp</button>"+
       "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
   }else{
     showModal((n.type==="pdf"?"📄":"📊")+" "+n.title,
@@ -753,6 +755,7 @@ function viewNote(i){
       "<div style=\"font-size:15px;font-weight:600\">"+n.filename+"</div>"+
       "<div style=\"font-size:12px;color:var(--text3);margin-top:6px\">Added: "+n.date+"</div></div>",
       "<button class=\"btn btn-primary\" onclick=\"downloadNote("+i+")\">⬇ Download File</button>"+
+      "<button class=\"btn btn-sm\" style=\"background:#25D366;color:#fff\" onclick=\"shareNoteWhatsApp("+i+")\">&#128362; WhatsApp</button>"+
       "<button class=\"btn btn-ghost\" onclick=\"closeModal()\">Close</button>");
   }
 }
@@ -2383,9 +2386,186 @@ function renderInvoices(){
         '<button class="btn btn-download btn-sm" onclick="downloadInvoice('+inv.id+')">&#11015; HTML</button>'+
         (due>0&&!inv.cfInvoiceId?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal('+inv.id+')">Pay</button>':'')+
         (inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
+        '<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp('+inv.id+')">&#128362; Share</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
+}
+
+// ===================== WHATSAPP SHARE =====================
+function shareInvoiceWhatsApp(invId){
+  var inv = state.invoices.find(function(i){return String(i.id)===String(invId);});
+  if(!inv){alert('Invoice not found');return;}
+  var cust = getCustomer(inv.custId);
+  var c2   = calcInvoice(inv);
+  var due  = getInvoiceDue(inv);
+  var phone = (cust.phone||'').replace(/\D/g,'');
+
+  // Build invoice message
+  var msg = '🧾 *Invoice #'+inv.id+' — Pranita Paper Plates & Cups*\n\n'+
+    '👤 Customer: '+cust.name+'\n'+
+    '📅 Date: '+inv.date+'\n'+
+    '🚚 Delivery: '+inv.deliveryDate+'\n\n'+
+    '💰 *Bill Summary*\n'+
+    'Current Bill: ₹'+c2.currentBill.toFixed(2)+'\n'+
+    (c2.prev>0?'Previous Due: ₹'+c2.prev.toFixed(2)+'\n':'')+
+    'Grand Total: ₹'+c2.grand.toFixed(2)+'\n'+
+    'Paid: ₹'+(inv.paid||0).toFixed(2)+'\n'+
+    (due>0?'*Balance Due: ₹'+due.toFixed(2)+'*\n':'✅ Fully Paid\n')+
+    '\n📦 *Items*\n'+
+    (inv.items||[]).map(function(it){
+      var p = getProduct(it.productId);
+      return '• '+(p.name||it.desc||'Item')+' × '+it.qty+' @ ₹'+it.rate+' = ₹'+(it.qty*it.rate).toFixed(2);
+    }).join('\n')+
+    '\n\n📎 _PDF invoice attached_\nThank you for your business! 🙏';
+
+  // Step 1 — download PDF first
+  downloadInvoicePDF(invId);
+
+  // Step 2 — open WhatsApp after short delay (so PDF download starts)
+  setTimeout(function(){
+    if(phone && phone.length >= 10){
+      var url = 'https://wa.me/91'+phone.slice(-10)+'?text='+encodeURIComponent(msg);
+      window.open(url,'_blank');
+    } else {
+      showWhatsAppPickerModal(msg, 'invoice');
+    }
+  }, 800);
+
+  // Show instruction toast
+  showWAToast('PDF downloading... Attach it in WhatsApp after it opens 📎');
+}
+
+function shareNoteWhatsApp(i){
+  var n = state.notes[i];
+  if(!n){alert('Note not found');return;}
+
+  var msg;
+  if(n.type==='text'){
+    msg = '📝 *'+n.title+'*\n\n'+n.content+'\n\n_Shared from Pranita P3 Business Suite_';
+    showWhatsAppPickerModal(msg,'note');
+  } else {
+    msg = '📎 *'+n.title+'*\n\n'+
+      'File: '+(n.filename||n.title)+'\n'+
+      'Date: '+n.date+'\n\n'+
+      '_Shared from Pranita P3 Business Suite_\n'+
+      '📎 _File attached separately_';
+    // Download file first
+    downloadNote(i);
+    setTimeout(function(){
+      showWhatsAppPickerModal(msg,'note');
+    }, 600);
+    showWAToast('File downloading... Attach it in WhatsApp after selecting contact 📎');
+  }
+}
+
+function showWAToast(msg){
+  var t = document.getElementById('wa-toast');
+  if(t) t.remove();
+  var toast = document.createElement('div');
+  toast.id = 'wa-toast';
+  toast.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#25D366;color:#fff;'+
+    'padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;'+
+    'box-shadow:0 4px 16px rgba(0,0,0,0.2);max-width:320px;display:flex;align-items:center;gap:8px;';
+  toast.innerHTML = '📲 ' + msg;
+  document.body.appendChild(toast);
+  setTimeout(function(){if(toast.parentNode) toast.remove();},5000);
+}
+
+function showWhatsAppPickerModal(msg, source){
+  // Build list of all contacts (staff + customers)
+  var contacts = [];
+  (state.staff||[]).forEach(function(s){
+    if(s.phone) contacts.push({name:s.name, phone:s.phone, type:'👤 Staff'});
+  });
+  (state.customers||[]).forEach(function(c){
+    if(c.phone) contacts.push({name:c.name, phone:c.phone, type:'🛒 Customer'});
+  });
+  (state.prospects||[]).forEach(function(p){
+    if(p.phone) contacts.push({name:p.name, phone:p.phone, type:'🎯 Prospect'});
+  });
+
+  var contactRows = contacts.length > 0
+    ? contacts.map(function(ct,idx){
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s" '+
+          'onmouseover="this.style.background=\'var(--primary-light)\'" onmouseout="this.style.background=\'\'" '+
+          'onclick="sendWhatsApp(\''+ct.phone.replace(/\D/g,'').slice(-10)+'\','+idx+')">'+
+          '<div>'+
+            '<div style="font-size:13px;font-weight:600;color:var(--text)">'+ct.name+'</div>'+
+            '<div style="font-size:11px;color:var(--text3)">'+ct.type+' · '+ct.phone+'</div>'+
+          '</div>'+
+          '<div style="background:#25D366;color:#fff;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600">Send ↗</div>'+
+          '</div>';
+      }).join('')
+    : '<div style="text-align:center;padding:20px;color:var(--text3);font-style:italic">No contacts with phone numbers found</div>';
+
+  // Store message for use in sendWhatsApp
+  window._waMsg = msg;
+  window._waContacts = contacts;
+
+  showModal('📲 Share via WhatsApp',
+    '<div style="margin-bottom:12px">'+
+    '<input type="text" id="wa-search" placeholder="🔍 Search contact..." oninput="filterWAContacts(this.value)" '+
+    'style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">Or enter phone directly:</div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:14px">'+
+    '<input type="tel" id="wa-manual-phone" placeholder="10-digit mobile number" maxlength="10" '+
+    'style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">'+
+    '<button class="btn btn-primary" onclick="sendWhatsAppManual()">Send</button>'+
+    '</div>'+
+    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">Select Contact:</div>'+
+    '<div id="wa-contacts-list" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">'+
+    contactRows+
+    '</div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function filterWAContacts(query){
+  var q = query.toLowerCase();
+  var contacts = window._waContacts||[];
+  var filtered = contacts.filter(function(c){
+    return c.name.toLowerCase().includes(q)||c.phone.includes(q);
+  });
+  var list = document.getElementById('wa-contacts-list');
+  if(!list) return;
+  if(filtered.length===0){
+    list.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-style:italic">No contacts found</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(function(ct,idx){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer" '+
+      'onclick="sendWhatsAppDirect(\''+ct.phone.replace(/\D/g,'').slice(-10)+'\')">'+
+      '<div><div style="font-size:13px;font-weight:600;color:var(--text)">'+ct.name+'</div>'+
+      '<div style="font-size:11px;color:var(--text3)">'+ct.type+' · '+ct.phone+'</div></div>'+
+      '<div style="background:#25D366;color:#fff;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600">Send ↗</div>'+
+      '</div>';
+  }).join('');
+}
+
+function sendWhatsApp(phone, idx){
+  var msg = window._waMsg||'';
+  var url = 'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg);
+  window.open(url,'_blank');
+  closeModal();
+}
+
+function sendWhatsAppDirect(phone){
+  var msg = window._waMsg||'';
+  var url = 'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg);
+  window.open(url,'_blank');
+  closeModal();
+}
+
+function sendWhatsAppManual(){
+  var phone = (document.getElementById('wa-manual-phone')||{}).value||'';
+  phone = phone.replace(/\D/g,'');
+  if(phone.length!==10){alert('Please enter a valid 10-digit mobile number');return;}
+  var msg = window._waMsg||'';
+  var url = 'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg);
+  window.open(url,'_blank');
+  closeModal();
 }
 
 // ===================== RECORD PAYMENT =====================
@@ -5609,6 +5789,14 @@ window.saveNotesToStorage=saveNotesToStorage;
 window.showAddNoteModal=showAddNoteModal;
 window.toggleNoteFields=toggleNoteFields;
 window.viewNote=viewNote;
+window.filterWAContacts=filterWAContacts;
+window.sendWhatsApp=sendWhatsApp;
+window.sendWhatsAppDirect=sendWhatsAppDirect;
+window.sendWhatsAppManual=sendWhatsAppManual;
+window.shareInvoiceWhatsApp=shareInvoiceWhatsApp;
+window.shareNoteWhatsApp=shareNoteWhatsApp;
+window.showWhatsAppPickerModal=showWhatsAppPickerModal;
+window.showWAToast=showWAToast;
 </script>
 </body>
 </html>
