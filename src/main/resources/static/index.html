@@ -1941,7 +1941,7 @@ function renderProducts(){
 
   // Table
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th>Product Name</th><th>Type</th><th>Size</th><th>HSN</th><th>Stock</th><th>Price/Pc</th><th>Actions</th>'+
+  '<th>Product Name</th><th>Type</th><th>Size</th><th>HSN</th><th>Stock</th><th>Price/Pkt</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   ([].concat(filtered).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(p){
     var stockBadge = p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green';
@@ -1950,9 +1950,22 @@ function renderProducts(){
       '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
       '<td>'+(p.size||'—')+'</td>'+
       '<td>'+(p.hsn||'—')+'</td>'+
-      '<td><span class="badge '+stockBadge+'">'+p.stock+' Pcs</span>'+
-        (p.stockMeta?function(){try{var m=JSON.parse(p.stockMeta);return '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+m.unitType+': '+m.count+'</div>';}catch(e){return '';}}():'')+'</td>'+
-      '<td class="fw600">'+fmt(p.price)+'/Pc</td>'+
+      '<td>'+
+        (function(){
+          var badge='<span class="badge '+stockBadge+'">'+p.stock+' Pcs</span>';
+          if(p.stockMeta){try{
+            var m=JSON.parse(p.stockMeta);
+            var lines=[];
+            if(m.unitType==='Cartoon'||m.unitType==='Bora') lines.push(m.count+' '+m.unitType+' | '+m.totalPkt+' Pkt | '+p.stock+' Pcs');
+            else if(m.unitType==='Pkt') lines.push(m.count+' Pkt | '+p.stock+' Pcs');
+            else lines.push(p.stock+' Pcs');
+            badge='<span class="badge '+stockBadge+'" title="'+lines[0]+'">'+p.stock+' Pcs</span>'+
+              '<div style="font-size:10px;color:var(--text3);margin-top:2px;white-space:nowrap">'+lines[0]+'</div>';
+          }catch(e){}}
+          return badge;
+        })()+
+      '</td>'+
+      '<td class="fw600">'+fmt(p.price)+(p.stockMeta&&JSON.parse(p.stockMeta||'{}').unitType!=='Pieces'?'/Pkt':'/Pc')+'</td>'+
       '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button>'+
@@ -1987,8 +2000,8 @@ function prodSearchFilter(val){
       '<td>'+(p.size||'—')+'</td>'+
       '<td>'+(p.hsn||'—')+'</td>'+
       '<td><span class="badge '+stockBadge+'">'+p.stock+' Pcs</span>'+
-        (p.stockMeta?function(){try{var m=JSON.parse(p.stockMeta);return '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+m.unitType+': '+m.count+'</div>';}catch(e){return '';}}():'')+'</td>'+
-      '<td class="fw600">'+fmt(p.price)+'/Pc</td>'+
+        (p.stockMeta?function(){try{var m=JSON.parse(p.stockMeta);var line=m.unitType==='Cartoon'||m.unitType==='Bora'?m.count+' '+m.unitType+' | '+m.totalPkt+' Pkt | '+p.stock+' Pcs':m.unitType==='Pkt'?m.count+' Pkt | '+p.stock+' Pcs':p.stock+' Pcs';return '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+line+'</div>';}catch(e){return '';}}():'')+'</td>'+
+      '<td class="fw600">'+fmt(p.price)+(function(){try{var m=JSON.parse(p.stockMeta||'{}');return m.unitType&&m.unitType!=='Pieces'?'/Pkt':'/Pc';}catch(e){return '/Pc';}}())+'</td>'+
       '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button>'+
@@ -2002,8 +2015,6 @@ function showAddProductModal(){
     '<div class="form-group full"><label>Product Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="pd-name" placeholder="e.g. SKP Paper Plate 7 inch"></div>'+
     '<div class="form-group"><label>Type</label><select id="pd-type"><option>Plate</option><option>Cup</option><option>Plastic Glass</option><option>Bowls</option><option>Others</option></select></div>'+
     '<div class="form-group"><label>Size</label><input type="text" id="pd-size" placeholder="e.g. 7 inch, 120ml"></div>'+
-    '<div class="form-group"><label>HSN Code</label><input type="text" id="pd-hsn" value="4823"></div>'+
-    '<div class="form-group"><label>Price per Piece (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="pd-price" step="0.25" value="0"></div>'+
     '</div>'+
 
     // Stock unit selector
@@ -2027,6 +2038,12 @@ function showAddProductModal(){
     '<span id="pd-total-pcs" style="font-size:22px;font-weight:800;color:var(--primary)">0</span>'+
     '</div>'+
     '<div id="pd-stock-breakdown" style="font-size:11px;color:var(--text3);margin-top:4px"></div>'+
+    '</div>'+
+
+    // HSN and Price BELOW stock entry
+    '<div class="form-grid" style="margin-top:14px">'+
+    '<div class="form-group"><label>HSN Code</label><input type="text" id="pd-hsn" value="4823"></div>'+
+    '<div class="form-group"><label id="pd-price-label">Price per Pkt (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="pd-price" step="0.25" value="0"></div>'+
     '</div>',
 
     '<button class="btn btn-primary" onclick="saveNewProduct()">Add Product</button>'+
@@ -2071,6 +2088,13 @@ function pdSelectUnit(unit){
   area.setAttribute('data-unit', unit);
   if(display) display.style.display = 'none';
   document.getElementById('pd-total-pcs').textContent = '0';
+
+  // Update price label based on unit
+  var priceLabel = document.getElementById('pd-price-label');
+  if(priceLabel){
+    var labelText = unit==='Pieces' ? 'Price per Piece (₹)' : 'Price per Pkt (₹)';
+    priceLabel.innerHTML = labelText+'<span style="color:var(--red-400);margin-left:2px">*</span>';
+  }
 
   // Focus first input
   setTimeout(function(){
@@ -2158,32 +2182,157 @@ async function saveNewProduct(){
   }catch(e){alert('Failed to save product: '+e.message);}
 }
 function showEditProductModal(id){
-  var p=getProduct(id);
+  var p = getProduct(id);
+  // Parse existing stockMeta to pre-fill fields
+  var meta = {};
+  try{ if(p.stockMeta) meta = JSON.parse(p.stockMeta); }catch(e){}
+  var unitType = meta.unitType || 'Pieces';
+
   showModal('Edit Product',
     '<div class="form-grid">'+
     '<div class="form-group full"><label>Product Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ep-name" value="'+p.name+'"></div>'+
     '<div class="form-group"><label>Type</label><select id="ep-type">'+
     ['Plate','Cup','Plastic Glass','Bowls','Others'].map(function(t){return '<option '+(p.type===t?'selected':'')+'>'+t+'</option>';}).join('')+
     '</select></div>'+
-    '<div class="form-group"><label>Size</label><input type="text" id="ep-size" value="'+p.size+'"></div>'+
-    '<div class="form-group"><label>HSN Code</label><input type="text" id="ep-hsn" value="'+p.hsn+'"></div>'+
-    '<div class="form-group"><label>Stock Unit</label><select id="ep-unit">'+
-    '<option value="Pcs" '+((p.unit||'Pcs')==='Pcs'?'selected':'')+'>Pcs (Pieces)</option>'+
-    '<option value="Pkt" '+((p.unit||'Pcs')==='Pkt'?'selected':'')+'>Pkt (Packet)</option>'+
-    '</select></div>'+
-    '<div class="form-group"><label>Stock</label><input type="number" id="ep-stock" value="'+p.stock+'"></div>'+
-    '<div class="form-group"><label>Price per Unit (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="ep-price" step="0.25" value="'+p.price+'"></div>'+
+    '<div class="form-group"><label>Size</label><input type="text" id="ep-size" value="'+(p.size||'')+'"></div>'+
+    '</div>'+
+
+    // Stock Entry Method — pre-select existing unit type
+    '<div style="margin-top:14px">'+
+    '<label style="font-size:13px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">Stock Entry Method <span style="color:var(--red-400)">*</span></label>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    ['Cartoon','Bora','Pkt','Pieces'].map(function(u){
+      return '<label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all 0.15s" '+
+        'onclick="epSelectUnit(\''+u+'\','+id+')">'+
+        '<input type="radio" name="ep-unit-radio" value="'+u+'" '+(unitType===u?'checked':'')+' style="accent-color:var(--primary)"> '+u+'</label>';
+    }).join('')+
+    '</div></div>'+
+
+    // Dynamic calculator area — pre-filled
+    '<div id="ep-calc-area" style="margin-top:14px"></div>'+
+
+    // Total stock display
+    '<div id="ep-stock-display" style="margin-top:12px;background:var(--primary-light);border-radius:10px;padding:14px 16px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    '<span style="font-size:13px;font-weight:600;color:var(--text2)">Total Stock (Pieces)</span>'+
+    '<span id="ep-total-pcs" style="font-size:22px;font-weight:800;color:var(--primary)">'+p.stock+'</span>'+
+    '</div>'+
+    '<div id="ep-stock-breakdown" style="font-size:11px;color:var(--text3);margin-top:4px"></div>'+
+    '</div>'+
+
+    // HSN and Price below
+    '<div class="form-grid" style="margin-top:14px">'+
+    '<div class="form-group"><label>HSN Code</label><input type="text" id="ep-hsn" value="'+(p.hsn||'4823')+'"></div>'+
+    '<div class="form-group"><label id="ep-price-label">'+(unitType==='Pieces'?'Price per Piece (₹)':'Price per Pkt (₹)')+'<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+    '<input type="number" id="ep-price" step="0.25" value="'+p.price+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditProduct('+id+')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+
+    '<button class="btn btn-primary" onclick="saveEditProduct('+id+')">Update</button>'+
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  );
+
+  // Pre-fill calculator after modal renders
+  setTimeout(function(){ epSelectUnit(unitType, id, meta); }, 80);
 }
+
+function epSelectUnit(unit, id, meta){
+  var p = getProduct(id);
+  if(!meta){ try{ meta=JSON.parse(p.stockMeta||'{}'); }catch(e){ meta={}; } }
+  var area = document.getElementById('ep-calc-area');
+  if(!area) return;
+  var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-top:4px">';
+
+  if(unit==='Cartoon'||unit==='Bora'){
+    var label = unit==='Cartoon'?'Cartoon':'Bora';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-group"><label>No. of '+label+'s</label><input type="number" id="ep-c1" min="0" value="'+(meta.count||'')+'" placeholder="0" oninput="epCalc()"></div>'+
+      '<div class="form-group"><label>Pkt per '+label+'</label><input type="number" id="ep-c2" min="0" value="'+(meta.pktPerUnit||'')+'" placeholder="0" oninput="epCalc()"></div>'+
+      '<div class="form-group"><label>Total Pkts <span style="font-size:10px;color:var(--text3)">(auto)</span></label>'+
+      '<input type="number" id="ep-c3" readonly style="background:var(--gray-50);color:var(--text3)" value="'+(meta.totalPkt||0)+'"></div>'+
+      '<div class="form-group"><label>Pieces per Pkt</label><input type="number" id="ep-c4" min="0" value="'+(meta.pcsPerPkt||'')+'" placeholder="0" oninput="epCalc()"></div>'+
+      '</div>';
+  } else if(unit==='Pkt'){
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-group"><label>No. of Pkts</label><input type="number" id="ep-c1" min="0" value="'+(meta.count||'')+'" placeholder="0" oninput="epCalc()"></div>'+
+      '<div class="form-group"><label>Pieces per Pkt</label><input type="number" id="ep-c2" min="0" value="'+(meta.pcsPerPkt||'')+'" placeholder="0" oninput="epCalc()"></div>'+
+      '</div>';
+  } else {
+    html += '<div class="form-group"><label>No. of Pieces</label><input type="number" id="ep-c1" min="0" value="'+(meta.count||p.stock||'')+'" placeholder="0" oninput="epCalc()"></div>';
+  }
+  html += '</div>';
+  area.innerHTML = html;
+  area.setAttribute('data-unit', unit);
+  area.setAttribute('data-id', id);
+
+  // Update price label
+  var pl = document.getElementById('ep-price-label');
+  if(pl) pl.innerHTML = (unit==='Pieces'?'Price per Piece (₹)':'Price per Pkt (₹)')+'<span style="color:var(--red-400);margin-left:2px">*</span>';
+
+  // Update total display
+  epCalc();
+}
+
+function epCalc(){
+  var area = document.getElementById('ep-calc-area');
+  if(!area) return;
+  var unit = area.getAttribute('data-unit');
+  var totalPcs = 0;
+  var breakdown = '';
+  var v = function(id){ return parseFloat((document.getElementById(id)||{}).value)||0; };
+  var set = function(id,val){ var el=document.getElementById(id); if(el) el.value=val; };
+
+  if(unit==='Cartoon'||unit==='Bora'){
+    var n=v('ep-c1'), ppt=v('ep-c2'), totalPkt=n*ppt, ppp=v('ep-c4');
+    totalPcs=totalPkt*ppp;
+    set('ep-c3',totalPkt||0);
+    breakdown=n+' '+(unit==='Cartoon'?'Cartoon(s)':'Bora(s)')+' × '+ppt+' Pkt × '+ppp+' Pcs = '+totalPcs+' Pieces';
+  } else if(unit==='Pkt'){
+    var pkts=v('ep-c1'), ppp2=v('ep-c2');
+    totalPcs=pkts*ppp2;
+    breakdown=pkts+' Pkt × '+ppp2+' Pcs/Pkt = '+totalPcs+' Pieces';
+  } else {
+    totalPcs=v('ep-c1');
+    breakdown=totalPcs+' Pieces';
+  }
+
+  var totalEl=document.getElementById('ep-total-pcs');
+  var bdEl=document.getElementById('ep-stock-breakdown');
+  if(totalEl) totalEl.textContent=totalPcs||0;
+  if(bdEl) bdEl.textContent=breakdown;
+  window._epTotalPcs=totalPcs;
+  window._epUnit=unit;
+}
+
 async function saveEditProduct(id){
-  var p=getProduct(id);
-  p.name=document.getElementById('ep-name').value;p.type=document.getElementById('ep-type').value;
-  p.size=document.getElementById('ep-size').value;p.hsn=document.getElementById('ep-hsn').value;
-  p.unit=document.getElementById('ep-unit').value||'Pcs';
-  p.stock=parseInt(document.getElementById('ep-stock').value)||0;p.price=parseFloat(document.getElementById('ep-price').value)||0;
+  var p = getProduct(id);
+  var area = document.getElementById('ep-calc-area');
+  var unit = area ? area.getAttribute('data-unit') : 'Pieces';
+  var totalPcs = window._epTotalPcs||p.stock||0;
+  if(totalPcs<=0){ alert('Please enter stock quantity'); return; }
+
+  var v = function(eid){ return parseFloat((document.getElementById(eid)||{}).value)||0; };
+  var stockMeta = {};
+  if(unit==='Cartoon'||unit==='Bora'){
+    stockMeta={unitType:unit,count:v('ep-c1'),pktPerUnit:v('ep-c2'),pcsPerPkt:v('ep-c4'),totalPkt:v('ep-c3')};
+  } else if(unit==='Pkt'){
+    stockMeta={unitType:'Pkt',count:v('ep-c1'),pcsPerPkt:v('ep-c2')};
+  } else {
+    stockMeta={unitType:'Pieces',count:totalPcs};
+  }
+
+  p.name=document.getElementById('ep-name').value;
+  p.type=document.getElementById('ep-type').value;
+  p.size=document.getElementById('ep-size').value;
+  p.hsn=document.getElementById('ep-hsn').value;
+  p.unit='Pcs';
+  p.stock=totalPcs;
+  p.price=parseFloat(document.getElementById('ep-price').value)||0;
+  p.stockMeta=JSON.stringify(stockMeta);
+
   try{
     await apiCall('/api/products/'+parseInt(id),'PUT',p);
+    state.products=await apiCall('/api/products','GET')||[];
+    window._epTotalPcs=0;
     closeModal();renderPage();
   }catch(e){alert('Failed to update product: '+e.message);}
 }
@@ -6208,6 +6357,8 @@ window.prodSearchFilter=prodSearchFilter;
 window.renderDashboardStock=renderDashboardStock;
 window.pdCalc=pdCalc;
 window.pdSelectUnit=pdSelectUnit;
+window.epCalc=epCalc;
+window.epSelectUnit=epSelectUnit;
 </script>
 </body>
 </html>
