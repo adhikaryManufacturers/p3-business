@@ -1362,11 +1362,81 @@ function renderDashboard(){
     return '<tr><td><strong>'+s.name+'</strong></td><td>'+s.role+'</td><td><span class="badge '+(s.leaveBalance>2?'badge-green':s.leaveBalance>0?'badge-amber':'badge-red')+'">'+s.leaveBalance+' days</span></td><td>'+(pending>0?'<span class="fc-red fw600">'+fmt(pending)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div></div>'+
-  '<div style="margin-top:16px" class="card"><div class="card-header"><div class="card-title">Product Stock Levels</div><button class="btn btn-secondary btn-sm" onclick="navigate(\'products\')">Manage</button></div><div class="card-body" style="display:flex;flex-direction:column;gap:12px">'+
-  state.products.map(function(p){
-    return '<div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px;font-weight:600">'+p.name+'</span><span style="font-size:12px;color:var(--text3)">'+p.stock+' pcs</span></div><div class="progress-bar"><div class="progress-fill" style="width:'+Math.min(100,p.stock/20)+'%;background:'+(p.stock<100?'var(--red-400)':p.stock<300?'var(--amber-400)':'var(--primary)')+'"></div></div></div>';
-  }).join('')+
-  '</div></div>';
+  '<div style="margin-top:16px" class="card">'+
+  '<div class="card-header"><div class="card-title">Product Stock Levels</div>'+
+  '<button class="btn btn-secondary btn-sm" onclick="navigate(\'products\')">Manage</button></div>'+
+  renderDashboardStock()+
+  '</div>';
+}
+
+function renderDashboardStock(){
+  if(!state.dashStockTab) state.dashStockTab='All';
+  if(!state.dashStockPage) state.dashStockPage=1;
+  var PAGE_SIZE=10;
+  var TYPES=['All','Plate','Cup','Plastic Glass','Bowls','Others'];
+  var allProducts=[].concat(state.products).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+  var lowStockItems=allProducts.filter(function(p){return p.stock<100;});
+  var tab=state.dashStockTab;
+  var filtered=tab==='Low Stock'?lowStockItems:
+    tab==='All'?allProducts:
+    allProducts.filter(function(p){return p.type===tab;});
+  var total=filtered.length;
+  var pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  var page=Math.min(state.dashStockPage,pages);
+  var paged=filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+
+  // Tab counts
+  var tabCounts={};
+  TYPES.forEach(function(t){
+    tabCounts[t]=t==='All'?allProducts.length:allProducts.filter(function(p){return p.type===t;}).length;
+  });
+  tabCounts['Low Stock']=lowStockItems.length;
+
+  var tabs=['All'].concat(TYPES.slice(1)).concat(['Low Stock']);
+  var tabHtml='<div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px 0">'+
+    tabs.map(function(t){
+      var active=tab===t;
+      var cnt=tabCounts[t]||0;
+      var isLow=t==='Low Stock';
+      return '<button onclick="state.dashStockTab=\''+t+'\';state.dashStockPage=1;renderPage()" '+
+        'style="padding:5px 12px;border-radius:16px;border:1px solid '+(active?(isLow?'#e24b4a':'var(--primary)'):'var(--border)')+';'+
+        'background:'+(active?(isLow?'#e24b4a':'var(--primary)'):'var(--surface)')+';'+
+        'color:'+(active?'#fff':'var(--text2)')+';font-size:12px;font-weight:'+(active?'700':'500')+';cursor:pointer">'+
+        t+(cnt>0?' ('+cnt+')':'')+
+        '</button>';
+    }).join('')+'</div>';
+
+  // Stock rows
+  var rowsHtml='<div class="card-body" style="display:flex;flex-direction:column;gap:10px;padding-top:12px">'+
+    (paged.length===0?'<div style="text-align:center;padding:24px;color:var(--text3);font-style:italic">No products in this category</div>':
+    paged.map(function(p){
+      var pct=Math.min(100,p.stock/20);
+      var barColor=p.stock<100?'var(--red-400)':p.stock<300?'var(--amber-400)':'var(--primary)';
+      var badge=p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green';
+      return '<div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:13px;font-weight:600">'+p.name+'</span>'+
+        '<span style="font-size:10px;background:var(--primary-light);color:var(--primary);padding:1px 8px;border-radius:10px;font-weight:600">'+p.type+'</span>'+
+        '</div>'+
+        '<span class="badge '+badge+'">'+p.stock+' '+(p.unit||'Pcs')+'</span>'+
+        '</div>'+
+        '<div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%;background:'+barColor+'"></div></div>'+
+        '</div>';
+    }).join(''))+
+    '</div>';
+
+  // Pagination
+  var pagHtml='';
+  if(pages>1){
+    pagHtml='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border)">'+
+      '<span style="font-size:12px;color:var(--text3)">Showing '+(((page-1)*PAGE_SIZE)+1)+'-'+Math.min(page*PAGE_SIZE,total)+' of '+total+'</span>'+
+      '<div style="display:flex;gap:6px">'+
+      (page>1?'<button class="btn btn-secondary btn-sm" onclick="state.dashStockPage='+(page-1)+';renderPage()">← Prev</button>':'')+
+      (page<pages?'<button class="btn btn-secondary btn-sm" onclick="state.dashStockPage='+(page+1)+';renderPage()">Next →</button>':'')+
+      '</div></div>';
+  }
+  return tabHtml+rowsHtml+pagHtml;
 }
 
 // ===================== STAFF DIRECTORY =====================
@@ -1849,7 +1919,9 @@ function renderProducts(){
   '<input type="text" id="prod-search" value="'+(state.productSearch||'')+'" '+
   'placeholder="🔍 Search products..." '+
   'oninput="prodSearchFilter(this.value)" '+
-  'style="padding:9px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);width:240px">'+
+  'onfocus="this._hasFocus=true" onblur="this._hasFocus=false" '+
+  'style="padding:9px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);width:240px" '+
+  'autofocus="'+(state.productSearch?'autofocus':'')+'">'+ 
   '<button class="btn btn-primary" onclick="showAddProductModal()">+ Add Product</button>'+
   '</div></div>'+
 
@@ -1858,7 +1930,7 @@ function renderProducts(){
   PRODUCT_TYPES.map(function(t){
     var active = t===tab;
     var cnt = tabCounts[t];
-    return '<button onclick="state.productTab=\''+t+'\';renderPage()" '+
+    return '<button onclick="state.productTab=\''+t+'\';state.productSearch=\'\';renderPage()" '+
       'style="padding:7px 14px;border-radius:20px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
       'background:'+(active?'var(--primary)':'var(--surface)')+';'+
       'color:'+(active?'#fff':'var(--text2)')+';font-size:12.5px;font-weight:'+(active?'700':'500')+';cursor:pointer;transition:all 0.15s">'+
@@ -1871,15 +1943,16 @@ function renderProducts(){
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
   '<th>Product Name</th><th>Type</th><th>Size</th><th>HSN</th><th>Stock</th><th>Price/Pc</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
-  (sortDesc(filtered,'id').map(function(p){
+  ([].concat(filtered).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(p){
     var stockBadge = p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green';
     return '<tr>'+
       '<td><strong>'+p.name+'</strong></td>'+
       '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
       '<td>'+(p.size||'—')+'</td>'+
       '<td>'+(p.hsn||'—')+'</td>'+
-      '<td><span class="badge '+stockBadge+'">'+p.stock+' pcs</span></td>'+
-      '<td class="fw600">'+fmt(p.price)+'</td>'+
+      '<td><span class="badge '+stockBadge+'">'+p.stock+' Pcs</span>'+
+        (p.stockMeta?function(){try{var m=JSON.parse(p.stockMeta);return '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+m.unitType+': '+m.count+'</div>';}catch(e){return '';}}():'')+'</td>'+
+      '<td class="fw600">'+fmt(p.price)+'/Pc</td>'+
       '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button>'+
@@ -1891,37 +1964,37 @@ function renderProducts(){
   '</tbody></table></div></div>';
 }
 
-// Filter without full re-render — updates table rows only
 function prodSearchFilter(val){
   state.productSearch = val;
   var tab = state.productTab||'All';
-  var search = val.toLowerCase();
+  var search = val.toLowerCase().trim();
   var filtered = state.products.filter(function(p){
     var matchTab = tab==='All'||p.type===tab;
     var matchSearch = !search||
       (p.name&&p.name.toLowerCase().includes(search))||
       (p.type&&p.type.toLowerCase().includes(search))||
       (p.size&&p.size.toLowerCase().includes(search))||
-      (p.hsn&&p.hsn.toLowerCase().includes(search));
+      (p.hsn&&String(p.hsn).toLowerCase().includes(search));
     return matchTab&&matchSearch;
   });
-  var tbody = document.querySelector('#pageContent tbody');
-  if(!tbody){renderPage();return;}
-  tbody.innerHTML = sortDesc(filtered,'id').map(function(p){
+  var tbody = document.querySelector('#pageContent .table-wrap tbody');
+  if(!tbody) return; // don't re-render — just wait
+  tbody.innerHTML = [].concat(filtered).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(p){
     var stockBadge=p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green';
     return '<tr>'+
       '<td><strong>'+p.name+'</strong></td>'+
       '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
       '<td>'+(p.size||'—')+'</td>'+
       '<td>'+(p.hsn||'—')+'</td>'+
-      '<td><span class="badge '+stockBadge+'">'+p.stock+' pcs</span></td>'+
-      '<td class="fw600">'+fmt(p.price)+'</td>'+
+      '<td><span class="badge '+stockBadge+'">'+p.stock+' Pcs</span>'+
+        (p.stockMeta?function(){try{var m=JSON.parse(p.stockMeta);return '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+m.unitType+': '+m.count+'</div>';}catch(e){return '';}}():'')+'</td>'+
+      '<td class="fw600">'+fmt(p.price)+'/Pc</td>'+
       '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button>'+
       '<button class="btn btn-danger btn-sm" onclick="deleteProduct('+p.id+')">Delete</button>'+
       '</div></td></tr>';
-  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No products matching "'+val+'"</td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+(val?'No products matching "'+val+'"':'No products found')+'</td></tr>';
 }
 function showAddProductModal(){
   showModal('Add Product',
@@ -1930,18 +2003,157 @@ function showAddProductModal(){
     '<div class="form-group"><label>Type</label><select id="pd-type"><option>Plate</option><option>Cup</option><option>Plastic Glass</option><option>Bowls</option><option>Others</option></select></div>'+
     '<div class="form-group"><label>Size</label><input type="text" id="pd-size" placeholder="e.g. 7 inch, 120ml"></div>'+
     '<div class="form-group"><label>HSN Code</label><input type="text" id="pd-hsn" value="4823"></div>'+
-    '<div class="form-group"><label>Initial Stock (Pcs)</label><input type="number" id="pd-stock" value="0"></div>'+
     '<div class="form-group"><label>Price per Piece (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="pd-price" step="0.25" value="0"></div>'+
+    '</div>'+
+
+    // Stock unit selector
+    '<div style="margin-top:14px">'+
+    '<label style="font-size:13px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">Stock Entry Method <span style="color:var(--red-400)">*</span></label>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    ['Cartoon','Bora','Pkt','Pieces'].map(function(u){
+      return '<label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all 0.15s" '+
+        'onclick="pdSelectUnit(\''+u+'\')">'+
+        '<input type="radio" name="pd-unit-radio" value="'+u+'" style="accent-color:var(--primary)"> '+u+'</label>';
+    }).join('')+
+    '</div></div>'+
+
+    // Dynamic calculator area
+    '<div id="pd-calc-area" style="margin-top:14px"></div>'+
+
+    // Final stock display
+    '<div id="pd-stock-display" style="display:none;margin-top:12px;background:var(--primary-light);border-radius:10px;padding:14px 16px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    '<span style="font-size:13px;font-weight:600;color:var(--text2)">Total Stock (Pieces)</span>'+
+    '<span id="pd-total-pcs" style="font-size:22px;font-weight:800;color:var(--primary)">0</span>'+
+    '</div>'+
+    '<div id="pd-stock-breakdown" style="font-size:11px;color:var(--text3);margin-top:4px"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveNewProduct()">Add</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+
+    '<button class="btn btn-primary" onclick="saveNewProduct()">Add Product</button>'+
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  );
 }
+
+function pdSelectUnit(unit){
+  var area = document.getElementById('pd-calc-area');
+  var display = document.getElementById('pd-stock-display');
+  if(!area) return;
+
+  var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-top:4px">';
+
+  if(unit==='Cartoon'){
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-group"><label>No. of Cartoons</label><input type="number" id="pd-c1" min="0" value="" placeholder="0" oninput="pdCalc()"></div>'+
+      '<div class="form-group"><label>Pkt per Cartoon</label><input type="number" id="pd-c2" min="0" value="" placeholder="0" oninput="pdCalc()"></div>'+
+      '<div class="form-group"><label>Total Pkts <span style="font-size:10px;color:var(--text3)">(auto)</span></label>'+
+      '<input type="number" id="pd-c3" readonly style="background:var(--gray-50);color:var(--text3)" value="0"></div>'+
+      '<div class="form-group"><label>Pieces per Pkt</label><input type="number" id="pd-c4" min="0" value="" placeholder="0" oninput="pdCalc()"></div>'+
+      '</div>';
+  } else if(unit==='Bora'){
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-group"><label>No. of Boras</label><input type="number" id="pd-c1" min="0" value="" placeholder="0" oninput="pdCalc()"></div>'+
+      '<div class="form-group"><label>Pkt per Bora</label><input type="number" id="pd-c2" min="0" value="" placeholder="0" oninput="pdCalc()"></div>'+
+      '<div class="form-group"><label>Total Pkts <span style="font-size:10px;color:var(--text3)">(auto)</span></label>'+
+      '<input type="number" id="pd-c3" readonly style="background:var(--gray-50);color:var(--text3)" value="0"></div>'+
+      '<div class="form-group"><label>Pieces per Pkt</label><input type="number" id="pd-c4" min="0" value="" placeholder="0" oninput="pdCalc()"></div>'+
+      '</div>';
+  } else if(unit==='Pkt'){
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-group"><label>No. of Pkts</label><input type="number" id="pd-c1" min="0" value="" placeholder="0" oninput="pdCalc()"></div>'+
+      '<div class="form-group"><label>Pieces per Pkt</label><input type="number" id="pd-c2" min="0" value="" placeholder="0" oninput="pdCalc()"></div>'+
+      '</div>';
+  } else if(unit==='Pieces'){
+    html += '<div class="form-group"><label>No. of Pieces</label><input type="number" id="pd-c1" min="0" value="" placeholder="0" oninput="pdCalc()"></div>';
+  }
+
+  html += '</div>';
+  area.innerHTML = html;
+  area.setAttribute('data-unit', unit);
+  if(display) display.style.display = 'none';
+  document.getElementById('pd-total-pcs').textContent = '0';
+
+  // Focus first input
+  setTimeout(function(){
+    var first = area.querySelector('input[type="number"]:not([readonly])');
+    if(first) first.focus();
+  }, 50);
+}
+
+function pdCalc(){
+  var area = document.getElementById('pd-calc-area');
+  if(!area) return;
+  var unit = area.getAttribute('data-unit');
+  var totalPcs = 0;
+  var breakdown = '';
+
+  var v = function(id){ return parseFloat((document.getElementById(id)||{}).value)||0; };
+  var set = function(id,val){ var el=document.getElementById(id); if(el) el.value=val; };
+
+  if(unit==='Cartoon'||unit==='Bora'){
+    var n = v('pd-c1');  // cartoons/boras
+    var ppt = v('pd-c2'); // pkts per cartoon/bora
+    var totalPkt = n * ppt;
+    var ppp = v('pd-c4'); // pieces per pkt
+    totalPcs = totalPkt * ppp;
+    set('pd-c3', totalPkt||0);
+    breakdown = n+' '+(unit==='Cartoon'?'Cartoon(s)':'Bora(s)')+' × '+ppt+' Pkt × '+ppp+' Pcs = '+totalPcs+' Pieces';
+  } else if(unit==='Pkt'){
+    var pkts = v('pd-c1');
+    var ppp2 = v('pd-c2');
+    totalPcs = pkts * ppp2;
+    breakdown = pkts+' Pkt × '+ppp2+' Pcs/Pkt = '+totalPcs+' Pieces';
+  } else if(unit==='Pieces'){
+    totalPcs = v('pd-c1');
+    breakdown = totalPcs+' Pieces';
+  }
+
+  var display = document.getElementById('pd-stock-display');
+  var totalEl = document.getElementById('pd-total-pcs');
+  var bdEl = document.getElementById('pd-stock-breakdown');
+  if(display) display.style.display = totalPcs>0?'block':'none';
+  if(totalEl) totalEl.textContent = totalPcs;
+  if(bdEl) bdEl.textContent = breakdown;
+
+  // store for save
+  window._pdTotalPcs = totalPcs;
+  window._pdUnit = unit;
+}
+
 async function saveNewProduct(){
   var name=document.getElementById('pd-name').value;
   if(!name){alert('Product name required');return;}
-  var product={name:name,type:document.getElementById('pd-type').value,size:document.getElementById('pd-size').value,hsn:document.getElementById('pd-hsn').value,stock:parseInt(document.getElementById('pd-stock').value)||0,price:parseFloat(document.getElementById('pd-price').value)||0};
+
+  var area = document.getElementById('pd-calc-area');
+  var unit = area ? area.getAttribute('data-unit') : null;
+  if(!unit){alert('Please select a Stock Entry Method');return;}
+
+  var totalPcs = window._pdTotalPcs||0;
+  if(totalPcs<=0){alert('Please enter stock quantity');return;}
+
+  var v = function(id){ return parseFloat((document.getElementById(id)||{}).value)||0; };
+  var stockMeta = {};
+  if(unit==='Cartoon'||unit==='Bora'){
+    stockMeta = {unitType:unit, count:v('pd-c1'), pktPerUnit:v('pd-c2'), pcsPerPkt:v('pd-c4'), totalPkt:v('pd-c3')};
+  } else if(unit==='Pkt'){
+    stockMeta = {unitType:'Pkt', count:v('pd-c1'), pcsPerPkt:v('pd-c2')};
+  } else {
+    stockMeta = {unitType:'Pieces', count:totalPcs};
+  }
+
+  var product={
+    name:name,
+    type:document.getElementById('pd-type').value,
+    size:document.getElementById('pd-size').value,
+    hsn:document.getElementById('pd-hsn').value,
+    unit:'Pcs',
+    stock:totalPcs,
+    price:parseFloat(document.getElementById('pd-price').value)||0,
+    stockMeta:JSON.stringify(stockMeta)
+  };
   try{
-    var saved=await apiCall('/api/products','POST',product);
-    state.products.push(saved);
+    await apiCall('/api/products','POST',product);
+    state.products=await apiCall('/api/products','GET')||[];
+    window._pdTotalPcs=0;window._pdUnit=null;
     closeModal();renderPage();
   }catch(e){alert('Failed to save product: '+e.message);}
 }
@@ -1955,8 +2167,12 @@ function showEditProductModal(id){
     '</select></div>'+
     '<div class="form-group"><label>Size</label><input type="text" id="ep-size" value="'+p.size+'"></div>'+
     '<div class="form-group"><label>HSN Code</label><input type="text" id="ep-hsn" value="'+p.hsn+'"></div>'+
+    '<div class="form-group"><label>Stock Unit</label><select id="ep-unit">'+
+    '<option value="Pcs" '+((p.unit||'Pcs')==='Pcs'?'selected':'')+'>Pcs (Pieces)</option>'+
+    '<option value="Pkt" '+((p.unit||'Pcs')==='Pkt'?'selected':'')+'>Pkt (Packet)</option>'+
+    '</select></div>'+
     '<div class="form-group"><label>Stock</label><input type="number" id="ep-stock" value="'+p.stock+'"></div>'+
-    '<div class="form-group"><label>Price/Pc (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="ep-price" step="0.25" value="'+p.price+'"></div>'+
+    '<div class="form-group"><label>Price per Unit (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="ep-price" step="0.25" value="'+p.price+'"></div>'+
     '</div>',
     '<button class="btn btn-primary" onclick="saveEditProduct('+id+')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
@@ -1964,6 +2180,7 @@ async function saveEditProduct(id){
   var p=getProduct(id);
   p.name=document.getElementById('ep-name').value;p.type=document.getElementById('ep-type').value;
   p.size=document.getElementById('ep-size').value;p.hsn=document.getElementById('ep-hsn').value;
+  p.unit=document.getElementById('ep-unit').value||'Pcs';
   p.stock=parseInt(document.getElementById('ep-stock').value)||0;p.price=parseFloat(document.getElementById('ep-price').value)||0;
   try{
     await apiCall('/api/products/'+parseInt(id),'PUT',p);
@@ -5988,6 +6205,9 @@ window.showWAToast=showWAToast;
 window.renderNotesPage=renderNotesPage;
 window.buildInvoicePDFBlob=buildInvoicePDFBlob;
 window.prodSearchFilter=prodSearchFilter;
+window.renderDashboardStock=renderDashboardStock;
+window.pdCalc=pdCalc;
+window.pdSelectUnit=pdSelectUnit;
 </script>
 </body>
 </html>
