@@ -1275,8 +1275,46 @@ function showModal(title,bodyHtml,footerHtml){
     note='<div class="req-note"><span>*</span> Required fields</div>';
   }
   mb.innerHTML=note+bodyHtml;
-  mf.innerHTML=footerHtml||'';
+  // Add Reset button if modal has input fields
+  var hasInputs = bodyHtml.indexOf('<input')>=0 || bodyHtml.indexOf('<textarea')>=0 || bodyHtml.indexOf('<select')>=0;
+  var isViewModal = !footerHtml || (footerHtml.indexOf('Save')<0 && footerHtml.indexOf('Add')<0 && footerHtml.indexOf('Update')<0 && footerHtml.indexOf('Record')<0 && footerHtml.indexOf('Confirm')<0 && footerHtml.indexOf('Verify')<0);
+  if(hasInputs && !isViewModal){
+    mf.innerHTML = '<button class="btn btn-ghost" onclick="resetModal()" style="margin-right:auto;color:var(--text3)">&#8635; Reset</button>'+(footerHtml||'');
+  } else {
+    mf.innerHTML=footerHtml||'';
+  }
   ov.style.display='flex';
+}
+
+function resetModal(){
+  var mb=document.getElementById('modalBody');
+  if(!mb) return;
+  // Reset all inputs to default values
+  var inputs=mb.querySelectorAll('input:not([readonly]):not([type="radio"])');
+  inputs.forEach(function(inp){
+    if(inp.type==='checkbox') inp.checked=false;
+    else if(inp.type==='number') inp.value=inp.getAttribute('value')||'0';
+    else inp.value='';
+  });
+  // Reset selects to first option
+  var selects=mb.querySelectorAll('select');
+  selects.forEach(function(sel){ sel.selectedIndex=0; });
+  // Reset textareas
+  var textareas=mb.querySelectorAll('textarea');
+  textareas.forEach(function(ta){ ta.value=''; });
+  // Reset radio buttons — uncheck all
+  var radios=mb.querySelectorAll('input[type="radio"]');
+  radios.forEach(function(r){ r.checked=false; });
+  // Clear dynamic areas (add product calculator)
+  var calcArea=mb.querySelector('#pd-calc-area,#ep-calc-area');
+  if(calcArea){ calcArea.innerHTML=''; calcArea.removeAttribute('data-unit'); }
+  var stockDisplay=mb.querySelector('#pd-stock-display,#ep-stock-display');
+  if(stockDisplay) stockDisplay.style.display='none';
+  var totalEl=mb.querySelector('#pd-total-pcs,#ep-total-pcs');
+  if(totalEl) totalEl.textContent='0';
+  // Reset window calc state
+  window._pdTotalPcs=0; window._pdUnit=null;
+  window._epTotalPcs=0; window._epUnit=null;
 }
 function closeModal(){
   var ov=document.getElementById('modalOverlay');
@@ -1950,21 +1988,25 @@ function renderProducts(){
       '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
       '<td>'+(p.size||'—')+'</td>'+
       '<td>'+(p.hsn||'—')+'</td>'+
-      '<td>'+
-        (function(){
-          var badge='<span class="badge '+stockBadge+'">'+p.stock+' Pcs</span>';
+      '<td>'+(function(){
           if(p.stockMeta){try{
             var m=JSON.parse(p.stockMeta);
-            var lines=[];
-            if(m.unitType==='Cartoon'||m.unitType==='Bora') lines.push(m.count+' '+m.unitType+' | '+m.totalPkt+' Pkt | '+p.stock+' Pcs');
-            else if(m.unitType==='Pkt') lines.push(m.count+' Pkt | '+p.stock+' Pcs');
-            else lines.push(p.stock+' Pcs');
-            badge='<span class="badge '+stockBadge+'" title="'+lines[0]+'">'+p.stock+' Pcs</span>'+
-              '<div style="font-size:10px;color:var(--text3);margin-top:2px;white-space:nowrap">'+lines[0]+'</div>';
+            if(m.unitType==='Cartoon'||m.unitType==='Bora'){
+              return '<span style="font-weight:600;font-size:12px;color:#e65100">'+m.count+' '+m.unitType+'</span>'+
+                     ' <span style="color:var(--text3);font-size:11px">|</span> '+
+                     '<span style="font-weight:600;font-size:12px;color:#1565c0">'+m.totalPkt+' Pkt</span>'+
+                     ' <span style="color:var(--text3);font-size:11px">|</span> '+
+                     '<span style="font-weight:600;font-size:12px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
+            }else if(m.unitType==='Pkt'){
+              return '<span style="font-weight:600;font-size:12px;color:#1565c0">'+m.count+' Pkt</span>'+
+                     ' <span style="color:var(--text3);font-size:11px">|</span> '+
+                     '<span style="font-weight:600;font-size:12px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
+            }else{
+              return '<span style="font-weight:600;font-size:13px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
+            }
           }catch(e){}}
-          return badge;
-        })()+
-      '</td>'+
+          return '<span style="font-weight:600;font-size:13px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
+        })()+'</td>'+
       '<td class="fw600">'+fmt(p.price)+(p.stockMeta&&JSON.parse(p.stockMeta||'{}').unitType!=='Pieces'?'/Pkt':'/Pc')+'</td>'+
       '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
@@ -1999,8 +2041,25 @@ function prodSearchFilter(val){
       '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
       '<td>'+(p.size||'—')+'</td>'+
       '<td>'+(p.hsn||'—')+'</td>'+
-      '<td><span class="badge '+stockBadge+'">'+p.stock+' Pcs</span>'+
-        (p.stockMeta?function(){try{var m=JSON.parse(p.stockMeta);var line=m.unitType==='Cartoon'||m.unitType==='Bora'?m.count+' '+m.unitType+' | '+m.totalPkt+' Pkt | '+p.stock+' Pcs':m.unitType==='Pkt'?m.count+' Pkt | '+p.stock+' Pcs':p.stock+' Pcs';return '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+line+'</div>';}catch(e){return '';}}():'')+'</td>'+
+      '<td>'+(function(){
+          if(p.stockMeta){try{
+            var m=JSON.parse(p.stockMeta);
+            if(m.unitType==='Cartoon'||m.unitType==='Bora'){
+              return '<span style="font-weight:600;font-size:12px;color:#e65100">'+m.count+' '+m.unitType+'</span>'+
+                     ' <span style="color:var(--text3);font-size:11px">|</span> '+
+                     '<span style="font-weight:600;font-size:12px;color:#1565c0">'+m.totalPkt+' Pkt</span>'+
+                     ' <span style="color:var(--text3);font-size:11px">|</span> '+
+                     '<span style="font-weight:600;font-size:12px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
+            }else if(m.unitType==='Pkt'){
+              return '<span style="font-weight:600;font-size:12px;color:#1565c0">'+m.count+' Pkt</span>'+
+                     ' <span style="color:var(--text3);font-size:11px">|</span> '+
+                     '<span style="font-weight:600;font-size:12px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
+            }else{
+              return '<span style="font-weight:600;font-size:13px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
+            }
+          }catch(e){}}
+          return '<span style="font-weight:600;font-size:13px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
+        })()+'</td>'+
       '<td class="fw600">'+fmt(p.price)+(function(){try{var m=JSON.parse(p.stockMeta||'{}');return m.unitType&&m.unitType!=='Pieces'?'/Pkt':'/Pc';}catch(e){return '/Pc';}}())+'</td>'+
       '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
@@ -6359,6 +6418,7 @@ window.pdCalc=pdCalc;
 window.pdSelectUnit=pdSelectUnit;
 window.epCalc=epCalc;
 window.epSelectUnit=epSelectUnit;
+window.resetModal=resetModal;
 </script>
 </body>
 </html>
