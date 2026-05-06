@@ -490,6 +490,18 @@ function getInvoiceDue(inv){
 // Outstanding for a customer = sum of dues from unpaid invoices
 // If an invoice has a carry-forward child (cfInvoiceId), skip it to avoid double-counting
 // The CF child already holds the remaining balance
+
+function getCustomerCancelledCount(custId){
+  return state.invoices.filter(function(inv){
+    return String(inv.custId)===String(custId) && inv.status==='cancelled';
+  }).length;
+}
+function getProspectCancelledCount(prospectId){
+  // Cancelled orders for a prospect
+  return (state.orders||[]).filter(function(o){
+    return String(o.prospectId)===String(prospectId) && o.status==='cancelled';
+  }).length;
+}
 function getCustomerTotalDue(custId){
   return state.invoices
     .filter(function(i){
@@ -3338,26 +3350,99 @@ function renderInvoices(){
     if(inv.fromOrderId){
       cfNote+='<div style="font-size:10px;color:var(--primary)">&#128203; ORD#'+inv.fromOrderId+'</div>';
     }
-    var rowBg=inv.isCarryForward?'background:var(--blue-50);':'';
+    var isCancelled=inv.status==='cancelled';
+    var rowBg=isCancelled?'background:#fff5f5;opacity:0.75;':inv.isCarryForward?'background:var(--blue-50);':'';
     return '<tr style="'+rowBg+'">'+
-      '<td><strong>#'+inv.id+'</strong>'+cfNote+(inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+'</td>'+
+      '<td><strong>#'+inv.id+'</strong>'+cfNote+(inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+(isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
       '<td>'+cust.name+'</td><td>'+inv.date+'</td><td>'+inv.deliveryDate+'</td>'+
-      '<td>'+fmt(c2.currentBill)+'</td>'+
+      '<td>'+(isCancelled?'<s style="color:var(--text3)">'+fmt(c2.currentBill)+'</s>':fmt(c2.currentBill))+'</td>'+
       '<td>'+(c2.prev>0?'<span class="fc-amber fw600">'+fmt(c2.prev)+'</span>':'—')+'</td>'+
-      '<td class="fw600">'+fmt(c2.grand)+'</td>'+
+      '<td class="fw600">'+(isCancelled?'<s style="color:var(--text3)">'+fmt(c2.grand)+'</s>':fmt(c2.grand))+'</td>'+
       '<td class="fc-green">'+fmt(inv.paid||0)+'</td>'+
-      '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
-      '<td><span class="badge '+(inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
+      '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
+      '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+inv.id+')">View</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF('+inv.id+')">&#128196; PDF</button>'+
-        '<button class="btn btn-download btn-sm" onclick="downloadInvoice('+inv.id+')">&#11015; HTML</button>'+
-        (due>0&&!inv.cfInvoiceId?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal('+inv.id+')">Pay</button>':'')+
-        (inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
-        '<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp('+inv.id+')">&#128362; Share</button>'+
+        (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF('+inv.id+')">&#128196; PDF</button>':'')+
+        (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice('+inv.id+')">&#11015; HTML</button>':'')+
+        (!isCancelled&&due>0&&!inv.cfInvoiceId?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal('+inv.id+')">Pay</button>':'')+
+        (!isCancelled&&inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
+        (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp('+inv.id+')">&#128362; Share</button>':'')+
+        (!isCancelled?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice('+inv.id+')">Cancel</button>':
+          '<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>')+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
+}
+
+
+
+async function cancelOrder(orderId){
+  var o=getCustOrder(orderId);
+  if(!o){alert('Order not found');return;}
+  if(o.status==='cancelled'){alert('Already cancelled');return;}
+  if(!confirm('Cancel Order ORD#'+orderId+'?\nThis cannot be undone.')) return;
+  o.status='cancelled';
+  try{
+    await apiCall('/api/orders/'+parseInt(orderId),'PUT',o);
+    state.customerOrders=await safeGet('/api/orders');
+    renderPage();
+    showToast('Order ORD#'+orderId+' cancelled.','amber');
+  }catch(e){alert('Failed to cancel: '+e.message);}
+}
+async function cancelInvoice(invId){
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  if(!inv){alert('Invoice not found');return;}
+  if(inv.status==='cancelled'){alert('Already cancelled');return;}
+  if(!confirm('Cancel Invoice #'+invId+'?\n\nThis will:\n• Mark invoice as Cancelled\n• Restore stock back to inventory\n• Cannot be undone')) return;
+  inv.status='cancelled';
+  try{
+    await apiCall('/api/invoices/'+parseInt(invId),'PUT',inv);
+    // Restore stock
+    await restoreInvoiceStock(inv.items||[]);
+    state.invoices=await safeGet('/api/invoices');
+    state.products=await safeGet('/api/products');
+    renderPage();
+    showToast('Invoice #'+invId+' cancelled and stock restored.','amber');
+  }catch(e){alert('Failed to cancel: '+e.message);}
+}
+
+async function restoreInvoiceStock(items){
+  for(var i=0;i<items.length;i++){
+    var it=items[i];
+    if(!it.productId) continue;
+    var product=state.products.find(function(p){return String(p.id)===String(it.productId);});
+    if(!product) continue;
+    var qtyToRestore=it.qty||0;
+    if(qtyToRestore<=0) continue;
+    product.stock=product.stock+qtyToRestore;
+    if(product.stockMeta){
+      try{
+        var meta=JSON.parse(product.stockMeta);
+        var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
+        var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
+        if(meta.unitType==='Cartoon'||meta.unitType==='Bora'){
+          meta.totalPkt=Math.floor(product.stock/pcsPerPkt);
+          meta.count=Math.floor(meta.totalPkt/pktPerUnit);
+        }else if(meta.unitType==='Pkt'){
+          meta.count=Math.floor(product.stock/pcsPerPkt);
+        }else{
+          meta.count=product.stock;
+        }
+        product.stockMeta=JSON.stringify(meta);
+      }catch(e){}
+    }
+    try{ await apiCall('/api/products/'+parseInt(product.id),'PUT',product); }catch(e){}
+  }
+}
+
+function showToast(msg,type){
+  var t=document.createElement('div');
+  var bg=type==='red'?'#e24b4a':type==='amber'?'#f59e0b':'#3b6d11';
+  t.style.cssText='position:fixed;bottom:24px;right:24px;background:'+bg+';color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2)';
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(function(){t.remove();},4000);
 }
 
 // ===================== WHATSAPP SHARE =====================
@@ -3938,7 +4023,9 @@ function renderCustomers(){
   '</tr></thead><tbody>'+
   (sortDesc(state.customers,'id').map(function(c){
     var due=getCustomerTotalDue(c.id);
-    var invCnt=state.invoices.filter(function(i){return i.custId===c.id;}).length;
+    var allInvs=state.invoices.filter(function(i){return String(i.custId)===String(c.id);});
+    var invCnt=allInvs.length;
+    var cancelledCnt=allInvs.filter(function(i){return i.status==='cancelled';}).length;
     var ordCnt=custOrderCount(c.id);
     var st=c.status||'new';
     var statusBadge=st==='confirmed'?
@@ -3950,12 +4037,8 @@ function renderCustomers(){
       '<td>'+c.phone+'</td>'+
       '<td style="font-size:12px;color:var(--text2)">'+c.address+'</td>'+
       '<td>'+statusBadge+'</td>'+
-      '<td>'+
-        (ordCnt>0?
-          '<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+c.id+',\'customer\')">&#128203; '+ordCnt+' Orders</button>':
-          '<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(null,'+c.id+')">+ Order</button>')+
-      '</td>'+
-      '<td>'+invCnt+'</td>'+
+      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+c.id+',\'customer\')">&#128203; '+ordCnt+' Orders</button>':'<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(null,'+c.id+')">+ Order</button>')+'</td>'+
+      '<td>'+invCnt+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'')+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td>'+(c.baleBalance||0)+'</td>'+
       '<td><div class="gap-12">'+
@@ -4586,9 +4669,11 @@ function renderCustomerOrders(){
       '<td>'+(o.invoiceId?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview('+o.invoiceId+')">#'+o.invoiceId+'</span>':'—')+'</td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showOrderDetailModal('+o.id+')">View</button>'+
-        (o.status!=='invoiced'?'<button class="btn btn-primary btn-sm" onclick="showEditOrderModal('+o.id+')">Edit</button>':'')+
-        (o.status!=='invoiced'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder('+o.id+')">&#9998; Invoice</button>':'')+
-        '<button class="btn btn-danger btn-sm" onclick="deleteOrder('+o.id+')">Del</button>'+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-primary btn-sm" onclick="showEditOrderModal('+o.id+')">Edit</button>':'')+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder('+o.id+')">&#9998; Invoice</button>':'')+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder('+o.id+')">Cancel</button>':'')+
+        (o.status==='cancelled'?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>':'')+
+        (o.status!=='cancelled'?'<button class="btn btn-ghost btn-sm" onclick="deleteOrder('+o.id+')">Del</button>':'')+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">No orders found for this filter</td></tr>')+
   '</tbody></table></div></div>';
@@ -5048,10 +5133,11 @@ function renderCustomerDues(){
   (sortDesc(custsWithDue,'id').map(function(c){
     var due=getCustomerTotalDue(c.id);
     // Show only active (non-superseded) unpaid invoices
-    var activeInvs=state.invoices.filter(function(i){return i.custId===c.id&&i.status!=='paid'&&!i.cfInvoiceId;});
+    var activeInvs=state.invoices.filter(function(i){return String(i.custId)===String(c.id)&&i.status!=='paid'&&i.status!=='cancelled'&&!i.cfInvoiceId;});
+    var cancelledCnt=state.invoices.filter(function(i){return String(i.custId)===String(c.id)&&i.status==='cancelled';}).length;
     var invLabels=activeInvs.map(function(i){
       return '<span class="badge '+(i.isCarryForward?'badge-blue':'badge-red')+'" style="margin-right:3px">#'+i.id+(i.isCarryForward?' CF':'')+'</span>';
-    }).join('');
+    }).join('')+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'');
     return '<tr><td><strong>'+c.name+'</strong></td><td>'+c.phone+'</td>'+
       '<td>'+invLabels+'</td>'+
       '<td><span class="fc-red fw600" style="font-size:15px">'+fmt(due)+'</span></td>'+
@@ -5065,7 +5151,7 @@ function renderCustomerPayments(){
   '<div class="card"><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Phone</th><th>Active Pending Invoices</th><th>Total Due (₹)</th><th>Action</th></tr></thead><tbody>'+
   (sortDesc(state.customers,'id').map(function(c){
     // Only show invoices that are not superseded by a CF invoice
-    var activeInvs=state.invoices.filter(function(i){return i.custId===c.id&&i.status!=='paid'&&!i.cfInvoiceId;});
+    var activeInvs=state.invoices.filter(function(i){return String(i.custId)===String(c.id)&&i.status!=='paid'&&i.status!=='cancelled'&&!i.cfInvoiceId;});
     var due=getCustomerTotalDue(c.id);
     var invLabels=activeInvs.map(function(i){
       return '<span class="badge '+(i.isCarryForward?'badge-blue':'badge-red')+'" style="margin-right:3px">#'+i.id+(i.isCarryForward?' CF':'')+'</span>';
@@ -5078,7 +5164,7 @@ function renderCustomerPayments(){
 }
 function showCustomerPayModal(custId){
   var c=getCustomer(custId);
-  var pendInvs=state.invoices.filter(function(i){return i.custId===custId&&i.status!=='paid';});
+  var pendInvs=state.invoices.filter(function(i){return String(i.custId)===String(custId)&&i.status!=='paid'&&i.status!=='cancelled';});
   var totalDue=getCustomerTotalDue(custId);
   showModal('Record Payment — '+c.name,
     '<div style="background:var(--amber-50);border-radius:8px;padding:12px;margin-bottom:14px">'+
@@ -7119,6 +7205,12 @@ window.prodTypeClear=prodTypeClear;
 window.applyMaxStock=applyMaxStock;
 window.checkStockExceeded=checkStockExceeded;
 window.showStockWarning=showStockWarning;
+window.cancelInvoice=cancelInvoice;
+window.cancelOrder=cancelOrder;
+window.getCustomerCancelledCount=getCustomerCancelledCount;
+window.getProspectCancelledCount=getProspectCancelledCount;
+window.restoreInvoiceStock=restoreInvoiceStock;
+window.showToast=showToast;
 </script>
 </body>
 </html>
