@@ -2585,7 +2585,7 @@ function renderInvItemRow(item){
     '<td><input type="number" value="'+item.rate+'" step="0.25" '+
       'onchange="updateInvItem('+item.id+',\'rate\',this.value);refreshInvRow('+item.id+')" '+
       'style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"></td>'+
-    '<td class="fw600" id="inv-amt-'+item.id+'">'+fmt(item.qty*item.rate)+'</td>'+
+    '<td class="fw600" id="inv-amt-'+item.id+'">'+fmt(invBillingQty(item)*item.rate)+'</td>'+
     '<td><button onclick="removeInvItem('+item.id+')" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
 }
 
@@ -2702,7 +2702,7 @@ function invUpdateQty(itemId, val){
   invRecalcQtyFull(item);
   // Update amount cell directly without re-render
   var amtEl=document.getElementById('inv-amt-'+itemId);
-  if(amtEl) amtEl.textContent=fmt(item.qty*item.rate);
+  if(amtEl) amtEl.textContent=fmt(invBillingQty(item)*item.rate);
   updateInvCalc();
   // Re-render only this row for qty display
   var row=document.getElementById('invrow-'+itemId);
@@ -2740,7 +2740,7 @@ function invRecalcQty(item, meta){
 }
 function refreshInvRow(id){
   var item=state.invoiceItems.find(function(i){return i.id===id;});
-  if(item){var el=document.getElementById('inv-amt-'+id);if(el)el.textContent=fmt(item.qty*item.rate);}
+  if(item){var el=document.getElementById('inv-amt-'+id);if(el)el.textContent=fmt(invBillingQty(item)*item.rate);}
   updateInvCalc();
 }
 function addInvItem(){state.invoiceItems.push({id:Date.now(),productId:'',desc:'',qty:1,unit:'Pcs',rate:0});renderPage();}
@@ -2878,7 +2878,14 @@ async function generateInvoice(){
   if(!custId){alert('Please select a customer');return;}
   if(!state.invoiceItems.length){alert('Please add at least one item');return;}
   var prev=getCustomerTotalDue(custId);
-  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:JSON.parse(JSON.stringify(state.invoiceItems)),discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,status:'unpaid',delivered:false,deliveredDate:null};
+  // Enrich items with billing info before saving
+  var enrichedItems = state.invoiceItems.map(function(it){
+    var copy = JSON.parse(JSON.stringify(it));
+    copy.billingQty = invBillingQty(it);
+    copy.billingLabel = invBillingLabel(it);
+    return copy;
+  });
+  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,status:'unpaid',delivered:false,deliveredDate:null};
   try{
     var saved=await apiCall('/api/invoices','POST',inv);
     state.invoices.push(saved);
@@ -3437,6 +3444,22 @@ function sendWhatsAppManual(){
   var url = 'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg);
   window.open(url,'_blank');
   closeModal();
+}
+
+
+// Billing qty = number of pkts/cartoons/boras (what customer pays per unit)
+function invBillingQty(item){
+  var unit = item.qtyUnit||'Pcs';
+  if(unit==='Cartoon'||unit==='Bora') return item.qtyCount||1; // cartoons/boras
+  if(unit==='Pkt') return item.qtyCount||1; // pkts
+  return item.qty||1; // pieces
+}
+function invBillingLabel(item){
+  var unit = item.qtyUnit||'Pcs';
+  if(unit==='Cartoon') return 'Cartoon';
+  if(unit==='Bora') return 'Bora';
+  if(unit==='Pkt') return 'Pkt';
+  return 'Pcs';
 }
 
 // ===================== RECORD PAYMENT =====================
@@ -4295,94 +4318,186 @@ function showCreateOrderModal(prospectId, custId){
   var prospectOpts=state.prospects.map(function(p){return '<option value="p_'+p.id+'" '+(prospectId&&p.id===prospectId?'selected':'')+'>'+p.name+' [Prospect]</option>';}).join('');
   var custOpts=state.customers.map(function(c){return '<option value="c_'+c.id+'" '+(custId&&c.id===custId?'selected':'')+'>'+c.name+' [Customer]</option>';}).join('');
   var isCust=!!custId;
+  window._coItems=[{id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pcs',qtyCount:1,rate:0,unit:'Pcs'}];
   showModal('Create Order',
     '<div class="form-grid">'+
     '<div class="form-group full"><label>Customer / Prospect<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
     '<select id="co-who" onchange="onCoWhoChange()">'+
-    '<option value="">— Select —</option>'+
-    prospectOpts+custOpts+
+    '<option value="">— Select —</option>'+prospectOpts+custOpts+
     '<option value="__new_prospect__">+ Add New Prospect</option>'+
     '</select></div>'+
     '<div class="form-group"><label>Order Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="co-date" value="'+today()+'"></div>'+
-    '<div class="form-group"><label>Expected Delivery Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="co-delivery" value="'+new Date(Date.now()+14*86400000).toISOString().split('T')[0]+'"></div>'+
+    '<div class="form-group"><label>Expected Delivery<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="co-delivery" value="'+new Date(Date.now()+14*86400000).toISOString().split('T')[0]+'"></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="co-notes" placeholder="Special requirements, packaging, etc."></div>'+
-    '</div>'+
-    '<div class="divider"></div>'+
-    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">Order Items</div>'+
-    '<div id="co-items-wrap">'+buildOrderItemRow(0)+'</div>'+
-    '<button class="btn btn-ghost btn-sm" onclick="addOrderItemRow()" style="margin-bottom:12px;margin-top:4px">+ Add Item</button>'+
-    '<div style="background:var(--green-50);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--primary)" id="co-total-display">Est. Total: &#8377;0.00</div>'+
+    '</div><div class="divider"></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+    '<div style="font-size:13px;font-weight:600;color:var(--text2)">Order Items</div>'+
+    '<button class="btn btn-ghost btn-sm" onclick="addCoItem()">+ Add Row</button></div>'+
+    '<div class="table-wrap" style="margin-bottom:12px"><table><thead><tr>'+
+    '<th>Product</th><th>HSN</th><th>Qty / Breakdown</th><th>Rate (₹)</th><th>Amount</th><th></th>'+
+    '</tr></thead><tbody id="co-items-body">'+buildCoItemRows()+'</tbody></table></div>'+
+    '<div style="background:var(--green-50);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--primary)" id="co-total-display">Est. Total: ₹0.00</div>'+
     '<div id="co-invoice-opt" style="margin-top:12px;background:var(--blue-50);border-radius:8px;padding:10px 14px;'+(isCust?'':'display:none')+'">'+
     '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:#0C447C;font-weight:500">'+
     '<input type="checkbox" id="co-auto-invoice" '+(isCust?'checked':'')+' style="width:16px;height:16px;cursor:pointer">'+
-    'Auto-generate invoice immediately after saving order'+
-    '</label>'+
-    '<div style="font-size:11px;color:#378ADD;margin-top:4px;margin-left:26px">Invoice will be created and listed in All Invoices automatically</div>'+
-    '</div>',
+    'Auto-generate invoice immediately after saving order</label></div>',
     '<button class="btn btn-primary" onclick="saveNewOrder()">Save Order</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
-  window._coItemCount=1;
-  // Pre-select if coming from a specific customer
-  if(custId){
-    setTimeout(function(){
-      var sel=document.getElementById('co-who');
-      if(sel) sel.value='c_'+custId;
-    },50);
-  }
+  if(custId){ setTimeout(function(){ var sel=document.getElementById('co-who');if(sel){sel.value='c_'+custId;onCoWhoChange();} },50); }
+  setTimeout(function(){updateCoTotal();},100);
 }
 
 function onCoWhoChange(){
   var who=(document.getElementById('co-who')||{}).value||'';
   var opt=document.getElementById('co-invoice-opt');
   var cb=document.getElementById('co-auto-invoice');
-  if(who.startsWith('c_')){
-    if(opt) opt.style.display='block';
-    if(cb) cb.checked=true;
-  } else {
-    if(opt) opt.style.display='none';
-    if(cb) cb.checked=false;
+  if(who.startsWith('c_')){if(opt)opt.style.display='block';if(cb)cb.checked=true;}
+  else{if(opt)opt.style.display='none';if(cb)cb.checked=false;}
+}
+
+function buildCoItemRows(){
+  return (window._coItems||[]).map(function(item){return buildCoItemRow(item);}).join('');
+}
+
+function buildCoItemRow(item){
+  var product=getProduct(item.productId);
+  var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+  var unitType=item.qtyUnit||'Pcs';
+  var iid=item.id; // use variable to avoid string escaping issues
+  var TYPES=['Plate','Cup','Plastic Glass','Bowls','Others'];
+  var grouped={};TYPES.forEach(function(t){grouped[t]=[];});
+  state.products.forEach(function(p){var t=p.type&&grouped[p.type]?p.type:'Others';grouped[t].push(p);});
+  var optHtml='<option value="">— Select Product —</option>';
+  TYPES.forEach(function(t){
+    var prods=grouped[t];if(!prods.length)return;
+    optHtml+='<optgroup label="'+t+'">';
+    prods.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).forEach(function(p){
+      var dn=p.name+(p.size?' - '+p.size:'');
+      optHtml+='<option value="'+p.id+'" '+(p.id===item.productId?'selected':'')+'>'+dn+'</option>';
+    });
+    optHtml+='</optgroup>';
+  });
+  var availUnits=['Pcs'];
+  if(meta.unitType==='Pkt'||meta.unitType==='Cartoon'||meta.unitType==='Bora') availUnits=['Pcs','Pkt'];
+  if(meta.unitType==='Cartoon') availUnits=['Pcs','Pkt','Cartoon'];
+  if(meta.unitType==='Bora') availUnits=['Pcs','Pkt','Bora'];
+  if(!meta.unitType) availUnits=['Pcs','Pkt','Cartoon','Bora'];
+  var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
+  var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
+  var tabsHtml='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px" data-iid="'+iid+'" onclick="coHandleUnitClick(event,this.dataset.iid)">'+
+    availUnits.map(function(u){
+      var active=unitType===u;
+      return '<button data-unit="'+u+'" '+
+        'style="padding:2px 8px;border-radius:10px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
+        'background:'+(active?'var(--primary)':'var(--surface)')+';color:'+(active?'#fff':'var(--text2)')+';font-size:11px;cursor:pointer">'+u+'</button>';
+    }).join('')+'</div>';
+  var count=item.qtyCount||1;
+  var inputHtml='';
+  if(unitType==='Cartoon'||unitType==='Bora'){
+    var tp=count*pktPerUnit,tpc=tp*pcsPerPkt;
+    inputHtml='<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
+      '<input type="number" value="'+count+'" min="1" data-iid="'+iid+'" onchange="coUpdateQty(this.dataset.iid,this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="color:var(--text3)">'+unitType+'</span><span></span>'+
+      '<span style="color:var(--text3)">×'+pktPerUnit+' Pkt =</span><span style="font-weight:600;color:#1565c0">'+tp+' Pkt</span><span></span>'+
+      '<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs =</span><span style="font-weight:600;color:var(--primary)">'+tpc+' Pcs</span><span></span></div>';
+  }else if(unitType==='Pkt'){
+    var tpc2=count*pcsPerPkt;
+    inputHtml='<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
+      '<input type="number" value="'+count+'" min="1" data-iid="'+iid+'" onchange="coUpdateQty(this.dataset.iid,this.value)" style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="color:var(--text3)">Pkt</span><span></span>'+
+      '<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs =</span><span style="font-weight:600;color:var(--primary)">'+tpc2+' Pcs</span><span></span></div>';
+  }else{
+    inputHtml='<input type="number" value="'+item.qty+'" min="1" data-iid="'+iid+'" onchange="coUpdatePcs(this.dataset.iid,this.value)" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px"> <span style="font-size:11px;color:var(--text3)">Pcs</span>';
   }
+  var bq=coGetBillingQty(item,meta);
+  return '<tr id="co-row-'+iid+'">'+
+    '<td><select data-iid="'+iid+'" onchange="coSelectProduct(this.dataset.iid,this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;min-width:150px">'+optHtml+'</select></td>'+
+    '<td style="color:var(--text3);font-size:12px">'+(product.hsn||'—')+'</td>'+
+    '<td>'+tabsHtml+inputHtml+'</td>'+
+    '<td><input type="number" value="'+item.rate+'" step="0.25" data-iid="'+iid+'" onchange="coUpdateRate(this.dataset.iid,this.value)" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:12px"></td>'+
+    '<td class="fw600" id="co-amt-'+iid+'">'+fmt(bq*item.rate)+'</td>'+
+    '<td><button data-iid="'+iid+'" onclick="coRemoveItem(this.dataset.iid)" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
 }
-function buildOrderItemRow(i){
-  return '<div class="form-grid" style="margin-bottom:8px" id="coi-'+i+'">'+
-    '<div class="form-group"><label>Product</label>'+
-    '<select id="coi-prod-'+i+'" onchange="onOrderItemSelect('+i+')" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%">'+
-    '<option value="">— Select Product —</option>'+
-    state.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('')+
-    '</select></div>'+
-    '<div class="form-group"><label>Qty<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="coi-qty-'+i+'" value="1" min="1" oninput="updateOrderTotal()"></div>'+
-    '<div class="form-group"><label>Unit</label><select id="coi-unit-'+i+'"><option>Pcs</option><option>Kg</option><option>Box</option><option>Roll</option></select></div>'+
-    '<div class="form-group"><label>Rate (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="coi-rate-'+i+'" value="0" step="0.25" oninput="updateOrderTotal()"></div>'+
-    '</div>';
+
+function coHandleUnitClick(e, iid){
+  var btn = e.target.closest('button[data-unit]');
+  if(!btn) return;
+  coSetUnit(iid, btn.getAttribute('data-unit'));
 }
-function onOrderItemSelect(i){
-  var pid=parseInt((document.getElementById('coi-prod-'+i)||{}).value)||0;
-  var p=getProduct(pid);
-  if(p&&p.id){
-    var rEl=document.getElementById('coi-rate-'+i);
-    if(rEl) rEl.value=p.price;
-    updateOrderTotal();
-  }
+
+
+function coGetBillingQty(item,meta){
+  var unit=item.qtyUnit||'Pcs';
+  if(!meta){try{var p=getProduct(item.productId);meta=JSON.parse(p.stockMeta||'{}');}catch(e){meta={};}}
+  if(unit==='Cartoon'||unit==='Bora'||unit==='Pkt') return item.qtyCount||1;
+  return item.qty||1;
 }
-function addOrderItemRow(){
-  var wrap=document.getElementById('co-items-wrap');
-  if(!wrap) return;
-  var i=window._coItemCount||1;
-  var div=document.createElement('div');
-  div.innerHTML=buildOrderItemRow(i);
-  wrap.appendChild(div.firstChild);
-  window._coItemCount=(window._coItemCount||1)+1;
+function coSelectProduct(itemId,productId){
+  var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+  var product=getProduct(parseInt(productId));
+  if(item&&product&&product.id){item.productId=product.id;item.desc=product.name+(product.size?' - '+product.size:'');item.rate=product.price;item.qtyUnit='Pcs';item.qtyCount=1;item.qty=1;item.unit='Pcs';}
+  else if(item){item.productId='';item.desc='';item.rate=0;}
+  redrawCoItems();
 }
-function updateOrderTotal(){
-  var n=window._coItemCount||1;var total=0;
-  for(var i=0;i<n;i++){
-    var qty=parseFloat((document.getElementById('coi-qty-'+i)||{}).value)||0;
-    var rate=parseFloat((document.getElementById('coi-rate-'+i)||{}).value)||0;
-    total+=qty*rate;
-  }
-  var el=document.getElementById('co-total-display');
-  if(el) el.textContent='Est. Total: '+fmt(total);
+function coSetUnit(itemId,unit){
+  var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+  if(!item)return;item.qtyUnit=unit;item.qtyCount=1;coRecalcItem(item);redrawCoItems();
 }
+function coUpdateQty(itemId,val){
+  var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+  if(!item)return;item.qtyCount=parseFloat(val)||1;coRecalcItem(item);
+  var product=getProduct(item.productId);var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+  var amtEl=document.getElementById('co-amt-'+itemId);
+  if(amtEl)amtEl.textContent=fmt(coGetBillingQty(item,meta)*item.rate);
+  var row=document.getElementById('co-row-'+itemId);
+  if(row){var td=row.querySelector('td:nth-child(3)');if(td){var tmp=document.createElement('div');tmp.innerHTML=buildCoItemRow(item);var ntd=tmp.querySelector('td:nth-child(3)');if(ntd)td.innerHTML=ntd.innerHTML;}}
+  updateCoTotal();
+}
+function coUpdatePcs(itemId,val){
+  var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+  if(!item)return;item.qty=parseFloat(val)||1;item.qtyCount=item.qty;
+  var amtEl=document.getElementById('co-amt-'+itemId);if(amtEl)amtEl.textContent=fmt(item.qty*item.rate);
+  updateCoTotal();
+}
+function coUpdateRate(itemId,val){
+  var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+  if(!item)return;item.rate=parseFloat(val)||0;
+  var product=getProduct(item.productId);var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+  var amtEl=document.getElementById('co-amt-'+itemId);if(amtEl)amtEl.textContent=fmt(coGetBillingQty(item,meta)*item.rate);
+  updateCoTotal();
+}
+function coRecalcItem(item){
+  var product=getProduct(item.productId);var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+  var unit=item.qtyUnit||'Pcs',count=item.qtyCount||1;
+  var pktPerUnit=parseFloat(meta.pktPerUnit)||1,pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
+  if(unit==='Cartoon'||unit==='Bora')item.qty=count*pktPerUnit*pcsPerPkt;
+  else if(unit==='Pkt')item.qty=count*pcsPerPkt;
+  else item.qty=count;
+  item.unit='Pcs';
+}
+function coRemoveItem(itemId){
+  window._coItems=(window._coItems||[]).filter(function(i){return String(i.id)!==String(itemId);});redrawCoItems();
+}
+function addCoItem(){
+  if(!window._coItems)window._coItems=[];
+  window._coItems.push({id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pcs',qtyCount:1,rate:0,unit:'Pcs'});redrawCoItems();
+}
+function redrawCoItems(){
+  var tbody=document.getElementById('co-items-body');if(tbody)tbody.innerHTML=buildCoItemRows();updateCoTotal();
+}
+function updateCoTotal(){
+  var total=0;
+  (window._coItems||[]).forEach(function(item){
+    var product=getProduct(item.productId);var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+    total+=coGetBillingQty(item,meta)*item.rate;
+  });
+  var el=document.getElementById('co-total-display');if(el)el.textContent='Est. Total: '+fmt(total);
+}
+// Keep old functions for backward compat
+function buildOrderItemRow(i){return '';}
+function onOrderItemSelect(i){}
+function addOrderItemRow(){}
+function updateOrderTotal(){updateCoTotal();}
+
+
 async function saveNewOrder(){
   var who=(document.getElementById('co-who').value||'').trim();
   if(who==='__new_prospect__'){showAddProspectModal();return;}
@@ -4394,14 +4509,11 @@ async function saveNewOrder(){
   var delivery=document.getElementById('co-delivery').value;
   var notes=document.getElementById('co-notes').value;
   var autoInvoice=(document.getElementById('co-auto-invoice')||{}).checked||false;
-  var items=[];var n=window._coItemCount||1;
-  for(var i=0;i<n;i++){
-    var pid=parseInt((document.getElementById('coi-prod-'+i)||{}).value)||0;
-    var qty=parseFloat((document.getElementById('coi-qty-'+i)||{}).value)||0;
-    var unit=(document.getElementById('coi-unit-'+i)||{}).value||'Pcs';
-    var rate=parseFloat((document.getElementById('coi-rate-'+i)||{}).value)||0;
-    if(pid&&qty>0) items.push({productId:pid,qty:qty,unit:unit,rate:rate});
-  }
+  var items=[];
+  (window._coItems||[]).forEach(function(item){
+    if(!item.productId||item.qty<=0) return;
+    items.push({productId:item.productId,desc:item.desc||'',qty:item.qty,qtyCount:item.qtyCount||item.qty,qtyUnit:item.qtyUnit||'Pcs',unit:item.unit||'Pcs',rate:item.rate});
+  });
   if(!items.length){alert('Add at least one product item.');return;}
   var order={prospectId:prospectId,custId:custId,date:date,deliveryDate:delivery,items:items,notes:notes,status:'pending',invoiceId:null};
   try{
@@ -6685,6 +6797,22 @@ window.invRecalcQtyFull=invRecalcQtyFull;
 window.invSetMetaVal=invSetMetaVal;
 window.invSetQtyUnit=invSetQtyUnit;
 window.invUpdateQty=invUpdateQty;
+window.addCoItem=addCoItem;
+window.buildCoItemRow=buildCoItemRow;
+window.buildCoItemRows=buildCoItemRows;
+window.coGetBillingQty=coGetBillingQty;
+window.coRecalcItem=coRecalcItem;
+window.coRemoveItem=coRemoveItem;
+window.coSelectProduct=coSelectProduct;
+window.coSetUnit=coSetUnit;
+window.coUpdatePcs=coUpdatePcs;
+window.coUpdateQty=coUpdateQty;
+window.coUpdateRate=coUpdateRate;
+window.invBillingLabel=invBillingLabel;
+window.invBillingQty=invBillingQty;
+window.redrawCoItems=redrawCoItems;
+window.updateCoTotal=updateCoTotal;
+window.coHandleUnitClick=coHandleUnitClick;
 </script>
 </body>
 </html>
