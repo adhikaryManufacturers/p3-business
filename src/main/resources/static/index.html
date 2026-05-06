@@ -3780,7 +3780,7 @@ function showStockWarning(warn, itemId, ctx){
     'onclick="applyMaxStock(this.dataset.iid,this.dataset.ctx,parseInt(this.dataset.max));var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);if(w)w.remove();if(b)b.remove();" '+
     'style="flex:1;padding:8px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">'+
     'Use Max ('+warn.maxCount+' '+warn.unit+')</button>'+
-    '<button data-iid="'+itemId+'" onclick="var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);if(w)w.remove();if(b)b.remove();" '+
+    '<button data-iid="'+itemId+'" onclick="var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);var iid=this.dataset.iid;if(w)w.remove();if(b)b.remove();resetStockInput(iid,\''+ctx+'\','+warn.maxCount+');" '+
     'style="flex:1;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px">'+
     'Change Qty</button>'+
     '</div>';
@@ -3793,13 +3793,73 @@ function showStockWarning(warn, itemId, ctx){
   document.body.appendChild(backdrop);
   document.body.appendChild(div);
 
-  // Reset item qty back to previous valid value
+  // Reset item qty back to max allowed in state
   if(ctx==='inv'){
-    var item=state.invoiceItems.find(function(i){return i.id===itemId;});
+    var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
     if(item){item.qtyCount=warn.maxCount||1;invRecalcQtyFull(item);}
   }else{
     var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
     if(item){item.qtyCount=warn.maxCount||1;coRecalcItem(item);}
+  }
+
+  // Also reset the visible input field immediately
+  function resetQtyInput(){
+    // Update the qty input field to show maxCount
+    var rowSel = ctx==='inv' ? '#invrow-'+itemId : '#co-row-'+itemId;
+    var row = document.querySelector(rowSel);
+    if(row){
+      var inputs = row.querySelectorAll('td:nth-child(3) input[type="number"]');
+      if(inputs.length>0) inputs[0].value = warn.maxCount||1;
+    }
+    // Update amount cell
+    if(ctx==='inv'){
+      var it=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
+      var amtEl=document.getElementById('inv-amt-'+itemId);
+      if(amtEl&&it) amtEl.textContent=fmt(invBillingQty(it)*it.rate);
+      updateInvCalc();
+    }else{
+      var it=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+      if(it){
+        var product=getProduct(it.productId);
+        var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+        var amtEl=document.getElementById('co-amt-'+itemId);
+        if(amtEl) amtEl.textContent=fmt(coGetBillingQty(it,meta)*it.rate);
+        updateCoTotal();
+      }
+    }
+  }
+
+  // Dismiss on backdrop click — reset input too
+  backdrop.onclick=function(){
+    div.remove();
+    backdrop.remove();
+    resetQtyInput();
+  };
+}
+
+function resetStockInput(itemId, ctx, maxCount){
+  // Reset input field to maxCount
+  var rowSel = ctx==='inv' ? '#invrow-'+itemId : '#co-row-'+itemId;
+  var row = document.querySelector(rowSel);
+  if(row){
+    var inputs = row.querySelectorAll('td:nth-child(3) input[type="number"]');
+    if(inputs.length>0) inputs[0].value = maxCount||1;
+  }
+  // Update state and amount
+  if(ctx==='inv'){
+    var it=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
+    if(it){it.qtyCount=maxCount||1;invRecalcQtyFull(it);}
+    var amtEl=document.getElementById('inv-amt-'+itemId);
+    if(amtEl&&it) amtEl.textContent=fmt(invBillingQty(it)*it.rate);
+    updateInvCalc();
+  }else{
+    var it=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+    if(it){it.qtyCount=maxCount||1;coRecalcItem(it);}
+    var product=getProduct(it?it.productId:'');
+    var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+    var amtEl=document.getElementById('co-amt-'+itemId);
+    if(amtEl&&it) amtEl.textContent=fmt(coGetBillingQty(it,meta)*it.rate);
+    updateCoTotal();
   }
 }
 
@@ -7226,6 +7286,7 @@ window.getCustomerCancelledCount=getCustomerCancelledCount;
 window.getProspectCancelledCount=getProspectCancelledCount;
 window.restoreInvoiceStock=restoreInvoiceStock;
 window.showToast=showToast;
+window.resetStockInput=resetStockInput;
 </script>
 </body>
 </html>
