@@ -3687,7 +3687,7 @@ function showStockWarning(warn, itemId, ctx){
     '<div style="font-size:12px;color:var(--text3)">'+warn.product.name+(warn.product.size?' - '+warn.product.size:'')+'</div></div>'+
     '</div>'+
     '<div style="background:#fff5f5;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px">'+
-    '<div>Requested: <strong style="color:#e24b4a">'+warn.qtyCount+' '+warn.unit+' ('+warn.requestedPcs+' Pcs)</strong></div>'+
+    '<div>Requested: <strong style="color:#e24b4a">'+warn.requested+' '+warn.unit+' ('+warn.requestedPcs+' Pcs)</strong></div>'+
     '<div>Available: <strong style="color:var(--primary)">'+warn.availStock+' Pcs</strong></div>'+
     '<div style="margin-top:6px;color:var(--text2)">Max you can order: <strong>'+warn.maxLabel+'</strong></div>'+
     '</div>'+
