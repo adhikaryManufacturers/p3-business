@@ -2563,99 +2563,120 @@ function buildProductSelector(ctx, itemId, selectedProductId, selectedType){
   var TYPES=['Plate','Cup','Plastic Glass','Bowls','Others'];
   var product=getProduct(selectedProductId);
   var prodDispName=product.id?(product.name+(product.size?' - '+product.size:'')):'';
+  var typeSearch=window['_typeSearch_'+ctx+'_'+itemId]||'';
+  var filteredTypes=typeSearch?TYPES.filter(function(t){return t.toLowerCase().includes(typeSearch.toLowerCase());}):TYPES;
 
-  // Step 1 — Type selector
-  var typeHtml='<select data-ctx="'+ctx+'" data-iid="'+itemId+'" '+
-    'onchange="prodSelectorTypeChange(this.dataset.ctx,this.dataset.iid,this.value)" '+
-    'style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;width:100%;margin-bottom:6px">'+
-    '<option value="">— Select Type —</option>'+
-    TYPES.map(function(t){return '<option value="'+t+'" '+(selectedType===t?'selected':'')+'>'+t+'</option>';}).join('')+
-    '</select>';
+  // Type input — continuous filter as you type
+  var typeHtml='<div style="position:relative;margin-bottom:5px">'+
+    '<input type="text" placeholder="Type: Plate, Cup, Glass..." '+
+    'value="'+(selectedType&&!typeSearch?selectedType:typeSearch)+'" '+
+    'data-ctx="'+ctx+'" data-iid="'+itemId+'" '+
+    'oninput="prodTypeSearch(this.dataset.ctx,this.dataset.iid,this.value)" '+
+    'onfocus="prodTypeSearch(this.dataset.ctx,this.dataset.iid,this.value)" '+
+    'style="width:100%;padding:5px 8px;border:1px solid '+(selectedType&&!typeSearch?'var(--primary)':'var(--border)')+';border-radius:6px;'+
+    'font-size:12px;font-family:inherit;box-sizing:border-box;background:'+(selectedType&&!typeSearch?'var(--primary-light)':'var(--surface)')+';'+
+    'color:'+(selectedType&&!typeSearch?'var(--primary)':'var(--text)')+';font-weight:'+(selectedType&&!typeSearch?'600':'400')+'">'+
+    (!selectedType||typeSearch?
+      '<div style="position:absolute;top:100%;left:0;right:0;z-index:999;border:1px solid var(--border);border-radius:6px;background:var(--surface);box-shadow:0 4px 12px rgba(0,0,0,0.15);margin-top:2px;overflow:hidden">'+
+      (filteredTypes.length===0?'<div style="padding:8px;font-size:12px;color:var(--text3);text-align:center">No type found</div>':
+      filteredTypes.map(function(t){
+        return '<div data-ctx="'+ctx+'" data-iid="'+itemId+'" data-type="'+t+'" '+
+          'onclick="prodTypeSelect(this.dataset.ctx,this.dataset.iid,this.dataset.type)" '+
+          'style="padding:7px 10px;cursor:pointer;font-size:12px;font-weight:500;border-bottom:1px solid var(--border)">'+t+'</div>';
+      }).join(''))+
+      '</div>':'')+
+    '</div>';
 
-  // Step 2 — Product list (only if type selected)
+  // Product search + list
   var prodHtml='';
-  if(selectedType){
+  if(selectedType&&!typeSearch){
     var prods=state.products.filter(function(p){return p.type===selectedType;})
       .sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
     var search=window['_prodSearch_'+ctx+'_'+itemId]||'';
     var filtered=search?prods.filter(function(p){
-      return (p.name||'').toLowerCase().includes(search.toLowerCase())||
-             (p.size||'').toLowerCase().includes(search.toLowerCase());
+      return (p.name||'').toLowerCase().includes(search.toLowerCase())||(p.size||'').toLowerCase().includes(search.toLowerCase());
     }):prods;
     var shown=filtered.slice(0,10);
-
-    prodHtml='<div style="position:relative">'+
-      // Search input
-      '<input type="text" placeholder="🔍 Search..." value="'+search+'" '+
+    prodHtml=
+      '<input type="text" placeholder="🔍 Search product..." value="'+search+'" '+
       'data-ctx="'+ctx+'" data-iid="'+itemId+'" '+
       'oninput="prodSelectorSearch(this.dataset.ctx,this.dataset.iid,this.value)" '+
       'style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-bottom:4px;box-sizing:border-box">'+
-      // Product list
-      '<div style="border:1px solid var(--border);border-radius:6px;overflow-y:auto;max-height:180px;background:var(--surface)">'+
-      (shown.length===0
-        ? '<div style="padding:10px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">No products found</div>'
-        : shown.map(function(p){
-            var dn=p.name+(p.size?' - '+p.size:'');
-            var isSelected=p.id===selectedProductId;
-            return '<div data-ctx="'+ctx+'" data-iid="'+itemId+'" data-pid="'+p.id+'" '+
-              'onclick="prodSelectorPick(this.dataset.ctx,this.dataset.iid,this.dataset.pid)" '+
-              'style="padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);'+
-              (isSelected?'background:var(--primary-light);font-weight:700;color:var(--primary)':'')+';" '+
-              'onmouseover="if(!'+isSelected+')this.style.background=\'var(--primary-light)\'" '+
-              'onmouseout="if(!'+isSelected+')this.style.background=\'\'">'+
-              '<span style="font-weight:600">'+dn+'</span>'+
-              (p.stock?'<span style="float:right;font-size:10px;color:var(--text3)">'+p.stock+' Pcs</span>':'')+
-              '</div>';
-          }).join(''))+
-      (filtered.length>10?'<div style="padding:6px;text-align:center;font-size:11px;color:var(--text3)">+'+(filtered.length-10)+' more — search to narrow</div>':'')+
+      '<div style="border:1px solid var(--border);border-radius:6px;overflow-y:auto;max-height:160px;background:var(--surface)">'+
+      (shown.length===0?'<div style="padding:8px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">No products found</div>':
+      shown.map(function(p){
+        var dn=p.name+(p.size?' - '+p.size:'');
+        var isSel=p.id===selectedProductId;
+        return '<div data-ctx="'+ctx+'" data-iid="'+itemId+'" data-pid="'+p.id+'" '+
+          'onclick="prodSelectorPick(this.dataset.ctx,this.dataset.iid,this.dataset.pid)" '+
+          'style="padding:6px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);'+
+          (isSel?'background:var(--primary-light);font-weight:700;color:var(--primary)':'')+'">' +
+          dn+'<span style="float:right;font-size:10px;color:var(--text3)">'+(p.stock?p.stock+' Pcs':'')+
+          '</span></div>';
+      }).join(''))+
+      (filtered.length>10?'<div style="padding:4px;text-align:center;font-size:11px;color:var(--text3)">+'+(filtered.length-10)+' more</div>':'')+
       '</div>'+
-      // Selected product display
-      (selectedProductId&&product.id?
-        '<div style="margin-top:6px;padding:5px 8px;background:var(--primary-light);border-radius:6px;font-size:12px;color:var(--primary);font-weight:600">'+
-        '✓ '+prodDispName+'</div>':'')+
-      '</div>';
+      (selectedProductId&&product.id?'<div style="margin-top:4px;padding:4px 8px;background:var(--primary-light);border-radius:6px;font-size:12px;color:var(--primary);font-weight:600">✓ '+prodDispName+'</div>':'');
   }
-
-  return '<div style="min-width:200px">'+typeHtml+prodHtml+'</div>';
+  return '<div style="width:220px">'+typeHtml+prodHtml+'</div>';
 }
 
-function prodSelectorTypeChange(ctx, itemId, type){
-  // Clear product search
+function prodTypeSearch(ctx,itemId,val){
+  window['_typeSearch_'+ctx+'_'+itemId]=val;
+  var TYPES=['Plate','Cup','Plastic Glass','Bowls','Others'];
+  var exact=TYPES.find(function(t){return t.toLowerCase()===val.toLowerCase();});
+  if(exact){prodTypeSelect(ctx,itemId,exact);return;}
+  if(ctx==='inv'){
+    var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
+    if(!item)return;
+    var td=document.querySelector('#invrow-'+itemId+' td:first-child');
+    if(td)td.innerHTML=buildProductSelector('inv',itemId,item.productId,'');
+  }else{
+    var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+    if(!item)return;
+    var td=document.querySelector('#co-row-'+itemId+' td:first-child');
+    if(td)td.innerHTML=buildProductSelector('co',itemId,item.productId,'');
+  }
+}
+
+function prodTypeSelect(ctx,itemId,type){
+  window['_typeSearch_'+ctx+'_'+itemId]='';
   window['_prodSearch_'+ctx+'_'+itemId]='';
   if(ctx==='inv'){
     var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
     if(item){item._typeFilter=type;item.productId='';item.desc='';item.rate=0;item.qtyUnit='Pkt';item.qtyCount=1;item.qty=0;}
-    renderPage();
-  } else {
+    var td=document.querySelector('#invrow-'+itemId+' td:first-child');
+    if(td)td.innerHTML=buildProductSelector('inv',itemId,'',type);else renderPage();
+  }else{
     var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
     if(item){item._typeFilter=type;item.productId='';item.desc='';item.rate=0;item.qtyUnit='Pkt';item.qtyCount=1;item.qty=0;}
-    redrawCoItems();
+    var td=document.querySelector('#co-row-'+itemId+' td:first-child');
+    if(td)td.innerHTML=buildProductSelector('co',itemId,'',type);else redrawCoItems();
   }
 }
 
-function prodSelectorSearch(ctx, itemId, val){
+function prodSelectorTypeChange(ctx,itemId,type){prodTypeSelect(ctx,itemId,type);}
+
+function prodSelectorSearch(ctx,itemId,val){
   window['_prodSearch_'+ctx+'_'+itemId]=val;
   if(ctx==='inv'){
-    // Re-render just this row's product cell
     var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
-    if(!item) return;
+    if(!item)return;
     var td=document.querySelector('#invrow-'+itemId+' td:first-child');
-    if(td) td.innerHTML=buildProductSelector('inv',itemId,item.productId,item._typeFilter||'');
-  } else {
+    if(td)td.innerHTML=buildProductSelector('inv',itemId,item.productId,item._typeFilter||'');
+  }else{
     var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
-    if(!item) return;
+    if(!item)return;
     var td=document.querySelector('#co-row-'+itemId+' td:first-child');
-    if(td) td.innerHTML=buildProductSelector('co',itemId,item.productId,item._typeFilter||'');
+    if(td)td.innerHTML=buildProductSelector('co',itemId,item.productId,item._typeFilter||'');
   }
 }
 
-function prodSelectorPick(ctx, itemId, productId){
+function prodSelectorPick(ctx,itemId,productId){
   window['_prodSearch_'+ctx+'_'+itemId]='';
-  if(ctx==='inv'){
-    selectProduct(itemId, productId);
-  } else {
-    coSelectProduct(itemId, productId);
-  }
+  window['_typeSearch_'+ctx+'_'+itemId]='';
+  if(ctx==='inv')selectProduct(itemId,productId);
+  else coSelectProduct(itemId,productId);
 }
 
 function invBuildQtyCell(item, meta){
@@ -6899,6 +6920,8 @@ window.buildProductSelector=buildProductSelector;
 window.prodSelectorPick=prodSelectorPick;
 window.prodSelectorSearch=prodSelectorSearch;
 window.prodSelectorTypeChange=prodSelectorTypeChange;
+window.prodTypeSearch=prodTypeSearch;
+window.prodTypeSelect=prodTypeSelect;
 </script>
 </body>
 </html>
