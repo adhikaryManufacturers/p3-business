@@ -2705,10 +2705,10 @@ function invBuildQtyCell(item, meta){
   var pcsPerPkt  = parseFloat(meta.pcsPerPkt)||0;
 
   // Determine available units based on product meta
-  var availUnits = ['Pkt'];
+  var availUnits = ['Pkt','Cartoon','Bora'];
   if(meta.unitType==='Cartoon') availUnits = ['Pkt','Cartoon'];
   else if(meta.unitType==='Bora') availUnits = ['Pkt','Bora'];
-  else if(!meta.unitType) availUnits = ['Pkt'];
+  else if(meta.unitType==='Pkt') availUnits = ['Pkt'];
 
   var tabsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">'+
     availUnits.map(function(u){
@@ -2799,7 +2799,18 @@ function invSetQtyUnit(itemId, unit){
   item.qtyUnit=unit;
   item.qtyCount=1;
   invRecalcQtyFull(item);
-  renderPage();
+  // Update in-place
+  var row=document.getElementById('invrow-'+itemId);
+  if(row){
+    var product=getProduct(item.productId);
+    var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+    if(item._metaOverride) Object.assign(meta,item._metaOverride);
+    var td=row.querySelector('td:nth-child(3)');
+    if(td) td.innerHTML=invBuildQtyCell(item,meta);
+    var amtEl=document.getElementById('inv-amt-'+itemId);
+    if(amtEl) amtEl.textContent=fmt(invBillingQty(item)*item.rate);
+  } else { renderPage(); }
+  updateInvCalc();
 }
 
 function invUpdateQty(itemId, val){
@@ -2885,14 +2896,20 @@ function selectProduct(itemId,productId){
     // Update in-place — no full renderPage
     var row=document.getElementById('invrow-'+itemId);
     if(row){
+      var meta={};
+      try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+      // Reset unit to match product's stockMeta type
+      if(meta.unitType==='Pkt') item.qtyUnit='Pkt';
+      else item.qtyUnit='Pkt'; // default to Pkt, user can switch to Cartoon/Bora
+      item.qtyCount=1;
+      invRecalcQty(item,meta);
       // Update product cell
       var td0=row.querySelector('td:first-child');
       if(td0) td0.innerHTML=buildProductSelector('inv',itemId,product.id,item._typeFilter);
       // Update HSN cell
       var td1=row.querySelector('td:nth-child(2)');
       if(td1) td1.textContent=product.hsn||'—';
-      // Update qty cell
-      var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+      // Update qty cell with fresh meta
       var td2=row.querySelector('td:nth-child(3)');
       if(td2) td2.innerHTML=invBuildQtyCell(item,meta);
       // Update rate cell
@@ -4638,9 +4655,10 @@ function buildCoItemRow(item){
     });
     optHtml+='</optgroup>';
   });
-  var availUnits=['Pkt'];
+  var availUnits=['Pkt','Cartoon','Bora'];
   if(meta.unitType==='Cartoon') availUnits=['Pkt','Cartoon'];
   else if(meta.unitType==='Bora') availUnits=['Pkt','Bora'];
+  else if(meta.unitType==='Pkt') availUnits=['Pkt'];
   var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
   var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
   var tabsHtml='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px" data-iid="'+iid+'" onclick="coHandleUnitClick(event,this.dataset.iid)">'+
