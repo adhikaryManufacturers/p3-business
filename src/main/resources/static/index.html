@@ -326,7 +326,7 @@ tr:hover td{background:var(--green-50);}
         </div>
         <div class="nav-group-items">
           <div class="nav-item" onclick="navigate('create-invoice')"><span class="nav-icon">&#9998;</span> Create Invoice</div>
-          <div class="nav-item" onclick="navigate('invoices')"><span class="nav-icon">&#129534;</span> All Invoices</div>
+          <div class="nav-item" onclick="navigate(\'invoices\')"><span class="nav-icon">&#129534;</span> All Invoices</div>
           <div class="nav-item" onclick="navigate('orders')"><span class="nav-icon">&#128203;</span> Delivery Orders</div>
         </div>
       </div>
@@ -505,10 +505,9 @@ function getProspectCancelledCount(prospectId){
 function getCustomerTotalDue(custId){
   return state.invoices
     .filter(function(i){
-      if(i.custId!==custId) return false;
+      if(String(i.custId)!==String(custId)) return false;
       if(i.status==='paid') return false;
-      // Skip original invoice if it already has a CF child created from it
-      // (the CF child carries the remaining balance)
+      if(i.status==='cancelled') return false;
       if(i.cfInvoiceId) return false;
       return true;
     })
@@ -1400,7 +1399,7 @@ function renderDashboard(){
   '<div class="metric" style="cursor:pointer;border:1.5px solid var(--primary)" onclick="navigate(\'analytics\')"><div class="metric-label">Net Income (this month)</div><div class="metric-value fc-green">'+fmt(getMonthlyIncome())+'</div><div class="metric-sub" style="color:var(--primary)">Tap for analytics &#8594;</div></div>'+
   '</div>'+
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'+
-  '<div class="card"><div class="card-header"><div class="card-title">Recent Invoices</div><button class="btn btn-secondary btn-sm" onclick="navigate(\'invoices\')">View All</button></div><div class="table-wrap"><table><thead><tr><th>Bill#</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+
+  '<div class="card"><div class="card-header"><div class="card-title">Recent Invoices</div><button class="btn btn-secondary btn-sm" onclick="navigate(&quot;invoices&quot;)">View All</button></div><div class="table-wrap"><table><thead><tr><th>Bill#</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+
   (recentInv.map(function(inv){
     var c2=calcInvoice(inv);var cust=getCustomer(inv.custId);
     return '<tr><td><strong>#'+inv.id+'</strong></td><td>'+(cust.name||'Unknown')+'</td><td>'+fmt(c2.grand)+'</td><td><span class="badge '+(inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td></tr>';
@@ -4037,7 +4036,7 @@ function renderCustomers(){
       '<td>'+c.phone+'</td>'+
       '<td style="font-size:12px;color:var(--text2)">'+c.address+'</td>'+
       '<td>'+statusBadge+'</td>'+
-      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+c.id+',\'customer\')">&#128203; '+ordCnt+' Orders</button>':'<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(null,'+c.id+')">+ Order</button>')+'</td>'+
+      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+c.id+',\"customer\")">&#128203; '+ordCnt+' Orders</button>':'<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(null,'+c.id+')">+ Order</button>')+'</td>'+
       '<td>'+invCnt+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'')+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td>'+(c.baleBalance||0)+'</td>'+
@@ -4391,62 +4390,68 @@ function renderAllContacts(){
   '<th>#</th><th>Name</th><th>Phone</th><th>Address</th><th>Stage</th><th>Contacted</th><th>Orders</th><th>Invoices</th><th>Due</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (filtered.length?filtered.map(function(c,idx){
-    // Get orders and invoices for this contact
     var contactOrders=c.type==='prospect'?
       (state.customerOrders||[]).filter(function(o){return o.prospectId===c.rawId;}):
       (state.customerOrders||[]).filter(function(o){return o.custId===c.rawId;});
     var contactInvoices=c.type==='customer'?
-      (state.invoices||[]).filter(function(i){return i.custId===c.rawId;}):[];
+      (state.invoices||[]).filter(function(i){return String(i.custId)===String(c.rawId);}):[];
+    var activeInvs=contactInvoices.filter(function(i){return i.status!=='cancelled';});
+    var cancelledInvs=contactInvoices.filter(function(i){return i.status==='cancelled';});
     var hasInvoices=contactInvoices.length>0;
     var hasPendingOrder=contactOrders.some(function(o){return o.status==='pending';});
     var invoicedOrder=contactOrders.find(function(o){return o.status==='invoiced';});
 
+    var ordersCell=contactOrders.length>0?
+      contactOrders.map(function(o){
+        var s=o.status==='invoiced'?'badge-green':o.status==='cancelled'?'badge-red':'badge-amber';
+        var l=o.status==='invoiced'?'&#10003; Placed':o.status==='cancelled'?'Cancelled':'Pending';
+        return '<div style="margin-bottom:3px"><span class="badge '+s+'" style="cursor:pointer" onclick="showOrderDetailModal('+o.id+')">ORD#'+o.id+' — '+l+'</span></div>';
+      }).join(''):
+      '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+(c.type==='prospect'?c.rawId:'null')+','+(c.type==='customer'?c.rawId:'null')+')">+ Place Order</button>';
+
+    var invCell=hasInvoices?
+      '<div style="display:flex;flex-direction:column;gap:3px">'+
+      activeInvs.slice(0,3).map(function(i){
+        return '<span class="badge '+(i.status==='paid'?'badge-green':i.paid>0?'badge-amber':'badge-red')+'" style="cursor:pointer" onclick="showInvoicePreview('+i.id+')">#'+i.id+'</span>';
+      }).join('')+
+      (activeInvs.length>3?'<span style="font-size:10px;color:var(--text3)">+'+(activeInvs.length-3)+' more</span>':'')+
+      (cancelledInvs.length>0?'<div style="font-size:10px;color:#e24b4a;margin-top:2px">'+cancelledInvs.length+' cancelled</div>':'')+
+      (activeInvs.length===0&&cancelledInvs.length>0?'<div style="font-size:11px;color:var(--text3);font-style:italic">No active invoices</div>':'')+
+      '</div>':
+      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">#'+invoicedOrder.invoiceId+'</span>':'—');
+
+    var actUnpaidInvs=(state.invoices||[]).filter(function(i){return String(i.custId)===String(c.rawId)&&i.status!=='paid'&&i.status!=='cancelled';});
+    var payBtn=c.type==='customer'?(
+      actUnpaidInvs.length>0&&c.totalDue>0?
+        '<button class="btn btn-sm" style="background:var(--red-400);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="showCustomerPayModal('+c.rawId+')">Pay</button>':
+      c.totalDue<=0&&contactInvoices.length>0?
+        '<span class="badge badge-green" style="font-size:10px">Cleared</span>':
+      actUnpaidInvs.length===0&&cancelledInvs.length>0?
+        '<span style="font-size:11px;color:var(--text3);font-style:italic">No active invoices</span>':
+      ''):'';
+
     return '<tr>'+
-    '<td style="color:var(--text3);font-size:11px">'+(idx+1)+'</td>'+
-    '<td><strong>'+c.name+'</strong>'+(c.notes?'<div style="font-size:10px;color:var(--text3)">'+c.notes+'</div>':'')+'</td>'+
-    '<td>'+c.phone+'</td>'+
-    '<td style="font-size:11px;color:var(--text2)">'+c.address+'</td>'+
-    '<td><span class="badge '+c.stageBadge+'">'+c.stageLabel+'</span></td>'+
-    '<td style="font-size:12px">'+c.contactedOn+'</td>'+
-    // Order status column
-    '<td>'+
-      (contactOrders.length>0?
-        contactOrders.map(function(o){
-          return '<div style="margin-bottom:3px">'+
-            '<span class="badge '+(o.status==='invoiced'?'badge-green':'badge-amber')+'" style="cursor:pointer" onclick="showOrderDetailModal('+o.id+')">'+
-            'ORD#'+o.id+' — '+(o.status==='invoiced'?'&#10003; Placed':'Pending')+
-            '</span></div>';
-        }).join(''):
-        '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+(c.type==='prospect'?c.rawId:'null')+','+(c.type==='customer'?c.rawId:'null')+')">+ Place Order</button>')+
-    '</td>'+
-    // Invoice column
-    '<td>'+
-      (hasInvoices?
-        '<div style="display:flex;flex-direction:column;gap:3px">'+
-        contactInvoices.slice(0,3).map(function(i){
-          return '<span class="badge '+(i.status==='paid'?'badge-green':i.paid>0?'badge-amber':'badge-red')+
-          '" style="cursor:pointer" onclick="showInvoicePreview('+i.id+')">#'+i.id+'</span>';
-        }).join('')+
-        (contactInvoices.length>3?'<span style="font-size:10px;color:var(--text3)">+'+( contactInvoices.length-3)+' more</span>':'')+
-        '</div>':
-        (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">#'+invoicedOrder.invoiceId+'</span>':'—'))+
-    '</td>'+
-    '<td>'+(c.totalDue>0?'<span class="fc-red fw600">'+fmt(c.totalDue)+'</span>':(c.type==='customer'?'<span class="badge badge-green">Clear</span>':'—'))+'</td>'+
-    // Action column — simplified
-    '<td><div class="gap-12">'+
-      (c.type==='prospect'?
-        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+c.rawId+')">Edit</button>'+
-        (hasPendingOrder?
-          '<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+(contactOrders.find(function(o){return o.status==='pending';})||{id:0}).id+')">&#9998; Invoice</button>':
-          (!contactOrders.length?
-            '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+c.rawId+',null)">+ Order</button>':
-            (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">View Invoice</button>':'')))+
-        (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal('+c.rawId+',\'prospect\')">Orders</button>':''):
-        '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal('+c.rawId+')">Edit</button>'+
-        '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(null,'+c.rawId+')">+ Order</button>'+
-        (hasInvoices?'<button class="btn btn-ghost btn-sm" onclick="navigate(\'invoices\')">Invoices</button>':'')+
-        (c.totalDue>0?'<button class="btn btn-sm" style="background:var(--red-400);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="showCustomerPayModal('+c.rawId+')">Pay</button>':''))+
-    '</div></td></tr>';
+      '<td style="color:var(--text3);font-size:11px">'+(idx+1)+'</td>'+
+      '<td><strong>'+c.name+'</strong>'+(c.notes?'<div style="font-size:10px;color:var(--text3)">'+c.notes+'</div>':'')+'</td>'+
+      '<td>'+c.phone+'</td>'+
+      '<td style="font-size:11px;color:var(--text2)">'+c.address+'</td>'+
+      '<td><span class="badge '+c.stageBadge+'">'+c.stageLabel+'</span></td>'+
+      '<td style="font-size:12px">'+c.contactedOn+'</td>'+
+      '<td>'+ordersCell+'</td>'+
+      '<td>'+invCell+'</td>'+
+      '<td>'+(c.totalDue>0?'<span class="fc-red fw600">'+fmt(c.totalDue)+'</span>':(c.type==='customer'?'<span class="badge badge-green">Clear</span>':'—'))+'</td>'+
+      '<td><div class="gap-12">'+
+        (c.type==='prospect'?
+          '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+c.rawId+')">Edit</button>'+
+          (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+(contactOrders.find(function(o){return o.status==='pending';})||{id:0}).id+')">&#9998; Invoice</button>':
+          (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+c.rawId+',null)">+ Order</button>':
+          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">View Invoice</button>':'')))+
+          (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal('+c.rawId+',\"prospect\")">Orders</button>':''):
+          '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal('+c.rawId+')">Edit</button>'+
+          '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(null,'+c.rawId+')">+ Order</button>'+
+          (hasInvoices?'<button class="btn btn-ghost btn-sm" onclick="navigate(\'invoices\')">Invoices</button>':'')+
+          payBtn)+
+      '</div></td></tr>';
   }).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">No contacts match this filter</td></tr>')+
   '</tbody></table></div></div>';
 }
@@ -4500,7 +4505,7 @@ function renderCRM(){
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+p.id+')">Edit</button>'+
         '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+p.id+',null)">+ Order</button>'+
-        (ordCnt>0?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal('+p.id+',\'prospect\')">'+ordCnt+' Orders</button>':'')+
+        (ordCnt>0?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal('+p.id+',\"prospect\")">'+ordCnt+' Orders</button>':'')+
         '<button class="btn btn-danger btn-sm" onclick="deleteProspect('+p.id+')">Del</button>'+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">No reached-out contacts yet</td></tr>')+
@@ -4520,7 +4525,7 @@ function renderCRM(){
       '<td style="font-size:12px;color:var(--text2)">'+p.address+'</td>'+
       '<td>'+p.contactedOn+'</td>'+
       '<td><span class="badge badge-blue">Order Given</span></td>'+
-      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+p.id+',\'prospect\')">&#128203; '+ordCnt+' Orders</button>':'—')+'</td>'+
+      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+p.id+',\"prospect\")">&#128203; '+ordCnt+' Orders</button>':'—')+'</td>'+
       '<td style="font-size:12px;color:var(--text3)">'+p.notes+'</td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+p.id+')">Edit</button>'+
@@ -5148,20 +5153,30 @@ function renderCustomerDues(){
 // ===================== CUSTOMER PAYMENTS =====================
 function renderCustomerPayments(){
   return '<div style="margin-bottom:20px"><div class="section-title">Record Customer Payment</div><div class="section-sub">Apply payments to outstanding invoices. CF = Carry Forward invoice from partial payment.</div></div>'+
-  '<div class="card"><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Phone</th><th>Active Pending Invoices</th><th>Total Due (₹)</th><th>Action</th></tr></thead><tbody>'+
+  '<div class="card"><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Phone</th><th>Active Pending Invoices</th><th>Cancelled</th><th>Total Due (₹)</th><th>Action</th></tr></thead><tbody>'+
   (sortDesc(state.customers,'id').map(function(c){
-    // Only show invoices that are not superseded by a CF invoice
-    var activeInvs=state.invoices.filter(function(i){return String(i.custId)===String(c.id)&&i.status!=='paid'&&i.status!=='cancelled'&&!i.cfInvoiceId;});
+    var allCustInvs=state.invoices.filter(function(i){return String(i.custId)===String(c.id);});
+    var activeInvs=allCustInvs.filter(function(i){return i.status!=="paid"&&i.status!=="cancelled"&&!i.cfInvoiceId;});
+    var cancelledInvs=allCustInvs.filter(function(i){return i.status==="cancelled";});
     var due=getCustomerTotalDue(c.id);
     var invLabels=activeInvs.map(function(i){
-      return '<span class="badge '+(i.isCarryForward?'badge-blue':'badge-red')+'" style="margin-right:3px">#'+i.id+(i.isCarryForward?' CF':'')+'</span>';
-    }).join('') || '—';
-    return '<tr><td><strong>'+c.name+'</strong></td><td>'+c.phone+'</td>'+
-      '<td>'+invLabels+'</td>'+
-      '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
-      '<td>'+(activeInvs.length>0?'<button class="btn btn-primary btn-sm" onclick="showCustomerPayModal('+c.id+')">Record Payment</button>':'—')+'</td></tr>';
-  }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:24px;font-style:italic">No records found</td></tr>')+'"</tbody></table></div></div>';
+      return "<span class=\"badge "+(i.isCarryForward?"badge-blue":"badge-red")+"\" style=\"margin-right:3px\">#"+i.id+(i.isCarryForward?" CF":"")+"</span>";
+    }).join("")||(cancelledInvs.length>0?"<span style=\"font-size:11px;color:var(--text3);font-style:italic\">No active invoices</span>":"—");
+    var cancelledLabel=cancelledInvs.length>0?"<span style=\"font-size:11px;color:#e24b4a;font-weight:600\">"+cancelledInvs.length+"</span>":"—";
+    var actionCell=activeInvs.length>0
+      ?"<button class=\"btn btn-primary btn-sm\" onclick=\"showCustomerPayModal("+c.id+")\" >Record Payment</button>"
+      :(cancelledInvs.length>0
+        ?"<span style=\"font-size:11px;color:var(--text3);font-style:italic\">No active invoices</span>"
+        :"—");
+    return "<tr><td><strong>"+c.name+"</strong></td><td>"+c.phone+"</td>"+
+      "<td>"+invLabels+"</td>"+
+      "<td>"+cancelledLabel+"</td>"+
+      "<td>"+(due>0?"<span class=\"fc-red fw600\">"+fmt(due)+"</span>":"<span class=\"badge badge-green\">Cleared</span>")+"</td>"+
+      "<td>"+actionCell+"</td></tr>";
+  }).join("")||"<tr><td colspan=\"6\" style=\"text-align:center;color:var(--text3);padding:24px;font-style:italic\">No records found</td></tr>")+
+  "</tbody></table></div></div>";
 }
+
 function showCustomerPayModal(custId){
   var c=getCustomer(custId);
   var pendInvs=state.invoices.filter(function(i){return String(i.custId)===String(custId)&&i.status!=='paid'&&i.status!=='cancelled';});
