@@ -2544,42 +2544,11 @@ function renderInvItemRow(item){
   var product = getProduct(item.productId);
   var meta = {};
   try{ if(product.stockMeta) meta=JSON.parse(product.stockMeta); }catch(e){}
-  var unitType = item.qtyUnit||'Pcs';
-
-  // Product name display = name + size merged
-  var prodDisplayName = product.id ? (product.name+(product.size?' - '+product.size:'')) : '';
-
-  // Group products by type for grouped select
-  var TYPES = ['Plate','Cup','Plastic Glass','Bowls','Others'];
-  var grouped = {};
-  TYPES.forEach(function(t){ grouped[t]=[]; });
-  state.products.forEach(function(p){
-    var t = p.type&&grouped[p.type]?p.type:'Others';
-    grouped[t].push(p);
-  });
-  var optionsHtml = '<option value="">— Select Product —</option>';
-  TYPES.forEach(function(t){
-    var prods = grouped[t];
-    if(prods.length===0) return;
-    optionsHtml += '<optgroup label="'+t+'">';
-    prods.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).forEach(function(p){
-      var dispName = p.name+(p.size?' - '+p.size:'');
-      optionsHtml += '<option value="'+p.id+'" '+(p.id===item.productId?'selected':'')+'>'+dispName+'</option>';
-    });
-    optionsHtml += '</optgroup>';
-  });
-  optionsHtml += '<option value="__new__">＋ Add New Product...</option>';
-
-  // Quantity section with Cartoon/Bora/Pkt/Pcs
+  var unitType = item.qtyUnit||'Pkt';
   var qtyCell = invBuildQtyCell(item, meta);
 
   return '<tr id="invrow-'+item.id+'">'+
-    '<td>'+
-      '<select onchange="selectProduct('+item.id+',this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;min-width:160px">'+
-      optionsHtml+
-      '</select>'+
-      (product.id?'':'<div style="font-size:10px;color:var(--red-400);margin-top:2px">Select a product</div>')+
-    '</td>'+
+    '<td>'+buildProductSelector('inv',item.id,item.productId,item._typeFilter||'')+'</td>'+
     '<td style="color:var(--text3);font-size:12px">'+(product.hsn||'—')+'</td>'+
     '<td>'+qtyCell+'</td>'+
     '<td><input type="number" value="'+item.rate+'" step="0.25" '+
@@ -2589,19 +2558,119 @@ function renderInvItemRow(item){
     '<td><button onclick="removeInvItem('+item.id+')" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
 }
 
+// ── Shared two-step product selector (used by invoice + order) ──
+function buildProductSelector(ctx, itemId, selectedProductId, selectedType){
+  var TYPES=['Plate','Cup','Plastic Glass','Bowls','Others'];
+  var product=getProduct(selectedProductId);
+  var prodDispName=product.id?(product.name+(product.size?' - '+product.size:'')):'';
+
+  // Step 1 — Type selector
+  var typeHtml='<select data-ctx="'+ctx+'" data-iid="'+itemId+'" '+
+    'onchange="prodSelectorTypeChange(this.dataset.ctx,this.dataset.iid,this.value)" '+
+    'style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;width:100%;margin-bottom:6px">'+
+    '<option value="">— Select Type —</option>'+
+    TYPES.map(function(t){return '<option value="'+t+'" '+(selectedType===t?'selected':'')+'>'+t+'</option>';}).join('')+
+    '</select>';
+
+  // Step 2 — Product list (only if type selected)
+  var prodHtml='';
+  if(selectedType){
+    var prods=state.products.filter(function(p){return p.type===selectedType;})
+      .sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+    var search=window['_prodSearch_'+ctx+'_'+itemId]||'';
+    var filtered=search?prods.filter(function(p){
+      return (p.name||'').toLowerCase().includes(search.toLowerCase())||
+             (p.size||'').toLowerCase().includes(search.toLowerCase());
+    }):prods;
+    var shown=filtered.slice(0,10);
+
+    prodHtml='<div style="position:relative">'+
+      // Search input
+      '<input type="text" placeholder="🔍 Search..." value="'+search+'" '+
+      'data-ctx="'+ctx+'" data-iid="'+itemId+'" '+
+      'oninput="prodSelectorSearch(this.dataset.ctx,this.dataset.iid,this.value)" '+
+      'style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-bottom:4px;box-sizing:border-box">'+
+      // Product list
+      '<div style="border:1px solid var(--border);border-radius:6px;overflow-y:auto;max-height:180px;background:var(--surface)">'+
+      (shown.length===0
+        ? '<div style="padding:10px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">No products found</div>'
+        : shown.map(function(p){
+            var dn=p.name+(p.size?' - '+p.size:'');
+            var isSelected=p.id===selectedProductId;
+            return '<div data-ctx="'+ctx+'" data-iid="'+itemId+'" data-pid="'+p.id+'" '+
+              'onclick="prodSelectorPick(this.dataset.ctx,this.dataset.iid,this.dataset.pid)" '+
+              'style="padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);'+
+              (isSelected?'background:var(--primary-light);font-weight:700;color:var(--primary)':'')+';" '+
+              'onmouseover="if(!'+isSelected+')this.style.background=\'var(--primary-light)\'" '+
+              'onmouseout="if(!'+isSelected+')this.style.background=\'\'">'+
+              '<span style="font-weight:600">'+dn+'</span>'+
+              (p.stock?'<span style="float:right;font-size:10px;color:var(--text3)">'+p.stock+' Pcs</span>':'')+
+              '</div>';
+          }).join(''))+
+      (filtered.length>10?'<div style="padding:6px;text-align:center;font-size:11px;color:var(--text3)">+'+(filtered.length-10)+' more — search to narrow</div>':'')+
+      '</div>'+
+      // Selected product display
+      (selectedProductId&&product.id?
+        '<div style="margin-top:6px;padding:5px 8px;background:var(--primary-light);border-radius:6px;font-size:12px;color:var(--primary);font-weight:600">'+
+        '✓ '+prodDispName+'</div>':'')+
+      '</div>';
+  }
+
+  return '<div style="min-width:200px">'+typeHtml+prodHtml+'</div>';
+}
+
+function prodSelectorTypeChange(ctx, itemId, type){
+  // Clear product search
+  window['_prodSearch_'+ctx+'_'+itemId]='';
+  if(ctx==='inv'){
+    var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
+    if(item){item._typeFilter=type;item.productId='';item.desc='';item.rate=0;item.qtyUnit='Pkt';item.qtyCount=1;item.qty=0;}
+    renderPage();
+  } else {
+    var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+    if(item){item._typeFilter=type;item.productId='';item.desc='';item.rate=0;item.qtyUnit='Pkt';item.qtyCount=1;item.qty=0;}
+    redrawCoItems();
+  }
+}
+
+function prodSelectorSearch(ctx, itemId, val){
+  window['_prodSearch_'+ctx+'_'+itemId]=val;
+  if(ctx==='inv'){
+    // Re-render just this row's product cell
+    var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
+    if(!item) return;
+    var td=document.querySelector('#invrow-'+itemId+' td:first-child');
+    if(td) td.innerHTML=buildProductSelector('inv',itemId,item.productId,item._typeFilter||'');
+  } else {
+    var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
+    if(!item) return;
+    var td=document.querySelector('#co-row-'+itemId+' td:first-child');
+    if(td) td.innerHTML=buildProductSelector('co',itemId,item.productId,item._typeFilter||'');
+  }
+}
+
+function prodSelectorPick(ctx, itemId, productId){
+  window['_prodSearch_'+ctx+'_'+itemId]='';
+  if(ctx==='inv'){
+    selectProduct(itemId, productId);
+  } else {
+    coSelectProduct(itemId, productId);
+  }
+}
+
 function invBuildQtyCell(item, meta){
-  var unitType = item.qtyUnit||'Pcs';
+  var unitType = item.qtyUnit||'Pkt';
   var pktPerUnit = parseFloat(meta.pktPerUnit)||0;
   var pcsPerPkt  = parseFloat(meta.pcsPerPkt)||0;
 
   // Determine available units based on product meta
-  var availUnits = ['Pcs'];
+  var availUnits = ['Pkt'];
   if(meta.unitType==='Pkt'||meta.unitType==='Cartoon'||meta.unitType==='Bora'){
-    availUnits = ['Pcs','Pkt'];
+    availUnits = ['Pkt'];
   }
-  if(meta.unitType==='Cartoon') availUnits = ['Pcs','Pkt','Cartoon'];
-  if(meta.unitType==='Bora')    availUnits = ['Pcs','Pkt','Bora'];
-  if(!meta.unitType) availUnits = ['Pcs','Pkt','Cartoon','Bora'];
+  if(meta.unitType==='Cartoon') availUnits = ['Pkt','Cartoon'];
+  if(meta.unitType==='Bora')    availUnits = ['Pkt','Bora'];
+  if(!meta.unitType) availUnits = ['Pkt','Cartoon','Bora'];
 
   var tabsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">'+
     availUnits.map(function(u){
@@ -2659,7 +2728,7 @@ function invSetMetaVal(itemId, field, val){
 }
 
 function invQtyInputHtml(item, meta){
-  var unitType=item.qtyUnit||'Pcs';
+  var unitType=item.qtyUnit||'Pkt';
   var pktPerUnit=meta.pktPerUnit||1;
   var pcsPerPkt=meta.pcsPerPkt||1;
 
@@ -2725,7 +2794,7 @@ function invRecalcQtyFull(item){
 }
 
 function invRecalcQty(item, meta){
-  var unit=item.qtyUnit||'Pcs';
+  var unit=item.qtyUnit||'Pkt';
   var count=item.qtyCount||1;
   var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
   var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
@@ -2762,11 +2831,12 @@ function selectProduct(itemId,productId){
     item.productId=product.id;
     item.desc=product.name+(product.size?' - '+product.size:'');
     item.rate=product.price;
-    item.unit='Pcs';
-    item.qtyUnit='Pcs';
+    item.unit='Pkt';
+    item.qtyUnit='Pkt';
     item.qtyCount=1;
     item.qty=1;
     item._metaOverride=null;
+    item._typeFilter=item._typeFilter||product.type;
     renderPage();
   } else if(item&&!productId){
     item.productId='';item.desc='';item.rate=0;
@@ -3449,13 +3519,17 @@ function sendWhatsAppManual(){
 
 // Billing qty = number of pkts/cartoons/boras (what customer pays per unit)
 function invBillingQty(item){
-  var unit = item.qtyUnit||'Pcs';
-  if(unit==='Cartoon'||unit==='Bora') return item.qtyCount||1; // cartoons/boras
-  if(unit==='Pkt') return item.qtyCount||1; // pkts
-  return item.qty||1; // pieces
+  var unit = item.qtyUnit||'Pkt';
+  var product = getProduct(item.productId);
+  var meta = {};
+  try{ if(product.stockMeta) meta=JSON.parse(product.stockMeta); }catch(e){}
+  if(item._metaOverride) Object.assign(meta, item._metaOverride);
+  var pktPerUnit = parseFloat(meta.pktPerUnit)||1;
+  if(unit==='Cartoon'||unit==='Bora') return (item.qtyCount||1) * pktPerUnit; // total pkts
+  return item.qtyCount||1; // pkts (Pkt or fallback)
 }
 function invBillingLabel(item){
-  var unit = item.qtyUnit||'Pcs';
+  var unit = item.qtyUnit||'Pkt';
   if(unit==='Cartoon') return 'Cartoon';
   if(unit==='Bora') return 'Bora';
   if(unit==='Pkt') return 'Pkt';
@@ -4318,7 +4392,7 @@ function showCreateOrderModal(prospectId, custId){
   var prospectOpts=state.prospects.map(function(p){return '<option value="p_'+p.id+'" '+(prospectId&&p.id===prospectId?'selected':'')+'>'+p.name+' [Prospect]</option>';}).join('');
   var custOpts=state.customers.map(function(c){return '<option value="c_'+c.id+'" '+(custId&&c.id===custId?'selected':'')+'>'+c.name+' [Customer]</option>';}).join('');
   var isCust=!!custId;
-  window._coItems=[{id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pcs',qtyCount:1,rate:0,unit:'Pcs'}];
+  window._coItems=[{id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,rate:0,unit:'Pkt'}];
   showModal('Create Order',
     '<div class="form-grid">'+
     '<div class="form-group full"><label>Customer / Prospect<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
@@ -4362,7 +4436,7 @@ function buildCoItemRows(){
 function buildCoItemRow(item){
   var product=getProduct(item.productId);
   var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
-  var unitType=item.qtyUnit||'Pcs';
+  var unitType=item.qtyUnit||'Pkt';
   var iid=item.id; // use variable to avoid string escaping issues
   var TYPES=['Plate','Cup','Plastic Glass','Bowls','Others'];
   var grouped={};TYPES.forEach(function(t){grouped[t]=[];});
@@ -4377,11 +4451,11 @@ function buildCoItemRow(item){
     });
     optHtml+='</optgroup>';
   });
-  var availUnits=['Pcs'];
-  if(meta.unitType==='Pkt'||meta.unitType==='Cartoon'||meta.unitType==='Bora') availUnits=['Pcs','Pkt'];
-  if(meta.unitType==='Cartoon') availUnits=['Pcs','Pkt','Cartoon'];
-  if(meta.unitType==='Bora') availUnits=['Pcs','Pkt','Bora'];
-  if(!meta.unitType) availUnits=['Pcs','Pkt','Cartoon','Bora'];
+  var availUnits=['Pkt'];
+  if(meta.unitType==='Pkt'||meta.unitType==='Cartoon'||meta.unitType==='Bora') availUnits=['Pkt'];
+  if(meta.unitType==='Cartoon') availUnits=['Pkt','Cartoon'];
+  if(meta.unitType==='Bora') availUnits=['Pkt','Bora'];
+  if(!meta.unitType) availUnits=['Pkt','Cartoon','Bora'];
   var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
   var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
   var tabsHtml='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px" data-iid="'+iid+'" onclick="coHandleUnitClick(event,this.dataset.iid)">'+
@@ -4409,7 +4483,7 @@ function buildCoItemRow(item){
   }
   var bq=coGetBillingQty(item,meta);
   return '<tr id="co-row-'+iid+'">'+
-    '<td><select data-iid="'+iid+'" onchange="coSelectProduct(this.dataset.iid,this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;min-width:150px">'+optHtml+'</select></td>'+
+    '<td>'+buildProductSelector('co',iid,item.productId,item._typeFilter||'')+'</td>'+
     '<td style="color:var(--text3);font-size:12px">'+(product.hsn||'—')+'</td>'+
     '<td>'+tabsHtml+inputHtml+'</td>'+
     '<td><input type="number" value="'+item.rate+'" step="0.25" data-iid="'+iid+'" onchange="coUpdateRate(this.dataset.iid,this.value)" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:12px"></td>'+
@@ -4425,16 +4499,24 @@ function coHandleUnitClick(e, iid){
 
 
 function coGetBillingQty(item,meta){
-  var unit=item.qtyUnit||'Pcs';
+  var unit=item.qtyUnit||'Pkt';
   if(!meta){try{var p=getProduct(item.productId);meta=JSON.parse(p.stockMeta||'{}');}catch(e){meta={};}}
-  if(unit==='Cartoon'||unit==='Bora'||unit==='Pkt') return item.qtyCount||1;
-  return item.qty||1;
+  var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
+  if(unit==='Cartoon'||unit==='Bora') return (item.qtyCount||1)*pktPerUnit; // total pkts
+  return item.qtyCount||1; // pkts (Pkt or fallback)
 }
 function coSelectProduct(itemId,productId){
   var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
   var product=getProduct(parseInt(productId));
-  if(item&&product&&product.id){item.productId=product.id;item.desc=product.name+(product.size?' - '+product.size:'');item.rate=product.price;item.qtyUnit='Pcs';item.qtyCount=1;item.qty=1;item.unit='Pcs';}
-  else if(item){item.productId='';item.desc='';item.rate=0;}
+  if(item&&product&&product.id){
+    item.productId=product.id;
+    item.desc=product.name+(product.size?' - '+product.size:'');
+    item.rate=product.price;
+    item.qtyUnit='Pkt';item.qtyCount=1;item.qty=1;item.unit='Pkt';
+    item._typeFilter=item._typeFilter||product.type;
+  } else if(item){
+    item.productId='';item.desc='';item.rate=0;
+  }
   redrawCoItems();
 }
 function coSetUnit(itemId,unit){
@@ -4466,7 +4548,7 @@ function coUpdateRate(itemId,val){
 }
 function coRecalcItem(item){
   var product=getProduct(item.productId);var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
-  var unit=item.qtyUnit||'Pcs',count=item.qtyCount||1;
+  var unit=item.qtyUnit||'Pkt',count=item.qtyCount||1;
   var pktPerUnit=parseFloat(meta.pktPerUnit)||1,pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
   if(unit==='Cartoon'||unit==='Bora')item.qty=count*pktPerUnit*pcsPerPkt;
   else if(unit==='Pkt')item.qty=count*pcsPerPkt;
@@ -4478,7 +4560,7 @@ function coRemoveItem(itemId){
 }
 function addCoItem(){
   if(!window._coItems)window._coItems=[];
-  window._coItems.push({id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pcs',qtyCount:1,rate:0,unit:'Pcs'});redrawCoItems();
+  window._coItems.push({id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,rate:0,unit:'Pkt'});redrawCoItems();
 }
 function redrawCoItems(){
   var tbody=document.getElementById('co-items-body');if(tbody)tbody.innerHTML=buildCoItemRows();updateCoTotal();
@@ -4512,7 +4594,7 @@ async function saveNewOrder(){
   var items=[];
   (window._coItems||[]).forEach(function(item){
     if(!item.productId||item.qty<=0) return;
-    items.push({productId:item.productId,desc:item.desc||'',qty:item.qty,qtyCount:item.qtyCount||item.qty,qtyUnit:item.qtyUnit||'Pcs',unit:item.unit||'Pcs',rate:item.rate});
+    items.push({productId:item.productId,desc:item.desc||'',qty:item.qty,qtyCount:item.qtyCount||item.qty,qtyUnit:item.qtyUnit||'Pkt',unit:item.unit||'Pcs',rate:item.rate});
   });
   if(!items.length){alert('Add at least one product item.');return;}
   var order={prospectId:prospectId,custId:custId,date:date,deliveryDate:delivery,items:items,notes:notes,status:'pending',invoiceId:null};
@@ -6813,6 +6895,10 @@ window.invBillingQty=invBillingQty;
 window.redrawCoItems=redrawCoItems;
 window.updateCoTotal=updateCoTotal;
 window.coHandleUnitClick=coHandleUnitClick;
+window.buildProductSelector=buildProductSelector;
+window.prodSelectorPick=prodSelectorPick;
+window.prodSelectorSearch=prodSelectorSearch;
+window.prodSelectorTypeChange=prodSelectorTypeChange;
 </script>
 </body>
 </html>
