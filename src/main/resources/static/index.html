@@ -2533,32 +2533,210 @@ function renderCreateInvoice(){
   '<div id="prev-due-note" style="margin-top:10px"></div>'+
   '</div></div></div>'+
   '<div class="card" style="margin-bottom:16px"><div class="card-header"><div class="card-title">Line Items</div><button class="btn btn-secondary btn-sm" onclick="addInvItem()">+ Add Row</button></div>'+
-  '<div class="table-wrap"><table><thead><tr><th>Product</th><th>HSN</th><th>Qty</th><th>Unit</th><th>Rate (₹)</th><th>Amount</th><th></th></tr></thead>'+
-  '<tbody id="inv-items-body">'+(state.invoiceItems.map(renderInvItemRow).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:24px;font-style:italic">No records found</td></tr>')+'"</tbody></table></div></div>'+
+  '<div class="table-wrap"><table><thead><tr><th>Product</th><th>HSN</th><th>Qty / Breakdown</th><th>Rate (₹)</th><th>Amount</th><th></th></tr></thead>'+
+  '<tbody id="inv-items-body">'+(state.invoiceItems.map(renderInvItemRow).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px;font-style:italic">No records found</td></tr>')+'</tbody></table></div></div>'+
   '<div style="display:flex;justify-content:flex-end;margin-bottom:16px">'+
   '<div class="card" style="width:340px"><div class="card-body" style="font-size:13px"><div id="inv-calc"></div></div></div></div>'+
   '<div class="gap-12"><button class="btn btn-primary" onclick="generateInvoice()">Generate Invoice →</button><button class="btn btn-ghost" onclick="state.invoiceItems=[];renderPage()">Reset</button></div>';
 }
 
 function renderInvItemRow(item){
-  var product=getProduct(item.productId);
-  var prodName=product.id?product.name:(item.desc||'—');
+  var product = getProduct(item.productId);
+  var meta = {};
+  try{ if(product.stockMeta) meta=JSON.parse(product.stockMeta); }catch(e){}
+  var unitType = item.qtyUnit||'Pcs';
+
+  // Product name display = name + size merged
+  var prodDisplayName = product.id ? (product.name+(product.size?' - '+product.size:'')) : '';
+
+  // Group products by type for grouped select
+  var TYPES = ['Plate','Cup','Plastic Glass','Bowls','Others'];
+  var grouped = {};
+  TYPES.forEach(function(t){ grouped[t]=[]; });
+  state.products.forEach(function(p){
+    var t = p.type&&grouped[p.type]?p.type:'Others';
+    grouped[t].push(p);
+  });
+  var optionsHtml = '<option value="">— Select Product —</option>';
+  TYPES.forEach(function(t){
+    var prods = grouped[t];
+    if(prods.length===0) return;
+    optionsHtml += '<optgroup label="'+t+'">';
+    prods.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).forEach(function(p){
+      var dispName = p.name+(p.size?' - '+p.size:'');
+      optionsHtml += '<option value="'+p.id+'" '+(p.id===item.productId?'selected':'')+'>'+dispName+'</option>';
+    });
+    optionsHtml += '</optgroup>';
+  });
+  optionsHtml += '<option value="__new__">＋ Add New Product...</option>';
+
+  // Quantity section with Cartoon/Bora/Pkt/Pcs
+  var qtyCell = invBuildQtyCell(item, meta);
+
   return '<tr id="invrow-'+item.id+'">'+
     '<td>'+
-      '<select onchange="selectProduct('+item.id+',this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;max-width:160px">'+
-      '<option value="">— Select Product —</option>'+
-      state.products.map(function(p){return '<option value="'+p.id+'" '+(p.id===item.productId?'selected':'')+'>'+p.name+'</option>';}).join('')+
-      '<option value="__new__">＋ Add New Product...</option>'+
+      '<select onchange="selectProduct('+item.id+',this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;min-width:160px">'+
+      optionsHtml+
       '</select>'+
       (product.id?'':'<div style="font-size:10px;color:var(--red-400);margin-top:2px">Select a product</div>')+
     '</td>'+
     '<td style="color:var(--text3);font-size:12px">'+(product.hsn||'—')+'</td>'+
-    '<td><input type="number" value="'+item.qty+'" min="1" onchange="updateInvItem('+item.id+',\'qty\',this.value);refreshInvRow('+item.id+')" style="width:60px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"></td>'+
-    '<td><select onchange="updateInvItem('+item.id+',\'unit\',this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px">'+
-    ['Pcs','Kg','Box','Roll'].map(function(u){return '<option '+(item.unit===u?'selected':'')+'>'+u+'</option>';}).join('')+'</select></td>'+
-    '<td><input type="number" value="'+item.rate+'" step="0.25" onchange="updateInvItem('+item.id+',\'rate\',this.value);refreshInvRow('+item.id+')" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"></td>'+
+    '<td>'+qtyCell+'</td>'+
+    '<td><input type="number" value="'+item.rate+'" step="0.25" '+
+      'onchange="updateInvItem('+item.id+',\'rate\',this.value);refreshInvRow('+item.id+')" '+
+      'style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"></td>'+
     '<td class="fw600" id="inv-amt-'+item.id+'">'+fmt(item.qty*item.rate)+'</td>'+
     '<td><button onclick="removeInvItem('+item.id+')" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
+}
+
+function invBuildQtyCell(item, meta){
+  var unitType = item.qtyUnit||'Pcs';
+  var pktPerUnit = parseFloat(meta.pktPerUnit)||0;
+  var pcsPerPkt  = parseFloat(meta.pcsPerPkt)||0;
+
+  // Determine available units based on product meta
+  var availUnits = ['Pcs'];
+  if(meta.unitType==='Pkt'||meta.unitType==='Cartoon'||meta.unitType==='Bora'){
+    availUnits = ['Pcs','Pkt'];
+  }
+  if(meta.unitType==='Cartoon') availUnits = ['Pcs','Pkt','Cartoon'];
+  if(meta.unitType==='Bora')    availUnits = ['Pcs','Pkt','Bora'];
+  if(!meta.unitType) availUnits = ['Pcs','Pkt','Cartoon','Bora'];
+
+  var tabsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">'+
+    availUnits.map(function(u){
+      var active = unitType===u;
+      return '<button onclick="invSetQtyUnit('+item.id+',\''+u+'\')" '+
+        'style="padding:2px 8px;border-radius:10px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
+        'background:'+(active?'var(--primary)':'var(--surface)')+';color:'+(active?'#fff':'var(--text2)')+';'+
+        'font-size:11px;font-weight:'+(active?'700':'400')+';cursor:pointer">'+u+'</button>';
+    }).join('')+'</div>';
+
+  var inputHtml = '';
+  if(unitType==='Cartoon'||unitType==='Bora'){
+    var cnt = item.qtyCount||1;
+    var totalPkt = cnt*(pktPerUnit||1);
+    var totalPcs = totalPkt*(pcsPerPkt||1);
+    inputHtml =
+      '<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
+      '<input type="number" value="'+cnt+'" min="1" '+
+        'onchange="invUpdateQty('+item.id+',this.value)" '+
+        'style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" '+
+        'placeholder="'+unitType+'s">'+
+      '<span style="color:var(--text3);font-size:11px">'+unitType+'(s)</span>'+
+      '<span></span>'+
+      (pktPerUnit?'<span style="color:var(--text3)">×'+pktPerUnit+' Pkt</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:#1565c0">'+totalPkt+' Pkt</span>':'<input type="number" placeholder="Pkt/'+unitType+'" onchange="invSetMetaVal('+item.id+',\'pktPerUnit\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pkt/'+unitType+'</span><span></span>')+
+      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal('+item.id+',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
+      '</div>';
+  } else if(unitType==='Pkt'){
+    var pktCnt = item.qtyCount||1;
+    var totalPcs2 = pktCnt*(pcsPerPkt||1);
+    inputHtml =
+      '<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
+      '<input type="number" value="'+pktCnt+'" min="1" '+
+        'onchange="invUpdateQty('+item.id+',this.value)" '+
+        'style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px">'+
+      '<span style="color:var(--text3);font-size:11px">Pkt(s)</span>'+
+      '<span></span>'+
+      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs2+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal('+item.id+',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
+      '</div>';
+  } else {
+    // Pieces
+    inputHtml = '<input type="number" value="'+item.qty+'" min="1" '+
+      'onchange="updateInvItem('+item.id+',\'qty\',this.value);refreshInvRow('+item.id+')" '+
+      'style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px"> <span style="font-size:11px;color:var(--text3)">Pcs</span>';
+  }
+  return tabsHtml+inputHtml;
+}
+
+function invSetMetaVal(itemId, field, val){
+  var item=state.invoiceItems.find(function(i){return i.id===itemId;});
+  if(!item) return;
+  if(!item._metaOverride) item._metaOverride={};
+  item._metaOverride[field]=parseFloat(val)||0;
+  invRecalcQtyFull(item);
+  renderPage();
+}
+
+function invQtyInputHtml(item, meta){
+  var unitType=item.qtyUnit||'Pcs';
+  var pktPerUnit=meta.pktPerUnit||1;
+  var pcsPerPkt=meta.pcsPerPkt||1;
+
+  if(unitType==='Cartoon'||unitType==='Bora'){
+    var unitCount=item.qtyCount||1;
+    return '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
+      '<input type="number" value="'+unitCount+'" min="1" '+
+      'onchange="invUpdateQty('+item.id+',\'count\',this.value)" '+
+      'style="width:55px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px" placeholder="'+unitType+'s">'+
+      '<span style="font-size:11px;color:var(--text3)">×'+pktPerUnit+' Pkt ×'+pcsPerPkt+' Pcs</span>'+
+      '</div>';
+  } else if(unitType==='Pkt'){
+    var pktCount=item.qtyCount||1;
+    return '<div style="display:flex;gap:6px;align-items:center">'+
+      '<input type="number" value="'+pktCount+'" min="1" '+
+      'onchange="invUpdateQty('+item.id+',\'count\',this.value)" '+
+      'style="width:65px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px" placeholder="Pkts">'+
+      '<span style="font-size:11px;color:var(--text3)">×'+pcsPerPkt+' Pcs</span>'+
+      '</div>';
+  } else {
+    return '<input type="number" value="'+item.qty+'" min="1" '+
+      'onchange="updateInvItem('+item.id+',\'qty\',this.value);refreshInvRow('+item.id+')" '+
+      'style="width:70px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px">';
+  }
+}
+
+function invSetQtyUnit(itemId, unit){
+  var item=state.invoiceItems.find(function(i){return i.id===itemId;});
+  if(!item) return;
+  item.qtyUnit=unit;
+  item.qtyCount=1;
+  invRecalcQtyFull(item);
+  renderPage();
+}
+
+function invUpdateQty(itemId, val){
+  var item=state.invoiceItems.find(function(i){return i.id===itemId;});
+  if(!item) return;
+  item.qtyCount=parseFloat(val)||1;
+  invRecalcQtyFull(item);
+  // Update amount cell directly without re-render
+  var amtEl=document.getElementById('inv-amt-'+itemId);
+  if(amtEl) amtEl.textContent=fmt(item.qty*item.rate);
+  updateInvCalc();
+  // Re-render only this row for qty display
+  var row=document.getElementById('invrow-'+itemId);
+  if(row){
+    var product=getProduct(item.productId);
+    var meta={};
+    try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+    if(item._metaOverride) Object.assign(meta,item._metaOverride);
+    var td=row.querySelector('td:nth-child(3)');
+    if(td) td.innerHTML=invBuildQtyCell(item,meta);
+  }
+}
+
+function invRecalcQtyFull(item){
+  var product=getProduct(item.productId);
+  var meta={};
+  try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+  if(item._metaOverride) Object.assign(meta,item._metaOverride);
+  invRecalcQty(item,meta);
+}
+
+function invRecalcQty(item, meta){
+  var unit=item.qtyUnit||'Pcs';
+  var count=item.qtyCount||1;
+  var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
+  var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
+  if(unit==='Cartoon'||unit==='Bora'){
+    item.qty=count*pktPerUnit*pcsPerPkt;
+  } else if(unit==='Pkt'){
+    item.qty=count*pcsPerPkt;
+  } else {
+    item.qty=count;
+  }
+  item.unit='Pcs';
 }
 function refreshInvRow(id){
   var item=state.invoiceItems.find(function(i){return i.id===id;});
@@ -2574,7 +2752,6 @@ function updateInvItem(id,field,val){
 }
 function selectProduct(itemId,productId){
   if(productId==='__new__'){
-    // Open add product modal — after saving, apply to this item
     state._pendingInvItemId=itemId;
     showAddProductFromInvoiceModal();
     return;
@@ -2583,9 +2760,13 @@ function selectProduct(itemId,productId){
   var product=getProduct(parseInt(productId));
   if(item&&product&&product.id){
     item.productId=product.id;
-    item.desc=product.name;
+    item.desc=product.name+(product.size?' - '+product.size:'');
     item.rate=product.price;
     item.unit='Pcs';
+    item.qtyUnit='Pcs';
+    item.qtyCount=1;
+    item.qty=1;
+    item._metaOverride=null;
     renderPage();
   } else if(item&&!productId){
     item.productId='';item.desc='';item.rate=0;
@@ -2639,19 +2820,29 @@ async function saveProductFromInvoice(){
 }
 function onCustChange(){
   var custId=document.getElementById('inv-cust').value;
-  if(custId==='new'){showAddCustomerModal();return;}
-  var cust=getCustomer(parseInt(custId));
-  var det=document.getElementById('cust-details');
-  var dueEl=document.getElementById('prev-due-note');
-  if(cust&&cust.name){
-    det.innerHTML='<strong>'+cust.name+'</strong><br>'+cust.address+'<br>Ph: '+cust.phone;
-    var totalDue=getCustomerTotalDue(parseInt(custId));
-    dueEl.innerHTML=totalDue>0?
-      '<div style="background:var(--amber-50);border-radius:8px;padding:10px;border:1px solid #EF9F27">'+
-      '<div style="font-size:11px;color:var(--amber-400);font-weight:700;text-transform:uppercase">Previous Outstanding Balance</div>'+
-      '<div style="font-size:20px;font-weight:700;color:var(--amber-400);margin-top:2px">'+fmt(totalDue)+'</div>'+
-      '<div style="font-size:11px;color:var(--amber-400)">Will be added to grand total. GST & discount apply to current bill only.</div></div>':'';
-  } else {det.innerHTML='';dueEl.innerHTML='';}
+  if(custId==='new'){
+    showAddCustomerModal();
+    return;
+  }
+  var cust=getCustomer(custId);
+  var detDiv=document.getElementById('cust-details');
+  var dueDiv=document.getElementById('prev-due-note');
+  if(detDiv){
+    if(cust&&cust.id){
+      detDiv.innerHTML='<div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">'+
+        '<div><span style="color:var(--text3)">Phone:</span> <strong>'+cust.phone+'</strong></div>'+
+        (cust.address?'<div><span style="color:var(--text3)">Address:</span> '+cust.address+'</div>':'')+
+        '</div>';
+    } else {
+      detDiv.innerHTML='';
+    }
+  }
+  if(dueDiv){
+    var due=cust&&cust.balanceDue>0?cust.balanceDue:0;
+    dueDiv.innerHTML=due>0?'<div style="background:var(--amber-50);border-radius:8px;padding:10px;font-size:13px">'+
+      '⚠️ <strong>Previous Outstanding: '+fmt(due)+'</strong><br>'+
+      '<span style="font-size:11px;color:var(--text3)">Will be added to this invoice</span></div>':'';
+  }
   updateInvCalc();
 }
 function updateInvCalc(){
@@ -2692,6 +2883,10 @@ async function generateInvoice(){
     var saved=await apiCall('/api/invoices','POST',inv);
     state.invoices.push(saved);
     var newInvId=saved.id;
+
+    // ── Deduct stock from inventory ──
+    await deductInvoiceStock(state.invoiceItems);
+
     state.invoiceItems=[];
     if(state._fromOrderId){
       markOrderInvoiced(state._fromOrderId,newInvId);
@@ -2702,6 +2897,46 @@ async function generateInvoice(){
     showInvoiceSaveModal(newInvId);
     renderPage();
   }catch(e){alert('Failed to create invoice: '+e.message);}
+}
+
+async function deductInvoiceStock(items){
+  for(var i=0;i<items.length;i++){
+    var it=items[i];
+    if(!it.productId) continue;
+    var product=state.products.find(function(p){return String(p.id)===String(it.productId);});
+    if(!product) continue;
+    var qtyToDeduct=it.qty||0;
+    if(qtyToDeduct<=0) continue;
+    product.stock=Math.max(0,product.stock-qtyToDeduct);
+    // Update stockMeta if available
+    if(product.stockMeta){
+      try{
+        var meta=JSON.parse(product.stockMeta);
+        if(meta.unitType==='Cartoon'||meta.unitType==='Bora'){
+          var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
+          var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
+          // Recalculate counts from new stock
+          var newTotalPkt=Math.floor(product.stock/pcsPerPkt);
+          var newCount=Math.floor(newTotalPkt/pktPerUnit);
+          meta.count=newCount;
+          meta.totalPkt=newTotalPkt;
+          product.stockMeta=JSON.stringify(meta);
+        } else if(meta.unitType==='Pkt'){
+          var pcsPerPkt2=parseFloat(meta.pcsPerPkt)||1;
+          meta.count=Math.floor(product.stock/pcsPerPkt2);
+          product.stockMeta=JSON.stringify(meta);
+        } else {
+          meta.count=product.stock;
+          product.stockMeta=JSON.stringify(meta);
+        }
+      }catch(e){}
+    }
+    try{
+      await apiCall('/api/products/'+parseInt(product.id),'PUT',product);
+    }catch(e){console.warn('Stock update failed for product '+product.id);}
+  }
+  // Reload fresh stock from backend
+  state.products=await safeGet('/api/products');
 }
 
 // ===================== INVOICE SAVE/DOWNLOAD MODAL =====================
@@ -6442,6 +6677,14 @@ window.pdSelectUnit=pdSelectUnit;
 window.epCalc=epCalc;
 window.epSelectUnit=epSelectUnit;
 window.resetModal=resetModal;
+window.deductInvoiceStock=deductInvoiceStock;
+window.invBuildQtyCell=invBuildQtyCell;
+window.invQtyInputHtml=invQtyInputHtml;
+window.invRecalcQty=invRecalcQty;
+window.invRecalcQtyFull=invRecalcQtyFull;
+window.invSetMetaVal=invSetMetaVal;
+window.invSetQtyUnit=invSetQtyUnit;
+window.invUpdateQty=invUpdateQty;
 </script>
 </body>
 </html>
