@@ -569,6 +569,7 @@ function poStatus(po){
   if(po.status==='partial') return {label:'Partial',cls:'badge-amber'};
   if(diff<0) return {label:'Overdue',cls:'badge-red'};
   if(diff<=3) return {label:'Due Soon',cls:'badge-amber'};
+  if(inv&&inv.status==='cancelled') return {label:'Cancelled',cls:'badge-red',style:'background:#e24b4a;color:#fff'};
   return {label:'Unpaid',cls:'badge-red'};
 }
 
@@ -1402,7 +1403,11 @@ function renderDashboard(){
   '<div class="card"><div class="card-header"><div class="card-title">Recent Invoices</div><button class="btn btn-secondary btn-sm" onclick="navigate(&quot;invoices&quot;)">View All</button></div><div class="table-wrap"><table><thead><tr><th>Bill#</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+
   (recentInv.map(function(inv){
     var c2=calcInvoice(inv);var cust=getCustomer(inv.custId);
-    return '<tr><td><strong>#'+inv.id+'</strong></td><td>'+(cust.name||'Unknown')+'</td><td>'+fmt(c2.grand)+'</td><td><span class="badge '+(inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td></tr>';
+    var isCx=inv.status==='cancelled';
+    return '<tr style="'+(isCx?'opacity:0.7;background:#fff5f5':'')+'"><td><strong>#'+inv.id+'</strong></td><td>'+(cust.name||'Unknown')+'</td>'+
+      '<td>'+(isCx?'<s style="color:var(--text3)">'+fmt(c2.grand)+'</s>':fmt(c2.grand))+'</td>'+
+      '<td><span class="badge '+(isCx?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+
+      (isCx?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>'+
   '<div class="card"><div class="card-header"><div class="card-title">Staff Summary</div><button class="btn btn-secondary btn-sm" onclick="navigate(\'staff-directory\')">View All</button></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Leave</th><th>Pending Salary</th></tr></thead><tbody>'+
