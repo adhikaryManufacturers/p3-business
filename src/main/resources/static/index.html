@@ -472,7 +472,23 @@ function monthName(m){if(!m||typeof m!=='string')return '—';var p=m.split('-')
 // calcInvoice: GST and discount apply ONLY to current bill items, NOT to prevOutstanding
 function calcInvoice(inv){
   var items=inv.items||[];
-  var sub=items.reduce(function(s,i){return s+(i.qty*i.rate);},0);
+  var sub=items.reduce(function(s,it){
+    // Use billingQty (pkt/cartoon/bora count) × rate, not total pcs × rate
+    var bq=0;
+    if(it.billingQty!=null) {
+      bq=it.billingQty; // saved at invoice creation time
+    } else {
+      // Recalculate from item data
+      var unit=it.qtyUnit||'Pkt';
+      var product=state.products?state.products.find(function(p){return String(p.id)===String(it.productId);}):null;
+      var meta={};try{if(product&&product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+      var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
+      if(unit==='Cartoon'||unit==='Bora') bq=(it.qtyCount||1)*pktPerUnit;
+      else if(unit==='Pkt') bq=it.qtyCount||1;
+      else bq=it.qty||1; // Pcs fallback
+    }
+    return s+(bq*it.rate);
+  },0);
   var disc=sub*(inv.discount||0)/100;
   var afterDisc=sub-disc;
   var gst=inv.gstEnabled?(afterDisc*(inv.gstRate||12)/100):0;
@@ -3027,7 +3043,7 @@ function updateInvCalc(){
   var gstRate=parseFloat((document.getElementById('inv-gst-rate')||{}).value)||12;
   var gstLabel=document.getElementById('gst-label');
   if(gstLabel) gstLabel.textContent=gstEnabled?'Enabled @ '+gstRate+'%':'Disabled';
-  var sub=(state.invoiceItems||[]).reduce(function(s,i){return s+(i.qty*i.rate);},0);
+  var sub=(state.invoiceItems||[]).reduce(function(s,it){return s+(invBillingQty(it)*it.rate);},0);
   var disc=sub*discount/100;
   var afterDisc=sub-disc;
   var gst=gstEnabled?afterDisc*gstRate/100:0;
