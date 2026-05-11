@@ -473,21 +473,20 @@ function monthName(m){if(!m||typeof m!=='string')return '—';var p=m.split('-')
 function calcInvoice(inv){
   var items=inv.items||[];
   var sub=items.reduce(function(s,it){
-    // Use billingQty (pkt/cartoon/bora count) × rate, not total pcs × rate
-    var bq=0;
-    if(it.billingQty!=null) {
-      bq=it.billingQty; // saved at invoice creation time
-    } else {
-      // Recalculate from item data
-      var unit=it.qtyUnit||'Pkt';
-      var product=state.products?state.products.find(function(p){return String(p.id)===String(it.productId);}):null;
+    var bq;
+    if(it.billingQty!=null && it.billingQty>0){
+      bq=it.billingQty;
+    } else if(it.qtyCount!=null && it.qtyUnit && it.qtyUnit!=='Pcs'){
+      var unit=it.qtyUnit;
+      var product=(state.products||[]).find(function(p){return String(p.id)===String(it.productId);});
       var meta={};try{if(product&&product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
       var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
       if(unit==='Cartoon'||unit==='Bora') bq=(it.qtyCount||1)*pktPerUnit;
-      else if(unit==='Pkt') bq=it.qtyCount||1;
-      else bq=it.qty||1; // Pcs fallback
+      else bq=it.qtyCount||1;
+    } else {
+      bq=it.qty||0;
     }
-    return s+(bq*it.rate);
+    return s+(bq*(it.rate||0));
   },0);
   var disc=sub*(inv.discount||0)/100;
   var afterDisc=sub-disc;
