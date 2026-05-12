@@ -3218,12 +3218,14 @@ function buildInvoiceHTML(invId, forDownload){
   if(isCF&&sourceInv&&sourceInv.items){
     itemsHTML=sourceInv.items.map(function(item,i){
       var p2=getProduct(item.productId);
-      return '<tr style="opacity:0.65"><td>'+(i+1)+'</td><td><em>'+(item.desc||p2.name||'Items from Inv #'+sourceInv.id)+'</em> (ref)</td><td>'+(p2.hsn||'—')+'</td><td>'+item.qty+'</td><td>'+item.unit+'</td><td>'+fmt(item.rate)+'</td><td style="font-weight:600">'+fmt(item.qty*item.rate)+'</td></tr>';
+      var bqCF=item.billingQty!=null?item.billingQty:(item.qtyCount||item.qty||1);var blCF=item.billingLabel||(item.qtyUnit||'Pcs');
+      return '<tr style="opacity:0.65"><td>'+(i+1)+'</td><td><em>'+(item.desc||p2.name||'Items from Inv #'+sourceInv.id)+'</em> (ref)</td><td>'+(p2.hsn||'—')+'</td><td>'+bqCF+'</td><td>'+blCF+'</td><td>'+fmt(item.rate)+'</td><td style="font-weight:600">'+fmt(bqCF*item.rate)+'</td></tr>';
     }).join('');
   } else {
     itemsHTML=(inv.items||[]).map(function(item,i){
       var p2=getProduct(item.productId);
-      return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||'—')+'</td><td>'+item.qty+'</td><td>'+item.unit+'</td><td>'+fmt(item.rate)+'</td><td style="font-weight:600">'+fmt(item.qty*item.rate)+'</td></tr>';
+      var bq2=item.billingQty!=null?item.billingQty:(item.qtyCount||item.qty||1);var bl2=item.billingLabel||(item.qtyUnit||'Pcs');
+      return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||'—')+'</td><td>'+bq2+'</td><td>'+bl2+'</td><td>'+fmt(item.rate)+'</td><td style="font-weight:600">'+fmt(bq2*item.rate)+'</td></tr>';
     }).join('');
   }
   return (forDownload?'<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invoice #'+invId+'</title>'+styles+'</head><body>':'')+
@@ -3353,8 +3355,11 @@ function downloadInvoicePDF(invId){
   '<tbody>'+
   ((inv.items||[]).map(function(item,i){
     var p2=getProduct(item.productId);
-    return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||'—')+'</td><td>'+item.qty+'</td><td>'+item.unit+'</td><td style="text-align:right">'+fmt(item.rate)+'</td><td style="text-align:right;font-weight:600">'+fmt(item.qty*item.rate)+'</td></tr>';
-  }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
+    var bq=item.billingQty!=null?item.billingQty:(item.qtyCount||item.qty||1);
+    var bLabel=item.billingLabel||(item.qtyUnit||'Pcs');
+    var amt=bq*item.rate;
+    return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||item.hsn||'—')+'</td><td>'+bq+'</td><td>'+bLabel+'</td><td style="text-align:right">'+fmt(item.rate)+'</td><td style="text-align:right;font-weight:600">'+fmt(amt)+'</td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">No items</td></tr>')
   +'</tbody>'+
   '<tfoot>'+
   '<tr><td colspan="5"></td><td style="text-align:right;padding:8px 10px">Sub Total:</td><td style="text-align:right;padding:8px 10px">'+fmt(c2.sub)+'</td></tr>'+
@@ -3374,17 +3379,23 @@ function downloadInvoicePDF(invId){
   '<div class="footer-note">This is a computer generated invoice</div>'+
   '</div></body></html>';
 
-  var encoded='data:text/html;base64,'+btoa(unescape(encodeURIComponent(html)));
-  var win=window.open(encoded,'_blank');
+  // Use Blob URL — works in all browsers without popup blocker issues
+  var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  var blobUrl=URL.createObjectURL(blob);
+  var win=window.open(blobUrl,'_blank');
   if(!win){
-    // Fallback: if popup blocked, auto-trigger print from data URI download
+    // Fallback: download as HTML file
     var a=document.createElement('a');
-    a.href=encoded;
-    a.download='P3_Invoice_'+invId+'_print.html';
+    a.href=blobUrl;
+    a.download='Invoice_'+invId+'.html';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    alert('Popup was blocked. The print file has been downloaded — open it and press Ctrl+P (or Cmd+P on Mac) to save as PDF.');
+    showToast('PDF file downloaded — open and press Ctrl+P to save as PDF','amber');
+  } else {
+    // Auto-trigger print dialog after page loads
+    win.onload=function(){ win.print(); };
+    setTimeout(function(){ URL.revokeObjectURL(blobUrl); },60000);
   }
 }
 
