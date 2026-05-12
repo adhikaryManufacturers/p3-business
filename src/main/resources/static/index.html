@@ -474,19 +474,28 @@ function calcInvoice(inv){
   var items=inv.items||[];
   var sub=items.reduce(function(s,it){
     var bq;
-    if(it.billingQty!=null && it.billingQty>0){
-      bq=it.billingQty;
+    if(it.billingAmt!=null){
+      // New invoices — billing amount saved directly
+      return s+it.billingAmt;
+    } else if(it.billingQty!=null && it.billingQty>0){
+      // Has billingQty — use with rate per selected unit
+      var unit2=it.qtyUnit||'Pkt';
+      var product2=(state.products||[]).find(function(p){return String(p.id)===String(it.productId);});
+      var meta2={};try{if(product2&&product2.stockMeta)meta2=JSON.parse(product2.stockMeta);}catch(e){}
+      var pktPerUnit2=parseFloat(meta2.pktPerUnit)||1;
+      var unitRate2=(unit2==='Cartoon'||unit2==='Bora')?it.rate*pktPerUnit2:it.rate;
+      return s+(it.billingQty*unitRate2);
     } else if(it.qtyCount!=null && it.qtyUnit && it.qtyUnit!=='Pcs'){
-      var unit=it.qtyUnit;
-      var product=(state.products||[]).find(function(p){return String(p.id)===String(it.productId);});
-      var meta={};try{if(product&&product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
-      var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
-      if(unit==='Cartoon'||unit==='Bora') bq=(it.qtyCount||1)*pktPerUnit;
-      else bq=it.qtyCount||1;
+      var unit3=it.qtyUnit;
+      var product3=(state.products||[]).find(function(p){return String(p.id)===String(it.productId);});
+      var meta3={};try{if(product3&&product3.stockMeta)meta3=JSON.parse(product3.stockMeta);}catch(e){}
+      var pktPerUnit3=parseFloat(meta3.pktPerUnit)||1;
+      var unitRate3=(unit3==='Cartoon'||unit3==='Bora')?it.rate*pktPerUnit3:it.rate;
+      return s+((it.qtyCount||1)*unitRate3);
     } else {
-      bq=it.qty||0;
+      return s+(it.qty||0)*(it.rate||0); // old invoice fallback
     }
-    return s+(bq*(it.rate||0));
+    return s;
   },0);
   var disc=sub*(inv.discount||0)/100;
   var afterDisc=sub-disc;
@@ -2610,7 +2619,7 @@ function renderInvItemRow(item){
     '<td><input type="number" value="'+item.rate+'" step="0.25" '+
       'onchange="updateInvItem('+item.id+',\'rate\',this.value);refreshInvRow('+item.id+')" '+
       'style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"></td>'+
-    '<td class="fw600" id="inv-amt-'+item.id+'">'+fmt(invBillingQty(item)*item.rate)+'</td>'+
+    '<td class="fw600" id="inv-amt-'+item.id+'">'+fmt(invItemAmount(item))+'</td>'+
     '<td><button onclick="removeInvItem('+item.id+')" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
 }
 
@@ -2875,7 +2884,7 @@ function invSetQtyUnit(itemId, unit){
     var td=row.querySelector('td:nth-child(3)');
     if(td) td.innerHTML=invBuildQtyCell(item,meta);
     var amtEl=document.getElementById('inv-amt-'+itemId);
-    if(amtEl) amtEl.textContent=fmt(invBillingQty(item)*item.rate);
+    if(amtEl) amtEl.textContent=fmt(invItemAmount(item));
   } else { renderPage(); }
   updateInvCalc();
 }
@@ -2895,7 +2904,7 @@ function invUpdateQty(itemId, val){
   }
 
   var amtEl=document.getElementById('inv-amt-'+itemId);
-  if(amtEl) amtEl.textContent=fmt(invBillingQty(item)*item.rate);
+  if(amtEl) amtEl.textContent=fmt(invItemAmount(item));
   updateInvCalc();
   var row=document.getElementById('invrow-'+itemId);
   if(row){
@@ -2932,7 +2941,7 @@ function invRecalcQty(item, meta){
 }
 function refreshInvRow(id){
   var item=state.invoiceItems.find(function(i){return i.id===id;});
-  if(item){var el=document.getElementById('inv-amt-'+id);if(el)el.textContent=fmt(invBillingQty(item)*item.rate);}
+  if(item){var el=document.getElementById('inv-amt-'+id);if(el)el.textContent=fmt(invItemAmount(item));}
   updateInvCalc();
 }
 function addInvItem(){state.invoiceItems.push({id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,unit:'Pcs',rate:0});renderPage();}
@@ -2984,7 +2993,7 @@ function selectProduct(itemId,productId){
       if(td3) td3.value=product.price;
       // Update amount cell
       var td4=document.getElementById('inv-amt-'+itemId);
-      if(td4) td4.textContent=fmt(invBillingQty(item)*item.rate);
+      if(td4) td4.textContent=fmt(invItemAmount(item));
     } else {
       renderPage();
     }
@@ -3085,7 +3094,7 @@ function updateInvCalc(){
   var customAmtEnabled=(document.getElementById('inv-custom-amt-toggle')||{}).checked||false;
   var customAmt=customAmtEnabled?(parseFloat((document.getElementById('inv-custom-amt')||{}).value)||0):0;
   var customLabel=customAmtEnabled?((document.getElementById('inv-custom-amt-label')||{}).value||'Additional Charge'):'';
-  var sub=(state.invoiceItems||[]).reduce(function(s,it){return s+(invBillingQty(it)*it.rate);},0);
+  var sub=(state.invoiceItems||[]).reduce(function(s,it){return s+invItemAmount(it);},0);
   var disc=sub*discount/100;
   var afterDisc=sub-disc;
   var gst=gstEnabled?afterDisc*gstRate/100:0;
@@ -3117,8 +3126,10 @@ async function generateInvoice(){
   // Enrich items with billing info before saving
   var enrichedItems = state.invoiceItems.map(function(it){
     var copy = JSON.parse(JSON.stringify(it));
-    copy.billingQty = invBillingQty(it);
-    copy.billingLabel = invBillingLabel(it);
+    copy.billingQty = invBillingQty(it);       // user-entered count (1 Bora, 50 Pkt)
+    copy.billingLabel = invBillingLabel(it);   // Bora / Pkt / Cartoon
+    copy.billingRate = invUnitRate(it);        // rate per selected unit
+    copy.billingAmt = invItemAmount(it);       // total amount
     return copy;
   });
   var customAmtEnabled=(document.getElementById('inv-custom-amt-toggle')||{}).checked||false;
@@ -3234,8 +3245,19 @@ function buildInvoiceHTML(invId, forDownload){
   } else {
     itemsHTML=(inv.items||[]).map(function(item,i){
       var p2=getProduct(item.productId);
-      var bq2=item.billingQty!=null?item.billingQty:(item.qtyCount||item.qty||1);var bl2=item.billingLabel||(item.qtyUnit||'Pcs');
-      return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||'—')+'</td><td>'+bq2+'</td><td>'+bl2+'</td><td>'+fmt(item.rate)+'</td><td style="font-weight:600">'+fmt(bq2*item.rate)+'</td></tr>';
+      var bq2=item.billingQty!=null?item.billingQty:(item.qtyCount||1);
+      var bl2=item.billingLabel||(item.qtyUnit||'Pkt');
+      var unit2=item.qtyUnit||'Pkt';
+      var meta2b={};try{if(p2&&p2.stockMeta)meta2b=JSON.parse(p2.stockMeta);}catch(e){}
+      var ppu2=parseFloat(meta2b.pktPerUnit)||1;
+      var dispRate2=(unit2==='Cartoon'||unit2==='Bora')?item.rate*ppu2:item.rate;
+      var amt2=item.billingAmt!=null?item.billingAmt:(bq2*dispRate2);
+      var ppu2pcs=parseFloat(meta2b.pcsPerPkt)||0;
+      var pcs2=ppu2pcs?(bq2*(unit2==='Pkt'?ppu2pcs:ppu2*ppu2pcs)):null;
+      return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||'—')+'</td>'+
+        '<td>'+bq2+(pcs2?' <span style="font-size:10px;color:#888">('+pcs2+' Pcs)</span>':'')+'</td>'+
+        '<td>'+bl2+'</td><td>'+fmt(dispRate2)+'/'+bl2+'</td>'+
+        '<td style="font-weight:600">'+fmt(amt2)+'</td></tr>';
     }).join('');
   }
   return (forDownload?'<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invoice #'+invId+'</title>'+styles+'</head><body>':'')+
@@ -3365,10 +3387,22 @@ function downloadInvoicePDF(invId){
   '<tbody>'+
   ((inv.items||[]).map(function(item,i){
     var p2=getProduct(item.productId);
-    var bq=item.billingQty!=null?item.billingQty:(item.qtyCount||item.qty||1);
-    var bLabel=item.billingLabel||(item.qtyUnit||'Pcs');
-    var amt=bq*item.rate;
-    return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||item.hsn||'—')+'</td><td>'+bq+'</td><td>'+bLabel+'</td><td style="text-align:right">'+fmt(item.rate)+'</td><td style="text-align:right;font-weight:600">'+fmt(amt)+'</td></tr>';
+    var bq=item.billingQty!=null?item.billingQty:(item.qtyCount||1);
+    var bLabel=item.billingLabel||(item.qtyUnit||'Pkt');
+    // rate to display = per selected unit (Bora/Cartoon/Pkt)
+    var unit=item.qtyUnit||'Pkt';
+    var meta2={};try{if(p2&&p2.stockMeta)meta2=JSON.parse(p2.stockMeta);}catch(e){}
+    var ppu=parseFloat(meta2.pktPerUnit)||1;
+    var dispRate=(unit==='Cartoon'||unit==='Bora')?item.rate*ppu:item.rate;
+    var amt=item.billingAmt!=null?item.billingAmt:(bq*dispRate);
+    // Pcs note for customer reference
+    var pcsPerPkt=parseFloat(meta2.pcsPerPkt)||0;
+    var totalPcs=pcsPerPkt?(bq*(unit==='Pkt'?pcsPerPkt:ppu*pcsPerPkt)):null;
+    var pcsNote=totalPcs?'<div style="font-size:9px;color:#888;margin-top:1px">('+totalPcs+' Pcs)</div>':'';
+    return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||item.hsn||'—')+'</td>'+
+      '<td>'+bq+pcsNote+'</td><td>'+bLabel+'</td>'+
+      '<td style="text-align:right">'+fmt(dispRate)+'/'+bLabel+'</td>'+
+      '<td style="text-align:right;font-weight:600">'+fmt(amt)+'</td></tr>';
   }).join('')||'<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">No items</td></tr>')
   +'</tbody>'+
   '<tfoot>'+
@@ -3790,14 +3824,8 @@ function sendWhatsAppManual(){
 
 // Billing qty = number of pkts/cartoons/boras (what customer pays per unit)
 function invBillingQty(item){
-  var unit = item.qtyUnit||'Pkt';
-  var product = getProduct(item.productId);
-  var meta = {};
-  try{ if(product.stockMeta) meta=JSON.parse(product.stockMeta); }catch(e){}
-  if(item._metaOverride) Object.assign(meta, item._metaOverride);
-  var pktPerUnit = parseFloat(meta.pktPerUnit)||1;
-  if(unit==='Cartoon'||unit==='Bora') return (item.qtyCount||1) * pktPerUnit; // total pkts
-  return item.qtyCount||1; // pkts (Pkt or fallback)
+  // Returns the count in the user-selected unit (Bora/Cartoon/Pkt)
+  return item.qtyCount||1;
 }
 function invBillingLabel(item){
   var unit = item.qtyUnit||'Pkt';
@@ -3805,6 +3833,21 @@ function invBillingLabel(item){
   if(unit==='Bora') return 'Bora';
   if(unit==='Pkt') return 'Pkt';
   return 'Pcs';
+}
+function invUnitRate(item){
+  // Rate per user-selected unit (Bora/Cartoon/Pkt)
+  var unit = item.qtyUnit||'Pkt';
+  var product = getProduct(item.productId);
+  var meta = {};
+  try{ if(product&&product.stockMeta) meta=JSON.parse(product.stockMeta); }catch(e){}
+  if(item._metaOverride) Object.assign(meta, item._metaOverride);
+  var pktPerUnit = parseFloat(meta.pktPerUnit)||1;
+  if(unit==='Cartoon'||unit==='Bora') return item.rate * pktPerUnit; // rate per Bora/Cartoon
+  return item.rate; // rate per Pkt
+}
+function invItemAmount(item){
+  // Total amount = billingQty * unitRate
+  return invBillingQty(item) * invUnitRate(item);
 }
 
 
@@ -3912,7 +3955,7 @@ function showStockWarning(warn, itemId, ctx){
     if(ctx==='inv'){
       var it=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
       var amtEl=document.getElementById('inv-amt-'+itemId);
-      if(amtEl&&it) amtEl.textContent=fmt(invBillingQty(it)*it.rate);
+      if(amtEl&&it) amtEl.textContent=fmt(invItemAmount(it));
       updateInvCalc();
     }else{
       var it=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
@@ -3947,7 +3990,7 @@ function resetStockInput(itemId, ctx, maxCount){
     var it=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
     if(it){it.qtyCount=maxCount||1;invRecalcQtyFull(it);}
     var amtEl=document.getElementById('inv-amt-'+itemId);
-    if(amtEl&&it) amtEl.textContent=fmt(invBillingQty(it)*it.rate);
+    if(amtEl&&it) amtEl.textContent=fmt(invItemAmount(it));
     updateInvCalc();
   }else{
     var it=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
@@ -3972,7 +4015,7 @@ function applyMaxStock(itemId,ctx,maxCount){
       var td=row.querySelector('td:nth-child(3)');
       if(td)td.innerHTML=invBuildQtyCell(item,meta);
       var amtEl=document.getElementById('inv-amt-'+itemId);
-      if(amtEl)amtEl.textContent=fmt(invBillingQty(item)*item.rate);
+      if(amtEl)amtEl.textContent=fmt(invItemAmount(item));
     }
     updateInvCalc();
     var bd=document.getElementById('stock-warn-backdrop-'+itemId);if(bd)bd.remove();
@@ -7388,6 +7431,8 @@ window.closeSettingsPanel=closeSettingsPanel;
 window.goToCreateInvoice=goToCreateInvoice;
 window.toggleCustomAmt=toggleCustomAmt;
 window.deleteInvoice=deleteInvoice;
+window.invItemAmount=invItemAmount;
+window.invUnitRate=invUnitRate;
 </script>
 </body>
 </html>
