@@ -326,7 +326,7 @@ tr:hover td{background:var(--green-50);}
         </div>
         <div class="nav-group-items">
           <div class="nav-item" onclick="navigate('create-invoice')"><span class="nav-icon">&#9998;</span> Create Invoice</div>
-          <div class="nav-item" onclick="navigate(\'invoices\')"><span class="nav-icon">&#129534;</span> All Invoices</div>
+          <div class="nav-item" onclick="navigate('invoices')"><span class="nav-icon">&#129534;</span> All Invoices</div>
           <div class="nav-item" onclick="navigate('orders')"><span class="nav-icon">&#128203;</span> Delivery Orders</div>
         </div>
       </div>
@@ -920,6 +920,16 @@ function expandActiveGroup(){
 
 
 // ===================== USER DROPDOWN & THEME =====================
+function closeSettingsPanel(){
+  var p=document.getElementById('set-edit-panel');
+  if(p) p.style.display='none';
+}
+
+function goToCreateInvoice(custId){
+  navigate('create-invoice');
+  setTimeout(function(){var s=document.getElementById('inv-cust');if(s){s.value=custId;onCustChange();}},200);
+}
+
 function goToSettings(){
   closeUserDropdown();
   navigate('settings');
@@ -1093,7 +1103,7 @@ function showEditField(field, currentVal){
   panel.innerHTML =
     '<div class="card" style="border:2px solid var(--primary)">'+
     '<div class="card-header"><div class="card-title">&#9998; '+editOrAddLabel(currentVal)+' '+label+'</div>'+
-    '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'set-edit-panel\').style.display=\'none\'">&#x2715; Cancel</button></div>'+
+    '<button class="btn btn-ghost btn-sm" onclick="closeSettingsPanel()">&#x2715; Cancel</button></div>'+
     '<div class="card-body" style="display:flex;flex-direction:column;gap:14px">'+
     '<div class="form-group"><label>'+label+'</label>'+
     '<input type="'+inputType+'" id="set-field-input" value="'+currentVal+'" placeholder="Enter '+label+'" '+maxlen+'></div>'+
@@ -4122,7 +4132,7 @@ function renderCustomers(){
       '<td>'+(c.baleBalance||0)+'</td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal('+c.id+')">Edit</button>'+
-        '<button class="btn btn-primary btn-sm" onclick="navigate(\'create-invoice\');setTimeout(function(){var s=document.getElementById(\'inv-cust\');if(s){s.value='+c.id+';onCustChange();}},200)">+ Invoice</button>'+
+        '<button class="btn btn-primary btn-sm" data-cid="\'+c.id+\'" onclick="goToCreateInvoice(this.dataset.cid)">+ Invoice</button>'+
         '<button class="btn btn-danger btn-sm" onclick="deleteCustomer('+c.id+')">Delete</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
@@ -7307,6 +7317,8 @@ window.getProspectCancelledCount=getProspectCancelledCount;
 window.restoreInvoiceStock=restoreInvoiceStock;
 window.showToast=showToast;
 window.resetStockInput=resetStockInput;
+window.closeSettingsPanel=closeSettingsPanel;
+window.goToCreateInvoice=goToCreateInvoice;
 </script>
 </body>
 </html>
