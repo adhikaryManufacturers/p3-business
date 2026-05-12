@@ -1377,7 +1377,7 @@ function renderPage(){
   else if(p==='payroll') c.innerHTML=renderPayroll();
   else if(p==='products') c.innerHTML=renderProducts();
   else if(p==='raw-materials') c.innerHTML=renderRawMaterials();
-  else if(p==='create-invoice') c.innerHTML=renderCreateInvoice();
+  else if(p==='create-invoice'){ c.innerHTML=renderCreateInvoice(); setTimeout(function(){if(state._invCustId)onCustChange();updateInvCalc();},50); }
   else if(p==='invoices') c.innerHTML=renderInvoices();
   else if(p==='orders') c.innerHTML=renderOrders();
   else if(p==='sales-dashboard') c.innerHTML=renderSalesDashboard();
@@ -2547,7 +2547,9 @@ async function deleteRM(id){
 
 // ===================== CREATE INVOICE =====================
 function renderCreateInvoice(){
-  if(!state.invoiceItems||!state.invoiceItems.length) state.invoiceItems=[{id:Date.now(),productId:'',desc:'',qty:1,unit:'Pcs',rate:0}];
+  if(!state.invoiceItems||!state.invoiceItems.length) state.invoiceItems=[{id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,unit:'Pcs',rate:0}];
+  if(!state._invCustId) state._invCustId='';
+  var savedCustId=state._invCustId;
   return '<div class="section-title">Create Invoice</div><div class="section-sub">Generate a new sales invoice</div>'+
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
   '<div class="card"><div class="card-header"><div class="card-title">Invoice Details</div></div><div class="card-body">'+
@@ -2578,9 +2580,9 @@ function renderCreateInvoice(){
   '</div></div>'+
   '<div class="card"><div class="card-header"><div class="card-title">Bill To (Customer)</div></div><div class="card-body">'+
   '<div class="form-group" style="margin-bottom:12px"><label>Select Customer<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-  '<select id="inv-cust" onchange="onCustChange()">'+
+  '<select id="inv-cust" onchange="state._invCustId=this.value;onCustChange()">'+
   '<option value="">— Select —</option>'+
-  state.customers.map(function(c){return '<option value="'+c.id+'">'+c.name+' — '+c.phone+'</option>';}).join('')+
+  state.customers.map(function(cu){return '<option value="'+cu.id+'" '+(String(cu.id)===String(savedCustId)?'selected':'')+'>'+cu.name+' — '+cu.phone+'</option>';}).join('')+
   '<option value="new">+ Add New Customer</option>'+
   '</select></div>'+
   '<div id="cust-details" style="font-size:13px;color:var(--text2)"></div>'+
@@ -2591,7 +2593,7 @@ function renderCreateInvoice(){
   '<tbody id="inv-items-body">'+(state.invoiceItems.map(renderInvItemRow).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px;font-style:italic">No records found</td></tr>')+'</tbody></table></div></div>'+
   '<div style="display:flex;justify-content:flex-end;margin-bottom:16px">'+
   '<div class="card" style="width:340px"><div class="card-body" style="font-size:13px"><div id="inv-calc"></div></div></div></div>'+
-  '<div class="gap-12"><button class="btn btn-primary" onclick="generateInvoice()">Generate Invoice →</button><button class="btn btn-ghost" onclick="state.invoiceItems=[];renderPage()">Reset</button></div>';
+  '<div class="gap-12"><button class="btn btn-primary" onclick="generateInvoice()">Generate Invoice →</button><button class="btn btn-ghost" onclick="state.invoiceItems=[];state._invCustId=\'\';renderPage()">Reset</button></div>';
 }
 
 function renderInvItemRow(item){
@@ -2734,16 +2736,24 @@ function prodTypeSearch(ctx,itemId,val){} // no longer used
 
 function prodSelectorSearch(ctx,itemId,val){
   window['_prodSearch_'+ctx+'_'+itemId]=val;
+  var tdSel=ctx==='inv'?'#invrow-'+itemId+' td:first-child':'#co-row-'+itemId+' td:first-child';
+  var td=document.querySelector(tdSel);
+  if(!td) return;
   if(ctx==='inv'){
     var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
-    if(!item)return;
-    var td=document.querySelector('#invrow-'+itemId+' td:first-child');
-    if(td)td.innerHTML=buildProductSelector('inv',itemId,item.productId,item._typeFilter||'');
+    if(!item) return;
+    td.innerHTML=buildProductSelector('inv',itemId,item.productId,item._typeFilter||'');
   }else{
     var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
-    if(!item)return;
-    var td=document.querySelector('#co-row-'+itemId+' td:first-child');
-    if(td)td.innerHTML=buildProductSelector('co',itemId,item.productId,item._typeFilter||'');
+    if(!item) return;
+    td.innerHTML=buildProductSelector('co',itemId,item.productId,item._typeFilter||'');
+  }
+  // Restore focus and cursor position to the search input
+  var inp=td.querySelector('input[type="text"][placeholder*="Search"]');
+  if(inp){
+    inp.focus();
+    var len=val.length;
+    inp.setSelectionRange(len,len);
   }
 }
 
@@ -2925,7 +2935,7 @@ function refreshInvRow(id){
   if(item){var el=document.getElementById('inv-amt-'+id);if(el)el.textContent=fmt(invBillingQty(item)*item.rate);}
   updateInvCalc();
 }
-function addInvItem(){state.invoiceItems.push({id:Date.now(),productId:'',desc:'',qty:1,unit:'Pcs',rate:0});renderPage();}
+function addInvItem(){state.invoiceItems.push({id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,unit:'Pcs',rate:0});renderPage();}
 function removeInvItem(id){state.invoiceItems=state.invoiceItems.filter(function(i){return i.id!==id;});renderPage();}
 function updateInvItem(id,field,val){
   var item=state.invoiceItems.find(function(i){return i.id===id;});
@@ -3441,7 +3451,8 @@ function renderInvoices(){
         (!isCancelled&&inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
         (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp('+inv.id+')">&#128362; Share</button>':'')+
         (!isCancelled?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice('+inv.id+')">Cancel</button>':
-          '<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>')+
+          '<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>'+
+          '<button class="btn btn-danger btn-sm" onclick="deleteInvoice('+inv.id+')" style="margin-left:4px">🗑 Delete</button>')+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -3462,6 +3473,19 @@ async function cancelOrder(orderId){
     showToast('Order ORD#'+orderId+' cancelled.','amber');
   }catch(e){alert('Failed to cancel: '+e.message);}
 }
+async function deleteInvoice(invId){
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  if(!inv){alert('Invoice not found');return;}
+  if(inv.status!=='cancelled'){alert('Only cancelled invoices can be deleted.');return;}
+  if(!confirm('Permanently delete Invoice #'+invId+'? This cannot be undone.')) return;
+  try{
+    await apiCall('/api/invoices/'+parseInt(invId),'DELETE');
+    state.invoices=await safeGet('/api/invoices');
+    renderPage();
+    showToast('Invoice #'+invId+' deleted.','amber');
+  }catch(e){alert('Failed to delete: '+e.message);}
+}
+
 async function cancelInvoice(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
@@ -7363,6 +7387,7 @@ window.resetStockInput=resetStockInput;
 window.closeSettingsPanel=closeSettingsPanel;
 window.goToCreateInvoice=goToCreateInvoice;
 window.toggleCustomAmt=toggleCustomAmt;
+window.deleteInvoice=deleteInvoice;
 </script>
 </body>
 </html>
