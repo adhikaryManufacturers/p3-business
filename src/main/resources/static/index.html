@@ -3101,25 +3101,26 @@ async function generateInvoice(){
   if(!state.invoiceItems.length){alert('Please add at least one item');return;}
   var prev=getCustomerTotalDue(custId);
   // Enrich items with billing info before saving
+  var customAmtEnabled=(document.getElementById('inv-custom-amt-toggle')||{}).checked||false;
+  var customAmt=customAmtEnabled?(parseFloat((document.getElementById('inv-custom-amt')||{}).value)||0):0;
+  var customAmtLabel=customAmtEnabled?((document.getElementById('inv-custom-amt-label')||{}).value||'Additional Charge'):'';
   var enrichedItems = state.invoiceItems.map(function(it){
     var copy = JSON.parse(JSON.stringify(it));
-    // Resolve effective meta (product stockMeta + any manual override)
     var prod = getProduct(it.productId);
     var eMeta = {};
     try{ if(prod&&prod.stockMeta) eMeta=JSON.parse(prod.stockMeta); }catch(e){}
     if(it._metaOverride) Object.assign(eMeta, it._metaOverride);
-    copy.billingQty   = invBillingQty(it);
-    copy.billingLabel = invBillingLabel(it);
-    copy.billingRate  = invUnitRate(it);
-    copy.billingAmt   = invItemAmount(it);
-    copy.pktPerUnit   = parseFloat(eMeta.pktPerUnit)||1;
-    copy.pcsPerPkt    = parseFloat(eMeta.pcsPerPkt)||1;
+    // Encode extra fields into desc as __inv__ suffix so backend persists them
+    var extra={u:it.qtyUnit||'Pkt',c:it.qtyCount||1,ppu:parseFloat(eMeta.pktPerUnit)||1,pcs:parseFloat(eMeta.pcsPerPkt)||parseFloat(eMeta.count)||1};
+    var baseName=it.desc||'';
+    copy.desc = baseName+'__inv__'+JSON.stringify(extra);
     delete copy._metaOverride;
     return copy;
   });
-  var customAmtEnabled=(document.getElementById('inv-custom-amt-toggle')||{}).checked||false;
-  var customAmt=customAmtEnabled?(parseFloat((document.getElementById('inv-custom-amt')||{}).value)||0):0;
-  var customAmtLabel=customAmtEnabled?((document.getElementById('inv-custom-amt-label')||{}).value||'Additional Charge'):'';
+  // Add __meta__ item to carry invoice-level extras (customAmt, customAmtLabel)
+  if(customAmt>0||customAmtLabel){
+    enrichedItems.push({desc:'__meta__'+JSON.stringify({ca:customAmt,cl:customAmtLabel}),productId:null,qty:0,rate:0,unit:'Pcs'});
+  }
   var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null};
   try{
     var saved=await apiCall('/api/invoices','POST',inv);
@@ -3213,7 +3214,7 @@ function showInvoiceSaveModal(invId){
 
 // ===================== INVOICE PREVIEW =====================
 function buildInvoiceHTML(invId, forDownload){
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=decodeInvoice(state.invoices.find(function(i){return i.id===invId;}));
   if(!inv) return '';
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);
@@ -3309,11 +3310,8 @@ function downloadInvoice(invId){
 }
 
 function downloadInvoicePDF(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=decodeInvoice(state.invoices.find(function(i){return String(i.id)===String(invId);}));
   if(!inv){alert('Invoice not found');return;}
-  // DEBUG
-  alert('ALL inv keys: '+Object.keys(inv).join(', ')+'\n\nFull: '+JSON.stringify(inv).substring(0,400));
-
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);
 
@@ -3661,6 +3659,7 @@ async function shareInvoiceWhatsApp(invId){
 }
 
 async function buildInvoicePDFBlob(inv, cust, c2, due){
+  inv=decodeInvoice(inv);
   try{
     var jsPDFLib=(typeof window.jsPDF!=='undefined')?window.jsPDF:
       (typeof window.jspdf!=='undefined'?window.jspdf.jsPDF:null);
@@ -3913,6 +3912,38 @@ function invItemAmount(item){
 // ── Resolve correct billing fields from a saved invoice item ──
 // Old invoices may have billingQty=1/billingRate=baseRate (corrupted).
 // Always recompute from qtyCount + rate + pktPerUnit.
+// Decode __inv__ and __meta__ from saved invoice items back into proper fields
+function decodeInvoice(inv){
+  if(!inv||!inv.items) return inv;
+  var decoded=JSON.parse(JSON.stringify(inv));
+  var metaItem=null;
+  decoded.items=decoded.items.filter(function(it){
+    if(typeof it.desc==='string'&&it.desc.indexOf('__meta__')===0){
+      try{ metaItem=JSON.parse(it.desc.replace('__meta__','')); }catch(e){}
+      return false; // remove from items list
+    }
+    return true;
+  });
+  decoded.items.forEach(function(it){
+    if(typeof it.desc==='string'&&it.desc.indexOf('__inv__')>=0){
+      var parts=it.desc.split('__inv__');
+      it.desc=parts[0];
+      try{
+        var ex=JSON.parse(parts[1]);
+        if(ex.u) it.qtyUnit=ex.u;
+        if(ex.c) it.qtyCount=ex.c;
+        if(ex.ppu) it.pktPerUnit=ex.ppu;
+        if(ex.pcs) it.pcsPerPkt=ex.pcs;
+      }catch(e){}
+    }
+  });
+  if(metaItem){
+    if(metaItem.ca) decoded.customAmt=metaItem.ca;
+    if(metaItem.cl) decoded.customAmtLabel=metaItem.cl;
+  }
+  return decoded;
+}
+
 function resolveItemBilling(item){
   // Resolve product stockMeta — handles both new and old invoice formats
   var prod=getProduct(item.productId);
