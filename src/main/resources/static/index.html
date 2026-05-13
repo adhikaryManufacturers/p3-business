@@ -3103,10 +3103,18 @@ async function generateInvoice(){
   // Enrich items with billing info before saving
   var enrichedItems = state.invoiceItems.map(function(it){
     var copy = JSON.parse(JSON.stringify(it));
-    copy.billingQty = invBillingQty(it);       // user-entered count (1 Bora, 50 Pkt)
-    copy.billingLabel = invBillingLabel(it);   // Bora / Pkt / Cartoon
-    copy.billingRate = invUnitRate(it);        // rate per selected unit
-    copy.billingAmt = invItemAmount(it);       // total amount
+    // Resolve effective meta (product stockMeta + any manual override)
+    var prod = getProduct(it.productId);
+    var eMeta = {};
+    try{ if(prod&&prod.stockMeta) eMeta=JSON.parse(prod.stockMeta); }catch(e){}
+    if(it._metaOverride) Object.assign(eMeta, it._metaOverride);
+    copy.billingQty   = invBillingQty(it);
+    copy.billingLabel = invBillingLabel(it);
+    copy.billingRate  = invUnitRate(it);
+    copy.billingAmt   = invItemAmount(it);
+    copy.pktPerUnit   = parseFloat(eMeta.pktPerUnit)||1;
+    copy.pcsPerPkt    = parseFloat(eMeta.pcsPerPkt)||1;
+    delete copy._metaOverride;
     return copy;
   });
   var customAmtEnabled=(document.getElementById('inv-custom-amt-toggle')||{}).checked||false;
@@ -3319,9 +3327,8 @@ function downloadInvoicePDF(invId){
     var bRate = item.billingRate  != null ? item.billingRate  : invUnitRate(item);
     var bAmt  = bq * bRate;
     var unit  = item.qtyUnit||'Pkt';
-    var meta2={};try{if(p2&&p2.stockMeta)meta2=JSON.parse(p2.stockMeta);}catch(e){}
-    var ppu   = parseFloat(meta2.pktPerUnit)||1;
-    var pcs2  = parseFloat(meta2.pcsPerPkt)||0;
+    var ppu   = parseFloat(item.pktPerUnit)||parseFloat((function(){var m={};try{if(p2&&p2.stockMeta)m=JSON.parse(p2.stockMeta);}catch(e){}return m;})().pktPerUnit)||1;
+    var pcs2  = parseFloat(item.pcsPerPkt)||parseFloat((function(){var m={};try{if(p2&&p2.stockMeta)m=JSON.parse(p2.stockMeta);}catch(e){}return m;})().pcsPerPkt)||0;
     var pcsNote='';
     if(pcs2>0){
       var totalPcs = bq*(unit==='Pkt' ? pcs2 : ppu*pcs2);
@@ -3895,15 +3902,18 @@ function invBillingLabel(item){
   return 'Pcs';
 }
 function invUnitRate(item){
-  // Rate per user-selected unit (Bora/Cartoon/Pkt)
   var unit = item.qtyUnit||'Pkt';
-  var product = getProduct(item.productId);
-  var meta = {};
-  try{ if(product&&product.stockMeta) meta=JSON.parse(product.stockMeta); }catch(e){}
-  if(item._metaOverride) Object.assign(meta, item._metaOverride);
-  var pktPerUnit = parseFloat(meta.pktPerUnit)||1;
-  if(unit==='Cartoon'||unit==='Bora') return item.rate * pktPerUnit; // rate per Bora/Cartoon
-  return item.rate; // rate per Pkt
+  if(unit!=='Cartoon'&&unit!=='Bora') return item.rate||0;
+  // For Bora/Cartoon: use saved pktPerUnit first, then product stockMeta, then _metaOverride
+  var pktPerUnit = parseFloat(item.pktPerUnit)||0;
+  if(!pktPerUnit){
+    var product = getProduct(item.productId);
+    var meta = {};
+    try{ if(product&&product.stockMeta) meta=JSON.parse(product.stockMeta); }catch(e){}
+    if(item._metaOverride) Object.assign(meta, item._metaOverride);
+    pktPerUnit = parseFloat(meta.pktPerUnit)||1;
+  }
+  return (item.rate||0) * pktPerUnit;
 }
 function invItemAmount(item){
   // Total amount = billingQty * unitRate
