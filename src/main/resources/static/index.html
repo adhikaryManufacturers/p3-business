@@ -3225,11 +3225,8 @@ function buildInvoiceHTML(invId, forDownload){
       var bq2  = item.billingQty   != null ? item.billingQty   : (item.qtyCount||1);
       var bl2  = item.billingLabel || (item.qtyUnit||'Pkt');
       var br2  = item.billingRate  != null ? item.billingRate  : item.rate;
-      var unit2b=item.qtyUnit||'Pkt';
-      var meta2c={};try{if(p2&&p2.stockMeta)meta2c=JSON.parse(p2.stockMeta);}catch(e){}
-      var ppu2c=parseFloat(meta2c.pktPerUnit)||1;
-      var br2unit=(unit2b==='Bora'||unit2b==='Cartoon')?(item.rate||0)*ppu2c:(item.rate||0);
-      var ba2  = bq2 * br2unit;
+      // br2 is already unit-aware (stored by invUnitRate on save); use it directly
+      var ba2  = bq2 * (br2||0);
       var unit2=item.qtyUnit||'Pkt';
       var meta2b={};try{if(p2&&p2.stockMeta)meta2b=JSON.parse(p2.stockMeta);}catch(e){}
       var ppu2=parseFloat(meta2b.pktPerUnit)||1;
@@ -3263,11 +3260,7 @@ function buildInvoiceHTML(invId, forDownload){
   (function(){
     var hSub=(inv.items||[]).reduce(function(s,it){
       var bq2=it.billingQty!=null?it.billingQty:(it.qtyCount||1);
-      var u2=it.qtyUnit||'Pkt';
-      var ph=getProduct(it.productId);
-      var mh={};try{if(ph&&ph.stockMeta)mh=JSON.parse(ph.stockMeta);}catch(e){}
-      var ppuh=parseFloat(mh.pktPerUnit)||1;
-      var br2=(u2==='Bora'||u2==='Cartoon')?(it.rate||0)*ppuh:(it.rate||0);
+      var br2=it.billingRate!=null?it.billingRate:invUnitRate(it);
       return s+(bq2*br2);
     },0);
     var hPrev=inv.prevOutstanding||0;
@@ -3322,13 +3315,12 @@ function downloadInvoicePDF(invId){
     var p2=getProduct(item.productId);
     var bq    = item.billingQty   != null ? item.billingQty   : (item.qtyCount||1);
     var bLabel= item.billingLabel || (item.qtyUnit||'Pkt');
+    // billingRate is already unit-aware (stored by invUnitRate on save)
+    var bRate = item.billingRate  != null ? item.billingRate  : invUnitRate(item);
+    var bAmt  = bq * bRate;
     var unit  = item.qtyUnit||'Pkt';
     var meta2={};try{if(p2&&p2.stockMeta)meta2=JSON.parse(p2.stockMeta);}catch(e){}
     var ppu   = parseFloat(meta2.pktPerUnit)||1;
-    // Always recompute unit rate: Bora/Cartoon = base rate * pktPerUnit; Pkt = base rate
-    var baseRate = item.rate||0;
-    var bRate = (unit==='Bora'||unit==='Cartoon') ? baseRate*ppu : baseRate;
-    var bAmt  = bq * bRate;
     var pcs2  = parseFloat(meta2.pcsPerPkt)||0;
     var pcsNote='';
     if(pcs2>0){
@@ -3347,14 +3339,10 @@ function downloadInvoicePDF(invId){
       '</tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">No items</td></tr>';
 
-  /* ── recalculate totals fresh using unit-aware rate (Bora/Cartoon = rate*pktPerUnit) ── */
+  /* ── recalculate sub using stored billingQty * billingRate (already unit-aware) ── */
   var pdfSub=(inv.items||[]).reduce(function(s,it){
     var bq2=it.billingQty!=null?it.billingQty:(it.qtyCount||1);
-    var u2=it.qtyUnit||'Pkt';
-    var p2b=getProduct(it.productId);
-    var m2={};try{if(p2b&&p2b.stockMeta)m2=JSON.parse(p2b.stockMeta);}catch(e){}
-    var ppu2=parseFloat(m2.pktPerUnit)||1;
-    var br2=(u2==='Bora'||u2==='Cartoon')?(it.rate||0)*ppu2:(it.rate||0);
+    var br2=it.billingRate!=null?it.billingRate:invUnitRate(it);
     return s+(bq2*br2);
   },0);
   var pdfPrev=inv.prevOutstanding||0;
@@ -3694,11 +3682,8 @@ async function buildInvoicePDFBlob(inv, cust, c2, due){
       var name=(p.name||it.desc||'Item').substring(0,45);
       var bQty   = it.billingQty  != null ? it.billingQty  : invBillingQty(it);
       var bLabel = it.billingLabel|| invBillingLabel(it);
-      var bUnit  = it.qtyUnit||'Pkt';
-      var bProd  = getProduct(it.productId);
-      var bMeta  = {};try{if(bProd&&bProd.stockMeta)bMeta=JSON.parse(bProd.stockMeta);}catch(e){}
-      var bPpu   = parseFloat(bMeta.pktPerUnit)||1;
-      var bRate  = (bUnit==='Bora'||bUnit==='Cartoon')?(it.rate||0)*bPpu:(it.rate||0);
+      // billingRate already unit-aware (stored by invUnitRate on save)
+      var bRate  = it.billingRate != null ? it.billingRate : invUnitRate(it);
       var bAmt   = bQty * bRate;
       doc.text(name,15,y);
       doc.text(String(bQty)+' '+bLabel,95,y);
@@ -3707,14 +3692,10 @@ async function buildInvoicePDFBlob(inv, cust, c2, due){
       y+=7;
     });
     y+=4;doc.line(15,y,195,y);y+=6;
-    // Recalculate sub using unit-aware rate (Bora/Cartoon = rate*pktPerUnit)
+    // Recalculate sub using stored billingQty * billingRate (already unit-aware)
     var pdfSub=(inv.items||[]).reduce(function(s,it){
       var bq2=it.billingQty!=null?it.billingQty:invBillingQty(it);
-      var u2=it.qtyUnit||'Pkt';
-      var pp=getProduct(it.productId);
-      var mm={};try{if(pp&&pp.stockMeta)mm=JSON.parse(pp.stockMeta);}catch(e){}
-      var ppu2=parseFloat(mm.pktPerUnit)||1;
-      var br2=(u2==='Bora'||u2==='Cartoon')?(it.rate||0)*ppu2:(it.rate||0);
+      var br2=it.billingRate!=null?it.billingRate:invUnitRate(it);
       return s+(bq2*br2);
     },0);
     var pdfPrev=inv.prevOutstanding||0;
