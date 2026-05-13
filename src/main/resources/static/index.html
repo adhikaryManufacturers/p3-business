@@ -3484,7 +3484,7 @@ async function cancelOrder(orderId){
     showToast('Order ORD#'+orderId+' cancelled.','amber');
   }catch(e){alert('Failed to cancel: '+e.message);}
 }
-async function deleteInvoice(invId){
+window.deleteInvoice=async function deleteInvoice(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
   if(inv.status!=='cancelled'){alert('Only cancelled invoices can be deleted.');return;}
@@ -3497,7 +3497,7 @@ async function deleteInvoice(invId){
   }catch(e){alert('Failed to delete: '+e.message);}
 }
 
-async function cancelInvoice(invId){
+window.cancelInvoice=async function cancelInvoice(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
   if(inv.status==='cancelled'){alert('Already cancelled');return;}
@@ -7364,7 +7364,7 @@ window.epSelectUnit=epSelectUnit;
 window.resetModal=resetModal;
 window.deductInvoiceStock=deductInvoiceStock;
 window.invBuildQtyCell=invBuildQtyCell;
-window.invQtyInputHtml=invQtyInputHtml;
+window.invQtyInputHtml=function(){return "";};
 window.invRecalcQty=invRecalcQty;
 window.invRecalcQtyFull=invRecalcQtyFull;
 window.invSetMetaVal=invSetMetaVal;
