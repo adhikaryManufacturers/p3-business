@@ -3222,19 +3222,19 @@ function buildInvoiceHTML(invId, forDownload){
   } else {
     itemsHTML=(inv.items||[]).map(function(item,i){
       var p2=getProduct(item.productId);
-      var bq2=item.billingQty!=null?item.billingQty:(item.qtyCount||1);
-      var bl2=item.billingLabel||(item.qtyUnit||'Pkt');
+      var bq2  = item.billingQty   != null ? item.billingQty   : (item.qtyCount||1);
+      var bl2  = item.billingLabel || (item.qtyUnit||'Pkt');
+      var br2  = item.billingRate  != null ? item.billingRate  : item.rate;
+      var ba2  = item.billingAmt   != null ? item.billingAmt   : (bq2*br2);
       var unit2=item.qtyUnit||'Pkt';
       var meta2b={};try{if(p2&&p2.stockMeta)meta2b=JSON.parse(p2.stockMeta);}catch(e){}
       var ppu2=parseFloat(meta2b.pktPerUnit)||1;
-      var dispRate2=(unit2==='Cartoon'||unit2==='Bora')?item.rate*ppu2:item.rate;
-      var amt2=item.billingAmt!=null?item.billingAmt:(bq2*dispRate2);
       var ppu2pcs=parseFloat(meta2b.pcsPerPkt)||0;
       var pcs2=ppu2pcs?(bq2*(unit2==='Pkt'?ppu2pcs:ppu2*ppu2pcs)):null;
       return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||'—')+'</td>'+
         '<td>'+bq2+(pcs2?' <span style="font-size:10px;color:#888">('+pcs2+' Pcs)</span>':'')+'</td>'+
-        '<td>'+bl2+'</td><td>'+fmt(dispRate2)+'/'+bl2+'</td>'+
-        '<td style="font-weight:600">'+fmt(amt2)+'</td></tr>';
+        '<td>'+bl2+'</td><td>'+fmt(br2)+'/'+bl2+'</td>'+
+        '<td style="font-weight:600">'+fmt(ba2)+'</td></tr>';
     }).join('');
   }
   return (forDownload?'<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invoice #'+invId+'</title>'+styles+'</head><body>':'')+
@@ -3364,22 +3364,22 @@ function downloadInvoicePDF(invId){
   '<tbody>'+
   ((inv.items||[]).map(function(item,i){
     var p2=getProduct(item.productId);
-    var bq=item.billingQty!=null?item.billingQty:(item.qtyCount||1);
-    var bLabel=item.billingLabel||(item.qtyUnit||'Pkt');
-    // rate to display = per selected unit (Bora/Cartoon/Pkt)
+    // Use saved billing fields — these are set correctly at invoice creation
+    var bq    = item.billingQty   != null ? item.billingQty   : (item.qtyCount||1);
+    var bLabel= item.billingLabel || (item.qtyUnit||'Pkt');
+    var bRate = item.billingRate  != null ? item.billingRate  : item.rate;
+    var bAmt  = item.billingAmt   != null ? item.billingAmt   : (bq * bRate);
+    // Pcs reference note
     var unit=item.qtyUnit||'Pkt';
     var meta2={};try{if(p2&&p2.stockMeta)meta2=JSON.parse(p2.stockMeta);}catch(e){}
     var ppu=parseFloat(meta2.pktPerUnit)||1;
-    var dispRate=(unit==='Cartoon'||unit==='Bora')?item.rate*ppu:item.rate;
-    var amt=item.billingAmt!=null?item.billingAmt:(bq*dispRate);
-    // Pcs note for customer reference
-    var pcsPerPkt=parseFloat(meta2.pcsPerPkt)||0;
-    var totalPcs=pcsPerPkt?(bq*(unit==='Pkt'?pcsPerPkt:ppu*pcsPerPkt)):null;
+    var pcs2=parseFloat(meta2.pcsPerPkt)||0;
+    var totalPcs=pcs2?(bq*(unit==='Pkt'?pcs2:ppu*pcs2)):null;
     var pcsNote=totalPcs?'<div style="font-size:9px;color:#888;margin-top:1px">('+totalPcs+' Pcs)</div>':'';
     return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||item.hsn||'—')+'</td>'+
       '<td>'+bq+pcsNote+'</td><td>'+bLabel+'</td>'+
-      '<td style="text-align:right">'+fmt(dispRate)+'/'+bLabel+'</td>'+
-      '<td style="text-align:right;font-weight:600">'+fmt(amt)+'</td></tr>';
+      '<td style="text-align:right">'+fmt(bRate)+'/'+bLabel+'</td>'+
+      '<td style="text-align:right;font-weight:600">'+fmt(bAmt)+'</td></tr>';
   }).join('')||'<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">No items</td></tr>')
   +'</tbody>'+
   '<tfoot>'+
