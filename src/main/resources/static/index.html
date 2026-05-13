@@ -2803,7 +2803,7 @@ function invBuildQtyCell(item, meta){
     inputHtml =
       '<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
       '<input type="number" value="'+cnt+'" min="1" '+
-        'onchange="invUpdateQty('+item.id+',this.value)" '+
+        'oninput="invUpdateQty('+item.id+',this.value)" '+
         'style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" '+
         'placeholder="'+unitType+'s">'+
       '<span style="color:var(--text3);font-size:11px">'+unitType+'(s)</span>'+
@@ -2817,7 +2817,7 @@ function invBuildQtyCell(item, meta){
     inputHtml =
       '<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
       '<input type="number" value="'+pktCnt+'" min="1" '+
-        'onchange="invUpdateQty('+item.id+',this.value)" '+
+        'oninput="invUpdateQty('+item.id+',this.value)" '+
         'style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px">'+
       '<span style="color:var(--text3);font-size:11px">Pkt(s)</span>'+
       '<span></span>'+
@@ -2841,33 +2841,8 @@ function invSetMetaVal(itemId, field, val){
   renderPage();
 }
 
-function invQtyInputHtml(item, meta){
-  var unitType=item.qtyUnit||'Pkt';
-  var pktPerUnit=meta.pktPerUnit||1;
-  var pcsPerPkt=meta.pcsPerPkt||1;
 
-  if(unitType==='Cartoon'||unitType==='Bora'){
-    var unitCount=item.qtyCount||1;
-    return '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
-      '<input type="number" value="'+unitCount+'" min="1" '+
-      'onchange="invUpdateQty('+item.id+',\'count\',this.value)" '+
-      'style="width:55px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px" placeholder="'+unitType+'s">'+
-      '<span style="font-size:11px;color:var(--text3)">×'+pktPerUnit+' Pkt ×'+pcsPerPkt+' Pcs</span>'+
-      '</div>';
-  } else if(unitType==='Pkt'){
-    var pktCount=item.qtyCount||1;
-    return '<div style="display:flex;gap:6px;align-items:center">'+
-      '<input type="number" value="'+pktCount+'" min="1" '+
-      'onchange="invUpdateQty('+item.id+',\'count\',this.value)" '+
-      'style="width:65px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px" placeholder="Pkts">'+
-      '<span style="font-size:11px;color:var(--text3)">×'+pcsPerPkt+' Pcs</span>'+
-      '</div>';
-  } else {
-    return '<input type="number" value="'+item.qty+'" min="1" '+
-      'onchange="updateInvItem('+item.id+',\'qty\',this.value);refreshInvRow('+item.id+')" '+
-      'style="width:70px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px">';
-  }
-}
+
 
 function invSetQtyUnit(itemId, unit){
   var item=state.invoiceItems.find(function(i){return i.id===itemId;});
@@ -2889,8 +2864,10 @@ function invSetQtyUnit(itemId, unit){
   updateInvCalc();
 }
 
-function invUpdateQty(itemId, val){
-  var item=state.invoiceItems.find(function(i){return i.id===itemId;});
+function invUpdateQty(itemId, valOrLabel, actualVal){
+  // Called as invUpdateQty(id, val) OR invUpdateQty(id, 'count', val)
+  var val = (actualVal !== undefined) ? actualVal : valOrLabel;
+  var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
   if(!item) return;
   var newCount=parseFloat(val)||1;
   item.qtyCount=newCount;
