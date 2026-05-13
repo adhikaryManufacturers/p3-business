@@ -3230,11 +3230,11 @@ function buildInvoiceHTML(invId, forDownload){
   } else {
     itemsHTML=(inv.items||[]).map(function(item,i){
       var p2=getProduct(item.productId);
-      var bq2  = item.billingQty   != null ? item.billingQty   : (item.qtyCount||1);
-      var bl2  = item.billingLabel || (item.qtyUnit||'Pkt');
-      var br2  = item.billingRate  != null ? item.billingRate  : item.rate;
-      // br2 is already unit-aware (stored by invUnitRate on save); use it directly
-      var ba2  = bq2 * (br2||0);
+      var _rb2 = resolveItemBilling(item);
+      var bq2  = _rb2.qty;
+      var bl2  = _rb2.label;
+      var br2  = _rb2.rate;
+      var ba2  = _rb2.amt;
       var unit2=item.qtyUnit||'Pkt';
       var meta2b={};try{if(p2&&p2.stockMeta)meta2b=JSON.parse(p2.stockMeta);}catch(e){}
       var ppu2=parseFloat(meta2b.pktPerUnit)||1;
@@ -3266,11 +3266,7 @@ function buildInvoiceHTML(invId, forDownload){
   '<table class="inv-tbl"><thead><tr><th>Sr.</th><th>Description</th><th>HSN</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead>'+
   '<tbody>'+itemsHTML+'</tbody>'+
   (function(){
-    var hSub=(inv.items||[]).reduce(function(s,it){
-      var bq2=it.billingQty!=null?it.billingQty:(it.qtyCount||1);
-      var br2=it.billingRate!=null?it.billingRate:invUnitRate(it);
-      return s+(bq2*br2);
-    },0);
+    var hSub=(inv.items||[]).reduce(function(s,it){return s+resolveItemBilling(it).amt;},0);
     var hPrev=inv.prevOutstanding||0;
     var hCustom=inv.customAmt||0;
     var hGrand=hSub+hPrev+hCustom;
@@ -3321,14 +3317,15 @@ function downloadInvoicePDF(invId){
   /* ── item rows ── */
   var itemRows=(inv.items||[]).map(function(item,idx){
     var p2=getProduct(item.productId);
-    var bq    = item.billingQty   != null ? item.billingQty   : (item.qtyCount||1);
-    var bLabel= item.billingLabel || (item.qtyUnit||'Pkt');
-    // billingRate is already unit-aware (stored by invUnitRate on save)
-    var bRate = item.billingRate  != null ? item.billingRate  : invUnitRate(item);
-    var bAmt  = bq * bRate;
+    var _rb  = resolveItemBilling(item);
+    var bq    = _rb.qty;
+    var bLabel= _rb.label;
+    var bRate = _rb.rate;
+    var bAmt  = _rb.amt;
     var unit  = item.qtyUnit||'Pkt';
-    var ppu   = parseFloat(item.pktPerUnit)||parseFloat((function(){var m={};try{if(p2&&p2.stockMeta)m=JSON.parse(p2.stockMeta);}catch(e){}return m;})().pktPerUnit)||1;
-    var pcs2  = parseFloat(item.pcsPerPkt)||parseFloat((function(){var m={};try{if(p2&&p2.stockMeta)m=JSON.parse(p2.stockMeta);}catch(e){}return m;})().pcsPerPkt)||0;
+    var ppu   = _rb.ppu;
+    var meta2b={};try{if(p2&&p2.stockMeta)meta2b=JSON.parse(p2.stockMeta);}catch(e){}
+    var pcs2  = parseFloat(item.pcsPerPkt)||parseFloat(meta2b.pcsPerPkt)||0;
     var pcsNote='';
     if(pcs2>0){
       var totalPcs = bq*(unit==='Pkt' ? pcs2 : ppu*pcs2);
@@ -3346,12 +3343,8 @@ function downloadInvoicePDF(invId){
       '</tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">No items</td></tr>';
 
-  /* ── recalculate sub using stored billingQty * billingRate (already unit-aware) ── */
-  var pdfSub=(inv.items||[]).reduce(function(s,it){
-    var bq2=it.billingQty!=null?it.billingQty:(it.qtyCount||1);
-    var br2=it.billingRate!=null?it.billingRate:invUnitRate(it);
-    return s+(bq2*br2);
-  },0);
+  /* ── recalculate sub using resolveItemBilling (always correct) ── */
+  var pdfSub=(inv.items||[]).reduce(function(s,it){return s+resolveItemBilling(it).amt;},0);
   var pdfPrev=inv.prevOutstanding||0;
   var pdfCustomAmt=inv.customAmt||0;
   var pdfGrand=pdfSub+pdfPrev+pdfCustomAmt;
@@ -3687,11 +3680,11 @@ async function buildInvoicePDFBlob(inv, cust, c2, due){
     (inv.items||[]).forEach(function(it){
       var p=getProduct(it.productId);
       var name=(p.name||it.desc||'Item').substring(0,45);
-      var bQty   = it.billingQty  != null ? it.billingQty  : invBillingQty(it);
-      var bLabel = it.billingLabel|| invBillingLabel(it);
-      // billingRate already unit-aware (stored by invUnitRate on save)
-      var bRate  = it.billingRate != null ? it.billingRate : invUnitRate(it);
-      var bAmt   = bQty * bRate;
+      var _rbb   = resolveItemBilling(it);
+      var bQty   = _rbb.qty;
+      var bLabel = _rbb.label;
+      var bRate  = _rbb.rate;
+      var bAmt   = _rbb.amt;
       doc.text(name,15,y);
       doc.text(String(bQty)+' '+bLabel,95,y);
       doc.text('Rs.'+bRate.toFixed(2)+'/'+bLabel,130,y);
@@ -3699,12 +3692,8 @@ async function buildInvoicePDFBlob(inv, cust, c2, due){
       y+=7;
     });
     y+=4;doc.line(15,y,195,y);y+=6;
-    // Recalculate sub using stored billingQty * billingRate (already unit-aware)
-    var pdfSub=(inv.items||[]).reduce(function(s,it){
-      var bq2=it.billingQty!=null?it.billingQty:invBillingQty(it);
-      var br2=it.billingRate!=null?it.billingRate:invUnitRate(it);
-      return s+(bq2*br2);
-    },0);
+    // Recalculate sub using resolveItemBilling (always correct)
+    var pdfSub=(inv.items||[]).reduce(function(s,it){return s+resolveItemBilling(it).amt;},0);
     var pdfPrev=inv.prevOutstanding||0;
     var pdfCustomAmt=inv.customAmt||0;
     var pdfGrand=pdfSub+pdfPrev+pdfCustomAmt;
@@ -3919,6 +3908,25 @@ function invItemAmount(item){
   // Total amount = billingQty * unitRate
   return invBillingQty(item) * invUnitRate(item);
 }
+// ── Resolve correct billing fields from a saved invoice item ──
+// Old invoices may have billingQty=1/billingRate=baseRate (corrupted).
+// Always recompute from qtyCount + rate + pktPerUnit.
+function resolveItemBilling(item){
+  var unit   = item.qtyUnit||'Pkt';
+  var qty    = parseFloat(item.qtyCount)||1;
+  var ppu    = parseFloat(item.pktPerUnit)||0;
+  if(!ppu){
+    var prod=getProduct(item.productId);
+    var m={};try{if(prod&&prod.stockMeta)m=JSON.parse(prod.stockMeta);}catch(e){}
+    if(item._metaOverride) Object.assign(m,item._metaOverride);
+    ppu=parseFloat(m.pktPerUnit)||1;
+  }
+  var baseRate = parseFloat(item.rate)||0;
+  var unitRate = (unit==='Bora'||unit==='Cartoon') ? baseRate*ppu : baseRate;
+  var label    = item.billingLabel||(unit==='Bora'?'Bora':unit==='Cartoon'?'Cartoon':'Pkt');
+  return {qty:qty, rate:unitRate, amt:qty*unitRate, label:label, ppu:ppu};
+}
+
 
 
 // ── Stock validation helpers ──
