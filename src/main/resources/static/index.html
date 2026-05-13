@@ -3311,12 +3311,7 @@ function downloadInvoice(invId){
 function downloadInvoicePDF(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
-  // DEBUG
-  if(inv.items&&inv.items[0]){
-    var di=inv.items[0];
-    var dp=getProduct(di.productId);
-    alert('item[0] raw fields:\nqty='+di.qty+'\nqtyUnit='+di.qtyUnit+'\nrate='+di.rate+'\nproductId='+di.productId+'\nproduct found='+(dp?dp.name:'NO')+'\nstockMeta='+(dp?dp.stockMeta:'N/A'));
-  }
+
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);
 
@@ -3917,30 +3912,32 @@ function invItemAmount(item){
 // Old invoices may have billingQty=1/billingRate=baseRate (corrupted).
 // Always recompute from qtyCount + rate + pktPerUnit.
 function resolveItemBilling(item){
-  var unit = item.qtyUnit||'Pkt';
-  // Resolve pktPerUnit and pcsPerPkt — saved on item first, then product stockMeta
-  var ppu = parseFloat(item.pktPerUnit)||0;
-  var pcs = parseFloat(item.pcsPerPkt)||0;
-  if(!ppu||!pcs){
-    var prod=getProduct(item.productId);
-    var m={};try{if(prod&&prod.stockMeta)m=JSON.parse(prod.stockMeta);}catch(e){}
-    if(item._metaOverride) Object.assign(m,item._metaOverride);
-    if(!ppu) ppu=parseFloat(m.pktPerUnit)||1;
-    if(!pcs) pcs=parseFloat(m.pcsPerPkt)||1;
-  }
-  // Derive billing qty from item.qty (total pcs) — the most reliably saved field
-  // Pkt:          qty = totalPcs / pcsPerPkt
-  // Bora/Cartoon: qty = totalPcs / (pktPerUnit * pcsPerPkt)
+  // Resolve product stockMeta — handles both new and old invoice formats
+  var prod=getProduct(item.productId);
+  var m={};try{if(prod&&prod.stockMeta)m=JSON.parse(prod.stockMeta);}catch(e){}
+  if(item._metaOverride) Object.assign(m,item._metaOverride);
+
+  // unit: saved on item, or derive from stockMeta.unitType, default Pkt
+  var unit = item.qtyUnit || m.unitType || 'Pkt';
+
+  // pcsPerPkt: saved on item > stockMeta.pcsPerPkt > stockMeta.count > 1
+  var pcs = parseFloat(item.pcsPerPkt)||parseFloat(m.pcsPerPkt)||parseFloat(m.count)||1;
+
+  // pktPerUnit: saved on item > stockMeta.pktPerUnit > 1
+  var ppu = parseFloat(item.pktPerUnit)||parseFloat(m.pktPerUnit)||1;
+
+  // Derive billing qty from item.qty (total pcs) — only reliable field in old invoices
   var totalPcs = parseFloat(item.qty)||0;
   var qty;
   if(unit==='Bora'||unit==='Cartoon'){
-    qty = (totalPcs>0 && pcs>0) ? totalPcs/(ppu*pcs) : (parseFloat(item.qtyCount)||1);
+    qty = totalPcs>0 ? totalPcs/(ppu*pcs) : (parseFloat(item.qtyCount)||1);
   } else if(unit==='Pkt'){
-    qty = (totalPcs>0 && pcs>0) ? totalPcs/pcs : (parseFloat(item.qtyCount)||1);
+    qty = totalPcs>0 ? totalPcs/pcs : (parseFloat(item.qtyCount)||1);
   } else {
     qty = totalPcs||(parseFloat(item.qtyCount)||1);
   }
   qty = Math.round(qty*1000)/1000;
+
   var baseRate = parseFloat(item.rate)||0;
   var unitRate = (unit==='Bora'||unit==='Cartoon') ? baseRate*ppu : baseRate;
   var label = item.billingLabel||(unit==='Bora'?'Bora':unit==='Cartoon'?'Cartoon':'Pkt');
