@@ -473,29 +473,29 @@ function monthName(m){if(!m||typeof m!=='string')return '—';var p=m.split('-')
 function calcInvoice(inv){
   var items=inv.items||[];
   var sub=items.reduce(function(s,it){
-    var bq;
+    // Priority 1: billingQty * billingRate — most reliable, cannot include prevOutstanding
+    if(it.billingQty!=null && it.billingQty>0 && it.billingRate!=null){
+      return s+(it.billingQty * it.billingRate);
+    }
+    // Priority 2: stored billingAmt — sanity-capped: if it looks corrupted (far exceeds qty*rate), use qty*rate instead
     if(it.billingAmt!=null){
-      // New invoices — billing amount saved directly
+      var capAmt = it.billingQty!=null ? it.billingQty*(it.billingRate||it.rate||0) : null;
+      if(capAmt!=null && capAmt>0 && it.billingAmt > capAmt*10){
+        return s+capAmt; // billingAmt was corrupted (e.g. had prevOutstanding baked in)
+      }
       return s+it.billingAmt;
-    } else if(it.billingQty!=null && it.billingQty>0){
-      // Has billingQty — use with rate per selected unit
-      var unit2=it.qtyUnit||'Pkt';
-      var product2=(state.products||[]).find(function(p){return String(p.id)===String(it.productId);});
-      var meta2={};try{if(product2&&product2.stockMeta)meta2=JSON.parse(product2.stockMeta);}catch(e){}
-      var pktPerUnit2=parseFloat(meta2.pktPerUnit)||1;
-      var unitRate2=(unit2==='Cartoon'||unit2==='Bora')?it.rate*pktPerUnit2:it.rate;
-      return s+(it.billingQty*unitRate2);
-    } else if(it.qtyCount!=null && it.qtyUnit && it.qtyUnit!=='Pcs'){
+    }
+    // Priority 3: qtyCount * unit-aware rate
+    if(it.qtyCount!=null && it.qtyUnit && it.qtyUnit!=='Pcs'){
       var unit3=it.qtyUnit;
       var product3=(state.products||[]).find(function(p){return String(p.id)===String(it.productId);});
       var meta3={};try{if(product3&&product3.stockMeta)meta3=JSON.parse(product3.stockMeta);}catch(e){}
       var pktPerUnit3=parseFloat(meta3.pktPerUnit)||1;
       var unitRate3=(unit3==='Cartoon'||unit3==='Bora')?it.rate*pktPerUnit3:it.rate;
       return s+((it.qtyCount||1)*unitRate3);
-    } else {
-      return s+(it.qty||0)*(it.rate||0); // old invoice fallback
     }
-    return s;
+    // Fallback: old invoice format
+    return s+(it.qty||0)*(it.rate||0);
   },0);
   var disc=sub*(inv.discount||0)/100;
   var afterDisc=sub-disc;
@@ -3225,7 +3225,7 @@ function buildInvoiceHTML(invId, forDownload){
       var bq2  = item.billingQty   != null ? item.billingQty   : (item.qtyCount||1);
       var bl2  = item.billingLabel || (item.qtyUnit||'Pkt');
       var br2  = item.billingRate  != null ? item.billingRate  : item.rate;
-      var ba2  = item.billingAmt   != null ? item.billingAmt   : (bq2*br2);
+      var ba2  = bq2 * (br2||0);
       var unit2=item.qtyUnit||'Pkt';
       var meta2b={};try{if(p2&&p2.stockMeta)meta2b=JSON.parse(p2.stockMeta);}catch(e){}
       var ppu2=parseFloat(meta2b.pktPerUnit)||1;
@@ -3256,17 +3256,18 @@ function buildInvoiceHTML(invId, forDownload){
   '<div style="font-weight:700">'+cust.name+'</div><div style="font-size:12px;color:#666">'+cust.address+'<br>Ph: '+cust.phone+'</div></div></div>'+
   '<table class="inv-tbl"><thead><tr><th>Sr.</th><th>Description</th><th>HSN</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead>'+
   '<tbody>'+itemsHTML+'</tbody>'+
-  '<tfoot>'+
-  (c2.sub>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px">Sub Total:</td><td style="padding:8px 12px;font-size:13px">'+fmt(c2.sub)+'</td></tr>':'')+
-  (c2.disc>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#E24B4A">Discount ('+inv.discount+'%) — Current Bill:</td><td style="padding:8px 12px;color:#E24B4A">— '+fmt(c2.disc)+'</td></tr>':'')+
-  (c2.gst>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px">GST ('+inv.gstRate+'%) — Current Bill:</td><td style="padding:8px 12px">'+fmt(c2.gst)+'</td></tr>':'')+
-  (c2.currentBill>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;font-weight:600">Current Bill Total:</td><td style="padding:8px 12px;font-weight:600">'+fmt(c2.currentBill)+'</td></tr>':'')+
-  (c2.prev>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#BA7517;font-weight:600">'+(isCF?'Balance from Invoice #'+inv.prevFromInvoice+':':'Previous Outstanding:')+' </td><td style="padding:8px 12px;color:#BA7517;font-weight:600">'+fmt(c2.prev)+'</td></tr>':'')+
-  (c2.customAmt>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#1565c0;font-weight:600">'+(c2.customAmtLabel||'Additional Charge')+' *:</td><td style="padding:8px 12px;color:#1565c0;font-weight:600">'+fmt(c2.customAmt)+'</td></tr>'+
-  '<tr><td colspan="7" style="padding:4px 12px;font-size:10px;color:#888;font-style:italic">* Additional charge may include transportation, packaging, loading, previous balance or any other charge.</td></tr>':'')+
-  '<tr><td colspan="6" style="text-align:right;padding:8px 12px;background:#27500A;color:#fff;font-weight:700;font-size:15px">Grand Total:</td><td style="padding:8px 12px;background:#27500A;color:#fff;font-weight:700;font-size:15px">'+fmt(c2.grand)+'</td></tr>'+
-  '</tfoot></table>'+
-  '<div style="font-size:12px;color:#888;font-style:italic;text-align:center;margin:14px 0">'+numToWords(c2.grand)+'</div>'+
+  (function(){
+    var hSub=(inv.items||[]).reduce(function(s,it){var bq2=it.billingQty!=null?it.billingQty:(it.qtyCount||1);var br2=it.billingRate!=null?it.billingRate:it.rate;return s+(bq2*(br2||0));},0);
+    var hCustom=inv.customAmt||0;
+    var hGrand=hSub+hCustom;
+    return '<tfoot>'+
+    '<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px">Sub Total:</td><td style="padding:8px 12px;font-size:13px">'+fmt(hSub)+'</td></tr>'+
+    (hCustom>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#1565c0;font-weight:600">'+(inv.customAmtLabel||'Additional Charge')+' *:</td><td style="padding:8px 12px;color:#1565c0;font-weight:600">+ '+fmt(hCustom)+'</td></tr>':'')+
+    '<tr><td colspan="6" style="text-align:right;padding:8px 12px;background:#27500A;color:#fff;font-weight:700;font-size:15px">Grand Total:</td><td style="padding:8px 12px;background:#27500A;color:#fff;font-weight:700;font-size:15px">'+fmt(hGrand)+'</td></tr>'+
+    (hCustom>0?'<tr><td colspan="7" style="padding:6px 12px;font-size:11px;color:#888;font-style:italic">* Additional charge may include transportation, packaging, loading, previous balance or any other charge.</td></tr>':'')+
+    '</tfoot></table>'+
+    '<div style="font-size:12px;color:#888;font-style:italic;text-align:center;margin:14px 0">'+numToWords(hGrand)+'</div>';
+  })()+
   '<div style="display:flex;justify-content:space-between;margin-top:24px;padding-top:16px;border-top:1px solid #eee">'+
   '<div style="text-align:center"><div style="width:120px;border-bottom:1px solid #333;margin-bottom:6px"></div><div style="font-size:11px;color:#888">Receiver\'s Signature</div></div>'+
   '<div style="text-align:center"><div style="width:120px;border-bottom:1px solid #333;margin-bottom:6px"></div><div style="font-size:11px;color:#888">Authorised Signatory</div></div></div>'+
@@ -3308,7 +3309,7 @@ function downloadInvoicePDF(invId){
     var bq    = item.billingQty   != null ? item.billingQty   : (item.qtyCount||1);
     var bLabel= item.billingLabel || (item.qtyUnit||'Pkt');
     var bRate = item.billingRate  != null ? item.billingRate  : item.rate;
-    var bAmt  = item.billingAmt   != null ? item.billingAmt   : (bq * bRate);
+    var bAmt  = bq * bRate;
     var unit  = item.qtyUnit||'Pkt';
     var meta2={};try{if(p2&&p2.stockMeta)meta2=JSON.parse(p2.stockMeta);}catch(e){}
     var ppu   = parseFloat(meta2.pktPerUnit)||1;
@@ -3330,37 +3331,31 @@ function downloadInvoicePDF(invId){
       '</tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">No items</td></tr>';
 
+  /* ── recalculate totals fresh from billingQty*billingRate (never trust stored billingAmt) ── */
+  var pdfSub=(inv.items||[]).reduce(function(s,it){
+    var bq2=it.billingQty!=null?it.billingQty:(it.qtyCount||1);
+    var br2=it.billingRate!=null?it.billingRate:it.rate;
+    return s+(bq2*(br2||0));
+  },0);
+  var pdfCustomAmt=inv.customAmt||0;
+  var pdfGrand=pdfSub+pdfCustomAmt;
+
   /* ── totals rows ── */
   var totalRows=
     '<tr><td colspan="5"></td>'+
     '<td style="text-align:right;padding:8px 10px">Sub Total:</td>'+
-    '<td style="text-align:right;padding:8px 10px">'+fmt(c2.sub)+'</td></tr>';
-  if(c2.disc>0) totalRows+=
-    '<tr style="color:#c0392b"><td colspan="5"></td>'+
-    '<td style="text-align:right;padding:7px 10px">Discount ('+inv.discount+'%) on current bill:</td>'+
-    '<td style="text-align:right;padding:7px 10px">— '+fmt(c2.disc)+'</td></tr>';
-  if(c2.gst>0) totalRows+=
-    '<tr style="color:#1a5276"><td colspan="5"></td>'+
-    '<td style="text-align:right;padding:7px 10px">GST ('+inv.gstRate+'%) on current bill:</td>'+
-    '<td style="text-align:right;padding:7px 10px">'+fmt(c2.gst)+'</td></tr>';
-  totalRows+=
-    '<tr style="background:#f4f4ef;font-weight:600"><td colspan="5"></td>'+
-    '<td style="text-align:right;padding:8px 10px">Current Bill Total:</td>'+
-    '<td style="text-align:right;padding:8px 10px">'+fmt(c2.currentBill)+'</td></tr>';
-  if(c2.prev>0) totalRows+=
-    '<tr style="color:#ba7517;font-weight:600"><td colspan="5"></td>'+
-    '<td style="text-align:right;padding:7px 10px">Previous Outstanding:</td>'+
-    '<td style="text-align:right;padding:7px 10px">+ '+fmt(c2.prev)+'</td></tr>';
-  if(c2.customAmt>0) totalRows+=
+    '<td style="text-align:right;padding:8px 10px">'+fmt(pdfSub)+'</td></tr>';
+  if(pdfCustomAmt>0) totalRows+=
     '<tr style="color:#1565c0;font-weight:600"><td colspan="5"></td>'+
-    '<td style="text-align:right;padding:7px 10px">'+(c2.customAmtLabel||'Additional Charge')+' *:</td>'+
-    '<td style="text-align:right;padding:7px 10px">+ '+fmt(c2.customAmt)+'</td></tr>'+
-    '<tr><td colspan="7" style="padding:3px 10px;font-size:10px;color:#888;font-style:italic">'+
-    '* Additional charge may include transportation, packaging, loading, previous balance or any other charge.</td></tr>';
+    '<td style="text-align:right;padding:7px 10px">'+(inv.customAmtLabel||'Additional Charge')+' *:</td>'+
+    '<td style="text-align:right;padding:7px 10px">+ '+fmt(pdfCustomAmt)+'</td></tr>';
   totalRows+=
     '<tr style="background:#27500A;color:#fff;font-weight:700;font-size:15px"><td colspan="5"></td>'+
     '<td style="text-align:right;padding:10px">Grand Total:</td>'+
-    '<td style="text-align:right;padding:10px">'+fmt(c2.grand)+'</td></tr>';
+    '<td style="text-align:right;padding:10px">'+fmt(pdfGrand)+'</td></tr>';
+  if(pdfCustomAmt>0) totalRows+=
+    '<tr><td colspan="7" style="padding:8px 10px;font-size:11px;color:#888;font-style:italic">'+
+    '* Additional charge may include transportation, packaging, loading, previous balance or any other charge.</td></tr>';
 
   /* ── logo (base64 embedded) ── */
   var logoSrc='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV9TpSIVBzuIOGSoThZERRy1CkWoEGqFVh1MLv2CJg1JioujILhWHD4srjo4OKq6ioIqiIN/QE6KhYtEiX9JiiJiPDjux7t7j7t3gFAtM80OjQHTbTuZiIuZ/KoQekWIfQQxiohSi5mxZDIF3/F1D0Df1wWe5X/uzxFRC5YCBIl4lhm2TbxBHNm2ac77xBFWlFTic+Ixmy5I/Mh1xeM3zjmXBZ4ZMdLJOeIIsVjqYqWLWdHQiCeJI6qmU76Q8VjlvMVZK1dZ8578hWHBWFnmOs0BFLGIJaQgQkYFGyjCRoxWnRQLadqPe/jHXb9ELoVcG2DkWEAJGmTXD/4Hv7u1itNTblIwDgRfHOdjFAjtAo2a43wfO07jBAg+A1d6y1+pA7OfpNdaWuQI6N0GLq5bmrwHXO4Ag0+GbMquFKQpFovA+xl9Ux7ovwW6Vr3emvs4fQBSaJX0BjhwCIyWKHvd5929nb39e6bZ3w8aPHKHHNWazQAAAAZiS0dEAAAAAAAA+UO7fwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAA93RFWHRDb21tZW50AGZpbGUBpBqDAAAAFElEQVRo3mNgGAWDHAAAAABJRU5ErkJggg==';
@@ -3675,7 +3670,7 @@ async function buildInvoicePDFBlob(inv, cust, c2, due){
       var bQty   = it.billingQty  != null ? it.billingQty  : invBillingQty(it);
       var bLabel = it.billingLabel|| invBillingLabel(it);
       var bRate  = it.billingRate != null ? it.billingRate : invUnitRate(it);
-      var bAmt   = it.billingAmt  != null ? it.billingAmt  : invItemAmount(it);
+      var bAmt   = bQty * bRate;
       doc.text(name,15,y);
       doc.text(String(bQty)+' '+bLabel,95,y);
       doc.text('Rs.'+bRate.toFixed(2)+'/'+bLabel,130,y);
@@ -3683,37 +3678,55 @@ async function buildInvoicePDFBlob(inv, cust, c2, due){
       y+=7;
     });
     y+=4;doc.line(15,y,195,y);y+=6;
+    // Recalculate sub directly from item billingQty*billingRate — never trust stored billingAmt
+    var pdfSub=(inv.items||[]).reduce(function(s,it){
+      var bq2 = it.billingQty!=null ? it.billingQty : invBillingQty(it);
+      var br2 = it.billingRate!=null ? it.billingRate : invUnitRate(it);
+      return s+(bq2*br2);
+    },0);
+    var pdfDisc=pdfSub*(inv.discount||0)/100;
+    var pdfAfterDisc=pdfSub-pdfDisc;
+    var pdfGst=inv.gstEnabled?(pdfAfterDisc*(inv.gstRate||12)/100):0;
+    var pdfCurrentBill=pdfAfterDisc+pdfGst;
+    var pdfPrev=inv.prevOutstanding||0;
+    var pdfCustomAmt=inv.customAmt||0;
+    var pdfGrand=pdfCurrentBill+pdfPrev+pdfCustomAmt;
     doc.setFont('helvetica','normal');
     doc.text('Sub Total:',130,y);
-    doc.text('Rs.'+c2.sub.toFixed(2),175,y,{align:'right'});y+=6;
-    if(c2.disc>0){
+    doc.text('Rs.'+pdfSub.toFixed(2),175,y,{align:'right'});y+=6;
+    if(pdfDisc>0){
       doc.setTextColor(192,57,43);
       doc.text('Discount ('+inv.discount+'%):',130,y);
-      doc.text('- Rs.'+c2.disc.toFixed(2),175,y,{align:'right'});
+      doc.text('- Rs.'+pdfDisc.toFixed(2),175,y,{align:'right'});
       doc.setTextColor(0,0,0);y+=6;
     }
-    if(c2.gst>0){
+    if(pdfGst>0){
       doc.text('GST ('+inv.gstRate+'%):',130,y);
-      doc.text('Rs.'+c2.gst.toFixed(2),175,y,{align:'right'});y+=6;
+      doc.text('Rs.'+pdfGst.toFixed(2),175,y,{align:'right'});y+=6;
     }
     doc.setFont('helvetica','bold');
     doc.text('Current Bill Total:',130,y);
-    doc.text('Rs.'+c2.currentBill.toFixed(2),175,y,{align:'right'});y+=6;
-    if(c2.prev>0){
+    doc.text('Rs.'+pdfCurrentBill.toFixed(2),175,y,{align:'right'});y+=6;
+    if(pdfPrev>0){
       doc.setFont('helvetica','normal');doc.setTextColor(186,117,23);
       doc.text('Previous Outstanding:',130,y);
-      doc.text('+ Rs.'+c2.prev.toFixed(2),175,y,{align:'right'});
+      doc.text('+ Rs.'+pdfPrev.toFixed(2),175,y,{align:'right'});
       doc.setTextColor(0,0,0);y+=6;
     }
-    if(c2.customAmt>0){
+    if(pdfCustomAmt>0){
       doc.setFont('helvetica','normal');doc.setTextColor(21,101,192);
-      doc.text((c2.customAmtLabel||'Additional Charge')+':',130,y);
-      doc.text('+ Rs.'+c2.customAmt.toFixed(2),175,y,{align:'right'});
+      doc.text((inv.customAmtLabel||'Additional Charge')+' *:',130,y);
+      doc.text('+ Rs.'+pdfCustomAmt.toFixed(2),175,y,{align:'right'});
       doc.setTextColor(0,0,0);y+=6;
     }
     doc.setFont('helvetica','bold');
     doc.text('Grand Total:',130,y);
-    doc.text('Rs.'+c2.grand.toFixed(2),175,y,{align:'right'});y+=8;
+    doc.text('Rs.'+pdfGrand.toFixed(2),175,y,{align:'right'});y+=8;
+    if(pdfCustomAmt>0){
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120,120,120);
+      doc.text('* Additional charge may include transportation, packaging, loading, previous balance or any other charge.',15,y);
+      doc.setFontSize(10);doc.setTextColor(0,0,0);y+=6;
+    }
     doc.setFont('helvetica','normal');
     doc.text('Paid: Rs.'+(inv.paid||0).toFixed(2),130,y);y+=6;
     if(due>0){doc.setTextColor(220,53,69);doc.text('Balance Due: Rs.'+due.toFixed(2),130,y);doc.setTextColor(0,0,0);}
