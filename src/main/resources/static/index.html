@@ -3324,8 +3324,7 @@ function downloadInvoicePDF(invId){
     var bAmt  = _rb.amt;
     var unit  = item.qtyUnit||'Pkt';
     var ppu   = _rb.ppu;
-    var meta2b={};try{if(p2&&p2.stockMeta)meta2b=JSON.parse(p2.stockMeta);}catch(e){}
-    var pcs2  = parseFloat(item.pcsPerPkt)||parseFloat(meta2b.pcsPerPkt)||0;
+    var pcs2  = _rb.pcs||0;
     var pcsNote='';
     if(pcs2>0){
       var totalPcs = bq*(unit==='Pkt' ? pcs2 : ppu*pcs2);
@@ -3912,19 +3911,34 @@ function invItemAmount(item){
 // Old invoices may have billingQty=1/billingRate=baseRate (corrupted).
 // Always recompute from qtyCount + rate + pktPerUnit.
 function resolveItemBilling(item){
-  var unit   = item.qtyUnit||'Pkt';
-  var qty    = parseFloat(item.qtyCount)||1;
-  var ppu    = parseFloat(item.pktPerUnit)||0;
-  if(!ppu){
+  var unit = item.qtyUnit||'Pkt';
+  // Resolve pktPerUnit and pcsPerPkt — saved on item first, then product stockMeta
+  var ppu = parseFloat(item.pktPerUnit)||0;
+  var pcs = parseFloat(item.pcsPerPkt)||0;
+  if(!ppu||!pcs){
     var prod=getProduct(item.productId);
     var m={};try{if(prod&&prod.stockMeta)m=JSON.parse(prod.stockMeta);}catch(e){}
     if(item._metaOverride) Object.assign(m,item._metaOverride);
-    ppu=parseFloat(m.pktPerUnit)||1;
+    if(!ppu) ppu=parseFloat(m.pktPerUnit)||1;
+    if(!pcs) pcs=parseFloat(m.pcsPerPkt)||1;
   }
+  // Derive billing qty from item.qty (total pcs) — the most reliably saved field
+  // Pkt:          qty = totalPcs / pcsPerPkt
+  // Bora/Cartoon: qty = totalPcs / (pktPerUnit * pcsPerPkt)
+  var totalPcs = parseFloat(item.qty)||0;
+  var qty;
+  if(unit==='Bora'||unit==='Cartoon'){
+    qty = (totalPcs>0 && pcs>0) ? totalPcs/(ppu*pcs) : (parseFloat(item.qtyCount)||1);
+  } else if(unit==='Pkt'){
+    qty = (totalPcs>0 && pcs>0) ? totalPcs/pcs : (parseFloat(item.qtyCount)||1);
+  } else {
+    qty = totalPcs||(parseFloat(item.qtyCount)||1);
+  }
+  qty = Math.round(qty*1000)/1000;
   var baseRate = parseFloat(item.rate)||0;
   var unitRate = (unit==='Bora'||unit==='Cartoon') ? baseRate*ppu : baseRate;
-  var label    = item.billingLabel||(unit==='Bora'?'Bora':unit==='Cartoon'?'Cartoon':'Pkt');
-  return {qty:qty, rate:unitRate, amt:qty*unitRate, label:label, ppu:ppu};
+  var label = item.billingLabel||(unit==='Bora'?'Bora':unit==='Cartoon'?'Cartoon':'Pkt');
+  return {qty:qty, rate:unitRate, amt:qty*unitRate, label:label, ppu:ppu, pcs:pcs};
 }
 
 
