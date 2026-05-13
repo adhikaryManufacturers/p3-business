@@ -3314,7 +3314,8 @@ function downloadInvoicePDF(invId){
   // DEBUG
   if(inv.items&&inv.items[0]){
     var di=inv.items[0];
-    alert('item[0] raw fields:\nqty='+di.qty+'\nqtyCount='+di.qtyCount+'\nqtyUnit='+di.qtyUnit+'\nrate='+di.rate+'\npktPerUnit='+di.pktPerUnit+'\npcsPerPkt='+di.pcsPerPkt+'\nbillingQty='+di.billingQty+'\nbillingRate='+di.billingRate);
+    var dp=getProduct(di.productId);
+    alert('item[0] raw fields:\nqty='+di.qty+'\nqtyUnit='+di.qtyUnit+'\nrate='+di.rate+'\nproductId='+di.productId+'\nproduct found='+(dp?dp.name:'NO')+'\nstockMeta='+(dp?dp.stockMeta:'N/A'));
   }
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);
