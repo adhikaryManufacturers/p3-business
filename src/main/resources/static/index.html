@@ -3311,6 +3311,11 @@ function downloadInvoice(invId){
 function downloadInvoicePDF(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
+  // DEBUG
+  if(inv.items&&inv.items[0]){
+    var di=inv.items[0];
+    alert('item[0] raw fields:\nqty='+di.qty+'\nqtyCount='+di.qtyCount+'\nqtyUnit='+di.qtyUnit+'\nrate='+di.rate+'\npktPerUnit='+di.pktPerUnit+'\npcsPerPkt='+di.pcsPerPkt+'\nbillingQty='+di.billingQty+'\nbillingRate='+di.billingRate);
+  }
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);
 
