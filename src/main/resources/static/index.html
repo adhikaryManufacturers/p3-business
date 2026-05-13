@@ -3311,6 +3311,8 @@ function downloadInvoice(invId){
 function downloadInvoicePDF(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
+  // DEBUG
+  alert('inv fields:\nprevOutstanding='+inv.prevOutstanding+'\ncustomAmt='+inv.customAmt+'\ncustomAmtLabel='+inv.customAmtLabel+'\ndiscount='+inv.discount);
 
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);
