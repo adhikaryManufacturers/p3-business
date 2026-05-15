@@ -507,9 +507,14 @@ function calcInvoice(inv){
   return {sub:sub,disc:disc,gst:gst,currentBill:currentBill,prev:prev,customAmt:customAmt,customAmtLabel:inv.customAmtLabel||'',grand:grand};
 }
 
+function getInvoiceGrand(inv){
+  // Authoritative grand total — same logic as PDF
+  var di=decodeInvoice(inv);
+  var sub=(di.items||[]).reduce(function(s,it){return s+resolveItemBilling(it).amt;},0);
+  return sub+(di.prevOutstanding||0)+(di.customAmt||0);
+}
 function getInvoiceDue(inv){
-  var c=calcInvoice(inv);
-  return Math.max(0,c.grand-(inv.paid||0));
+  return Math.max(0,getInvoiceGrand(inv)-(inv.paid||0));
 }
 
 // Outstanding for a customer = sum of dues from unpaid invoices
@@ -1437,10 +1442,10 @@ function renderDashboard(){
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'+
   '<div class="card"><div class="card-header"><div class="card-title">Recent Invoices</div><button class="btn btn-secondary btn-sm" onclick="navigate(&quot;invoices&quot;)">View All</button></div><div class="table-wrap"><table><thead><tr><th>Bill#</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+
   (recentInv.map(function(inv){
-    var c2=calcInvoice(inv);var cust=getCustomer(inv.custId);
+    var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);var cust=getCustomer(inv.custId);
     var isCx=inv.status==='cancelled';
     return '<tr style="'+(isCx?'opacity:0.7;background:#fff5f5':'')+'"><td><strong>#'+inv.id+'</strong></td><td>'+(cust.name||'Unknown')+'</td>'+
-      '<td>'+(isCx?'<s style="color:var(--text3)">'+fmt(c2.grand)+'</s>':fmt(c2.grand))+'</td>'+
+      '<td>'+(isCx?'<s style="color:var(--text3)">'+fmt(_grand)+'</s>':fmt(_grand))+'</td>'+
       '<td><span class="badge '+(isCx?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+
       (isCx?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
@@ -3206,12 +3211,12 @@ async function deductInvoiceStock(items){
 function showInvoiceSaveModal(invId){
   var inv=state.invoices.find(function(i){return i.id===invId;});
   var cust=getCustomer(inv.custId);
-  var c2=calcInvoice(inv);
+  var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   showModal('Invoice #'+invId+' Generated',
     '<div style="text-align:center;padding:10px 0 16px">'+
     '<div style="font-size:36px;margin-bottom:8px">&#127881;</div>'+
     '<div style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:4px">Invoice #'+invId+' Created!</div>'+
-    '<div style="color:var(--text3);font-size:13px">Customer: '+cust.name+' | Total: '+fmt(c2.grand)+'</div>'+
+    '<div style="color:var(--text3);font-size:13px">Customer: '+cust.name+' | Total: '+fmt(_grand)+'</div>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px">'+
     '<div style="background:var(--green-50);border-radius:10px;padding:14px;text-align:center">'+
@@ -3237,7 +3242,7 @@ function buildInvoiceHTML(invId, forDownload){
   var inv=decodeInvoice(state.invoices.find(function(i){return i.id===invId;}));
   if(!inv) return '';
   var cust=getCustomer(inv.custId);
-  var c2=calcInvoice(inv);
+  var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var isCF=inv.isCarryForward||false;
   var sourceInv=isCF&&inv.prevFromInvoice?state.invoices.find(function(i){return i.id===inv.prevFromInvoice;}):null;
   var styles=forDownload?'<style>body{font-family:Arial,sans-serif;padding:20px;max-width:760px;margin:0 auto;}table{width:100%;border-collapse:collapse;}th{background:#27500A;color:#fff;padding:8px 10px;text-align:left;font-size:12px;}td{padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;}.parties{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}.party{background:#f5f5f0;padding:12px;border-radius:6px;}.party-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#27500A;font-weight:700;margin-bottom:4px;}.words{font-size:11px;color:#888;font-style:italic;text-align:center;margin:12px 0;}.sigs{display:flex;justify-content:space-between;margin-top:24px;}.sig-line{width:120px;border-bottom:1px solid #333;margin-bottom:4px;}.cgen{text-align:center;font-size:10px;color:#aaa;font-style:italic;margin-top:8px;}</style>':'';
@@ -3333,7 +3338,7 @@ function downloadInvoicePDF(invId){
   var inv=decodeInvoice(state.invoices.find(function(i){return String(i.id)===String(invId);}));
   if(!inv){alert('Invoice not found');return;}
   var cust=getCustomer(inv.custId);
-  var c2=calcInvoice(inv);
+  var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
 
   /* ── item rows ── */
   var itemRows=(inv.items||[]).map(function(item,idx){
@@ -3466,7 +3471,7 @@ function downloadInvoicePDF(invId){
   '<tbody>'+itemRows+'</tbody>'+
   '<tfoot>'+totalRows+'</tfoot>'+
   '</table>'+
-  '<div class="words">'+numToWords(c2.grand)+'</div>'+
+  '<div class="words">'+numToWords(_grand)+'</div>'+
   '<div class="sigs">'+
   '<div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">Receiver\'s Signature</div></div>'+
   '<div class="sig-box"><div class="sig-line"></div><div class="sig-lbl">Authorised Signatory</div></div>'+
@@ -3496,7 +3501,7 @@ function renderInvoices(){
   '<th>Bill #</th><th>Customer</th><th>Date</th><th>Delivery</th><th>Current Bill</th><th>Prev Outstanding</th><th>Grand Total</th><th>Paid</th><th>Amount Due</th><th>Status</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (sortDesc(state.invoices,'id').map(function(inv){
-    var c2=calcInvoice(inv);
+    var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
     var due=getInvoiceDue(inv);
     var cust=getCustomer(inv.custId);
     // Carry-forward: show link to new CF invoice if partial payment created one
@@ -3517,7 +3522,7 @@ function renderInvoices(){
       '<td>'+cust.name+'</td><td>'+inv.date+'</td><td>'+inv.deliveryDate+'</td>'+
       '<td>'+(isCancelled?'<s style="color:var(--text3)">'+fmt(c2.currentBill)+'</s>':fmt(c2.currentBill))+'</td>'+
       '<td>'+(c2.prev>0?'<span class="fc-amber fw600">'+fmt(c2.prev)+'</span>':'—')+'</td>'+
-      '<td class="fw600">'+(isCancelled?'<s style="color:var(--text3)">'+fmt(c2.grand)+'</s>':fmt(c2.grand))+'</td>'+
+      '<td class="fw600">'+(isCancelled?'<s style="color:var(--text3)">'+fmt(_grand)+'</s>':fmt(_grand))+'</td>'+
       '<td class="fc-green">'+fmt(inv.paid||0)+'</td>'+
       '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
@@ -3626,7 +3631,7 @@ async function shareInvoiceWhatsApp(invId){
   var inv = state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
   var cust = getCustomer(inv.custId);
-  var c2   = calcInvoice(inv);
+  var c2   = calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var due  = getInvoiceDue(inv);
   var phone = (cust.phone||'').replace(/\D/g,'');
 
@@ -3637,7 +3642,7 @@ async function shareInvoiceWhatsApp(invId){
     '💰 *Bill Summary*\n'+
     'Current Bill: ₹'+c2.currentBill.toFixed(2)+'\n'+
     (c2.prev>0?'Previous Due: ₹'+c2.prev.toFixed(2)+'\n':'')+
-    'Grand Total: ₹'+c2.grand.toFixed(2)+'\n'+
+    'Grand Total: ₹'+_grand.toFixed(2)+'\n'+
     'Paid: ₹'+(inv.paid||0).toFixed(2)+'\n'+
     (due>0?'*Balance Due: ₹'+due.toFixed(2)+'*\n':'✅ Fully Paid\n')+
     '\n📦 *Items*\n'+
@@ -4178,12 +4183,12 @@ function applyMaxStock(itemId,ctx,maxCount){
 function showRecordPaymentModal(invId){
   var inv=state.invoices.find(function(i){return i.id===invId;});
   var cust=getCustomer(inv.custId);
-  var c2=calcInvoice(inv);
+  var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var due=getInvoiceDue(inv);
   showModal('Record Payment — Invoice #'+invId,
     '<div style="background:var(--amber-50);border-radius:8px;padding:12px;margin-bottom:16px">'+
     '<div style="font-size:12px;color:var(--amber-400);font-weight:600">Customer: '+cust.name+'</div>'+
-    '<div style="font-size:13px;margin-top:4px">Grand Total: <strong>'+fmt(c2.grand)+'</strong> | Already Paid: <strong class="fc-green">'+fmt(inv.paid||0)+'</strong> | Balance Due: <strong class="fc-red">'+fmt(due)+'</strong></div>'+
+    '<div style="font-size:13px;margin-top:4px">Grand Total: <strong>'+fmt(_grand)+'</strong> | Already Paid: <strong class="fc-green">'+fmt(inv.paid||0)+'</strong> | Balance Due: <strong class="fc-red">'+fmt(due)+'</strong></div>'+
     '</div>'+
     '<div class="form-grid">'+
     '<div class="form-group"><label>Amount Being Paid Now (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="rp-amount" value="'+due+'" min="0" max="'+due+'" oninput="updatePaymentPreview('+invId+')"></div>'+
@@ -4199,7 +4204,7 @@ function showRecordPaymentModal(invId){
 
 function updatePaymentPreview(invId){
   var inv=state.invoices.find(function(i){return i.id===invId;});
-  var c2=calcInvoice(inv);
+  var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var due=getInvoiceDue(inv);
   var amount=parseFloat((document.getElementById('rp-amount')||{}).value)||0;
   var remaining=due-amount;
@@ -4290,8 +4295,11 @@ function renderOrders(){
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
   '<th>Invoice #</th><th>Date</th><th>Customer</th><th>Delivery Due</th><th>Delivery Status</th><th>Total</th><th>Action</th>'+
   '</tr></thead><tbody>'+
-  (sortDesc(state.invoices,'id').map(function(inv){
-    var c2=calcInvoice(inv);
+  (sortDesc(state.invoices.filter(function(i){return i.status!=='cancelled';}), 'id').map(function(inv){
+    // Same grand total as PDF: resolveItemBilling sum + prevOutstanding + customAmt
+    var di=decodeInvoice(inv);
+    var pdfSub=(di.items||[]).reduce(function(s,it){return s+resolveItemBilling(it).amt;},0);
+    var grandTotal=pdfSub+(di.prevOutstanding||0)+(di.customAmt||0);
     var cust=getCustomer(inv.custId);
     var s=orderStatus(inv);
     return '<tr>'+
@@ -4300,7 +4308,7 @@ function renderOrders(){
       '<td>'+cust.name+'</td>'+
       '<td class="'+(s.label==='Overdue'?'overdue':s.label==='Due Soon'?'due-soon':'')+'">'+inv.deliveryDate+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
-      '<td class="fw600">'+fmt(c2.grand)+'</td>'+
+      '<td class="fw600">'+fmt(grandTotal)+'</td>'+
       '<td><div class="gap-12">'+
         (!inv.delivered?'<button class="btn btn-primary btn-sm" onclick="showDeliveryModal('+inv.id+')">Mark Delivered</button>':'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+inv.id+')">View</button>')+
       '</div></td></tr>';
@@ -5415,7 +5423,7 @@ function generateInvoiceFromOrder(orderId){
 
   // Show success popup with invoice details + options
   var cust2=getCustomer(o.custId);
-  var c2=calcInvoice(newInv);
+  var c2=calcInvoice(newInv);var _grand=getInvoiceGrand(newInv);
   showModal('&#10003; Invoice Auto-Generated!',
     '<div style="text-align:center;padding:10px 0 16px">'+
     '<div style="font-size:40px;margin-bottom:8px">&#127881;</div>'+
@@ -5425,7 +5433,7 @@ function generateInvoiceFromOrder(orderId){
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:4px">'+
     '<div style="background:var(--green-50);border-radius:10px;padding:12px;text-align:center">'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Invoice Total</div>'+
-    '<div style="font-size:16px;font-weight:700;color:var(--primary)">'+fmt(c2.grand)+'</div>'+
+    '<div style="font-size:16px;font-weight:700;color:var(--primary)">'+fmt(_grand)+'</div>'+
     '</div>'+
     '<div style="background:var(--blue-50);border-radius:10px;padding:12px;text-align:center">'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Items</div>'+
