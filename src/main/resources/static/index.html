@@ -537,16 +537,23 @@ function getProspectCancelledCount(prospectId){
     return String(o.prospectId)===String(prospectId) && o.status==='cancelled';
   }).length;
 }
+function getLatestActiveInvoice(custId){
+  // The latest unpaid, non-cancelled invoice for a customer (by highest id)
+  var active=state.invoices.filter(function(i){
+    if(String(i.custId)!==String(custId)) return false;
+    if(i.status==='paid') return false;
+    if(i.status==='cancelled') return false;
+    return true;
+  });
+  if(!active.length) return null;
+  return active.reduce(function(a,b){return (parseInt(b.id)>parseInt(a.id))?b:a;});
+}
 function getCustomerTotalDue(custId){
-  return state.invoices
-    .filter(function(i){
-      if(String(i.custId)!==String(custId)) return false;
-      if(i.status==='paid') return false;
-      if(i.status==='cancelled') return false;
-      if(i.cfInvoiceId) return false;
-      return true;
-    })
-    .reduce(function(s,i){return s+getInvoiceDue(i);},0);
+  // Total due = only the latest active invoice's grand total minus paid
+  // (previous balances are already included in prevOutstanding of the latest invoice)
+  var latest=getLatestActiveInvoice(custId);
+  if(!latest) return 0;
+  return getInvoiceDue(latest);
 }
 
 function getCustomer(id){id=String(id);return state.customers.find(function(c){return String(c.id)===id;})||{};}
@@ -3513,58 +3520,72 @@ function renderInvoices(){
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
   '<th>Bill #</th><th>Customer</th><th>Date</th><th>Delivery</th><th>Current Bill</th><th>Prev Outstanding</th><th>Grand Total</th><th>Paid</th><th>Amount Due</th><th>Status</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
-  (sortDesc(state.invoices,'id').map(function(inv){
-    var _sub=getInvoiceSubTotal(inv);
-    var _grand=getInvoiceGrand(inv);
-    var due=getInvoiceDue(inv);
-    var cust=getCustomer(inv.custId);
-    var di=decodeInvoice(inv);
-    var prevAmt=di.prevOutstanding||0;
+  (function(){
+    // Build a map of latest active invoice id per customer
+    var latestInvIdByCust={};
+    state.invoices.forEach(function(i){
+      if(i.status==='cancelled') return;
+      var cid=String(i.custId);
+      if(!latestInvIdByCust[cid]||parseInt(i.id)>parseInt(latestInvIdByCust[cid])){
+        latestInvIdByCust[cid]=i.id;
+      }
+    });
 
-    // ── Carry-forward notes ──
-    var cfNote='';
-    if(inv.cfInvoiceId){
-      // This invoice has a newer invoice carrying its balance forward
-      cfNote='<div style="font-size:10px;color:var(--blue-400)">&#8594; Carry forward to #'+inv.cfInvoiceId+'</div>';
-    }
-    if(inv.isCarryForward&&inv.prevFromInvoice){
-      cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; CF from #'+inv.prevFromInvoice+'</div>';
-    } else if(!inv.isCarryForward&&prevAmt>0&&inv.prevFromInvoice){
-      // New invoice with prev outstanding from a specific bill
-      cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; Carry forward from #'+inv.prevFromInvoice+'</div>';
-    }
-    if(inv.fromOrderId){
-      cfNote+='<div style="font-size:10px;color:var(--primary)">&#128203; ORD#'+inv.fromOrderId+'</div>';
-    }
+    return sortDesc(state.invoices,'id').map(function(inv){
+      var _sub=getInvoiceSubTotal(inv);
+      var _grand=getInvoiceGrand(inv);
+      var due=getInvoiceDue(inv);
+      var cust=getCustomer(inv.custId);
+      var di=decodeInvoice(inv);
+      var prevAmt=di.prevOutstanding||0;
+      var isCancelled=inv.status==='cancelled';
 
-    var isCancelled=inv.status==='cancelled';
-    // An invoice is "superseded" if it has a cfInvoiceId — its balance moved to a newer invoice
-    var isSuperseded=!!inv.cfInvoiceId;
-    var rowBg=isCancelled?'background:#fff5f5;opacity:0.75;':inv.isCarryForward?'background:var(--blue-50);':'';
+      // Is this the latest active invoice for this customer?
+      var isLatest=String(latestInvIdByCust[String(inv.custId)])===String(inv.id);
+      // Superseded = has a newer invoice (cfInvoiceId) OR not the latest
+      var isSuperseded=!!inv.cfInvoiceId||!isLatest;
 
-    return '<tr style="'+rowBg+'">'+
-      '<td><strong>#'+inv.id+'</strong>'+cfNote+
-        (inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+
-        (isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
-      '<td>'+cust.name+'</td><td>'+inv.date+'</td><td>'+inv.deliveryDate+'</td>'+
-      '<td>'+(isCancelled?'<s style="color:var(--text3)">'+fmt(_sub)+'</s>':fmt(_sub))+'</td>'+
-      '<td>'+(prevAmt>0?'<span class="fc-amber fw600">'+fmt(prevAmt)+(inv.prevFromInvoice?' <span style="font-size:9px;font-weight:400">(from #'+inv.prevFromInvoice+')</span>':'')+'</span>':'—')+'</td>'+
-      '<td class="fw600">'+(isCancelled?'<s style="color:var(--text3)">'+fmt(_grand)+'</s>':fmt(_grand))+'</td>'+
-      '<td class="fc-green">'+fmt(inv.paid||0)+'</td>'+
-      '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
-      '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
-      '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+inv.id+')">View</button>'+
-        (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF('+inv.id+')">&#128196; PDF</button>':'')+
-        (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice('+inv.id+')">&#11015; HTML</button>':'')+
-        (!isCancelled&&!isSuperseded&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal('+inv.id+')">Pay</button>':'')+
-        (isSuperseded?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
-        (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp('+inv.id+')">&#128362; Share</button>':'')+
-        (!isCancelled&&!isSuperseded?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice('+inv.id+')">Cancel</button>':'')+
-        (isCancelled?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>'+
-          '<button class="btn btn-danger btn-sm" onclick="deleteInvoice('+inv.id+')" style="margin-left:4px">🗑 Delete</button>':'')+
-      '</div></td></tr>';
-  }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
+      // Carry-forward notes
+      var cfNote='';
+      if(inv.cfInvoiceId){
+        cfNote='<div style="font-size:10px;color:var(--blue-400)">&#8594; Carry forward to #'+inv.cfInvoiceId+'</div>';
+      }
+      if(inv.isCarryForward&&inv.prevFromInvoice){
+        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; CF from #'+inv.prevFromInvoice+'</div>';
+      } else if(!inv.isCarryForward&&prevAmt>0&&inv.prevFromInvoice){
+        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; Carry forward from #'+inv.prevFromInvoice+'</div>';
+      }
+      if(inv.fromOrderId){
+        cfNote+='<div style="font-size:10px;color:var(--primary)">&#128203; ORD#'+inv.fromOrderId+'</div>';
+      }
+
+      var rowBg=isCancelled?'background:#fff5f5;opacity:0.75;':inv.isCarryForward?'background:var(--blue-50);':isSuperseded&&!isCancelled?'background:#fafaf7;opacity:0.85;':'';
+
+      return '<tr style="'+rowBg+'">'+
+        '<td><strong>#'+inv.id+'</strong>'+cfNote+
+          (inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+
+          (!isCancelled&&isSuperseded&&!inv.cfInvoiceId?'<span class="badge" style="background:#aaa;color:#fff;font-size:9px;margin-left:4px">OLD</span>':'')+
+          (isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
+        '<td>'+cust.name+'</td><td>'+inv.date+'</td><td>'+inv.deliveryDate+'</td>'+
+        '<td>'+(isCancelled?'<s style="color:var(--text3)">'+fmt(_sub)+'</s>':fmt(_sub))+'</td>'+
+        '<td>'+(prevAmt>0?'<span class="fc-amber fw600">'+fmt(prevAmt)+(inv.prevFromInvoice?' <span style="font-size:9px;font-weight:400">(from #'+inv.prevFromInvoice+')</span>':'')+'</span>':'—')+'</td>'+
+        '<td class="fw600">'+(isCancelled?'<s style="color:var(--text3)">'+fmt(_grand)+'</s>':fmt(_grand))+'</td>'+
+        '<td class="fc-green">'+fmt(inv.paid||0)+'</td>'+
+        '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
+        '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
+        '<td><div class="gap-12">'+
+          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+inv.id+')">View</button>'+
+          (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF('+inv.id+')">&#128196; PDF</button>':'')+
+          (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice('+inv.id+')">&#11015; HTML</button>':'')+
+          (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal('+inv.id+')">Pay</button>':'')+
+          (inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
+          (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp('+inv.id+')">&#128362; Share</button>':'')+
+          (!isCancelled&&isLatest?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice('+inv.id+')">Cancel</button>':'')+
+          (isCancelled?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>'+
+            '<button class="btn btn-danger btn-sm" onclick="deleteInvoice('+inv.id+')" style="margin-left:4px">🗑 Delete</button>':'')+
+        '</div></td></tr>';
+    }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>';
+  })()
   +'</tbody></table></div></div>';
 }
 
@@ -5525,11 +5546,10 @@ function renderCustomerDues(){
   (sortDesc(custsWithDue,'id').map(function(c){
     var due=getCustomerTotalDue(c.id);
     // Show only active (non-superseded) unpaid invoices
-    var activeInvs=state.invoices.filter(function(i){return String(i.custId)===String(c.id)&&i.status!=='paid'&&i.status!=='cancelled'&&!i.cfInvoiceId;});
+    var latestInv=getLatestActiveInvoice(c.id);
     var cancelledCnt=state.invoices.filter(function(i){return String(i.custId)===String(c.id)&&i.status==='cancelled';}).length;
-    var invLabels=activeInvs.map(function(i){
-      return '<span class="badge '+(i.isCarryForward?'badge-blue':'badge-red')+'" style="margin-right:3px">#'+i.id+(i.isCarryForward?' CF':'')+'</span>';
-    }).join('')+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'');
+    var invLabels=latestInv?'<span class="badge '+(latestInv.isCarryForward?'badge-blue':'badge-red')+'" style="margin-right:3px">#'+latestInv.id+(latestInv.isCarryForward?' CF':'')+'</span>':'—';
+    invLabels+=(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'');
     return '<tr><td><strong>'+c.name+'</strong></td><td>'+c.phone+'</td>'+
       '<td>'+invLabels+'</td>'+
       '<td><span class="fc-red fw600" style="font-size:15px">'+fmt(due)+'</span></td>'+
@@ -5543,14 +5563,14 @@ function renderCustomerPayments(){
   '<div class="card"><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Phone</th><th>Active Pending Invoices</th><th>Cancelled</th><th>Total Due (₹)</th><th>Action</th></tr></thead><tbody>'+
   (sortDesc(state.customers,'id').map(function(c){
     var allCustInvs=state.invoices.filter(function(i){return String(i.custId)===String(c.id);});
-    var activeInvs=allCustInvs.filter(function(i){return i.status!=="paid"&&i.status!=="cancelled"&&!i.cfInvoiceId;});
+    var latestInvP=getLatestActiveInvoice(c.id);
     var cancelledInvs=allCustInvs.filter(function(i){return i.status==="cancelled";});
     var due=getCustomerTotalDue(c.id);
-    var invLabels=activeInvs.map(function(i){
-      return "<span class=\"badge "+(i.isCarryForward?"badge-blue":"badge-red")+"\" style=\"margin-right:3px\">#"+i.id+(i.isCarryForward?" CF":"")+"</span>";
-    }).join("")||(cancelledInvs.length>0?"<span style=\"font-size:11px;color:var(--text3);font-style:italic\">No active invoices</span>":"—");
+    var invLabels=latestInvP
+      ?"<span class=\"badge "+(latestInvP.isCarryForward?"badge-blue":"badge-red")+"\" style=\"margin-right:3px\">#"+latestInvP.id+(latestInvP.isCarryForward?" CF":"")+"</span>"
+      :(cancelledInvs.length>0?"<span style=\"font-size:11px;color:var(--text3);font-style:italic\">No active invoices</span>":"—");
     var cancelledLabel=cancelledInvs.length>0?"<span style=\"font-size:11px;color:#e24b4a;font-weight:600\">"+cancelledInvs.length+"</span>":"—";
-    var actionCell=activeInvs.length>0
+    var actionCell=latestInvP
       ?"<button class=\"btn btn-primary btn-sm\" onclick=\"showCustomerPayModal("+c.id+")\" >Record Payment</button>"
       :(cancelledInvs.length>0
         ?"<span style=\"font-size:11px;color:var(--text3);font-style:italic\">No active invoices</span>"
@@ -5566,7 +5586,9 @@ function renderCustomerPayments(){
 
 function showCustomerPayModal(custId){
   var c=getCustomer(custId);
-  var pendInvs=state.invoices.filter(function(i){return String(i.custId)===String(custId)&&i.status!=='paid'&&i.status!=='cancelled';});
+  // Only show the latest invoice — older ones are already included in prevOutstanding
+  var latestInv=getLatestActiveInvoice(custId);
+  var pendInvs=latestInv?[latestInv]:[];
   var totalDue=getCustomerTotalDue(custId);
   showModal('Record Payment — '+c.name,
     '<div style="background:var(--amber-50);border-radius:8px;padding:12px;margin-bottom:14px">'+
