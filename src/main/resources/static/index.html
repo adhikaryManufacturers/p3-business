@@ -507,10 +507,15 @@ function calcInvoice(inv){
   return {sub:sub,disc:disc,gst:gst,currentBill:currentBill,prev:prev,customAmt:customAmt,customAmtLabel:inv.customAmtLabel||'',grand:grand};
 }
 
+function getInvoiceSubTotal(inv){
+  // Items-only sub total (excludes prevOutstanding and customAmt)
+  var di=decodeInvoice(inv);
+  return (di.items||[]).reduce(function(s,it){return s+resolveItemBilling(it).amt;},0);
+}
 function getInvoiceGrand(inv){
   // Authoritative grand total — same logic as PDF
   var di=decodeInvoice(inv);
-  var sub=(di.items||[]).reduce(function(s,it){return s+resolveItemBilling(it).amt;},0);
+  var sub=getInvoiceSubTotal(inv);
   return sub+(di.prevOutstanding||0)+(di.customAmt||0);
 }
 function getInvoiceDue(inv){
@@ -1417,7 +1422,7 @@ function getMonthlyIncome(){
   var from=new Date(y,m,1).toISOString().split('T')[0];
   var to=new Date(y,m+1,0).toISOString().split('T')[0];
   var invs=state.invoices.filter(function(inv){return inv.date>=from&&inv.date<=to;});
-  var totalSales=invs.reduce(function(s,inv){var c=calcInvoice(inv);return s+c.currentBill;},0);
+  var totalSales=invs.reduce(function(s,inv){return s+getInvoiceSubTotal(inv);},0);
   var exp=getExpForDateRange(from,to);
   return Math.max(0,(totalSales-exp.total)*0.20);
 }
@@ -3128,6 +3133,14 @@ async function generateInvoice(){
   if(!custId){alert('Please select a customer');return;}
   if(!state.invoiceItems.length){alert('Please add at least one item');return;}
   var prev=getCustomerTotalDue(custId);
+  // Find most recent unpaid invoice for carry-forward label
+  var prevInvoiceRef=null;
+  if(prev>0){
+    var custPrevInvs=sortDesc(state.invoices.filter(function(i){
+      return String(i.custId)===String(custId)&&i.status!=='cancelled'&&i.status!=='paid'&&!i.cfInvoiceId;
+    }),'id');
+    if(custPrevInvs.length) prevInvoiceRef=custPrevInvs[0].id;
+  }
   // Enrich items with billing info before saving
   var customAmtEnabled=(document.getElementById('inv-custom-amt-toggle')||{}).checked||false;
   var customAmt=customAmtEnabled?(parseFloat((document.getElementById('inv-custom-amt')||{}).value)||0):0;
@@ -3149,7 +3162,7 @@ async function generateInvoice(){
   if(customAmt>0||customAmtLabel){
     enrichedItems.push({desc:'__meta__'+JSON.stringify({ca:customAmt,cl:customAmtLabel}),productId:null,qty:0,rate:0,unit:'Pcs'});
   }
-  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null};
+  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null};
   try{
     var saved=await apiCall('/api/invoices','POST',inv);
     state.invoices.push(saved);
@@ -3298,7 +3311,7 @@ function buildInvoiceHTML(invId, forDownload){
     var hGrand=hSub+hPrev+hCustom;
     return '<tfoot>'+
     '<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px">Sub Total:</td><td style="padding:8px 12px;font-size:13px">'+fmt(hSub)+'</td></tr>'+
-    (hPrev>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#ba7517;font-weight:600">Previous Outstanding:</td><td style="padding:8px 12px;color:#ba7517;font-weight:600">+ '+fmt(hPrev)+'</td></tr>':'')+
+    (hPrev>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#ba7517;font-weight:600">'+(inv.prevFromInvoice?'Carry Forward from #'+inv.prevFromInvoice:'Previous Outstanding')+':</td><td style="padding:8px 12px;color:#ba7517;font-weight:600">+ '+fmt(hPrev)+'</td></tr>':'')+
     (hCustom>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#1565c0;font-weight:600">'+(inv.customAmtLabel||'Additional Charge')+' *:</td><td style="padding:8px 12px;color:#1565c0;font-weight:600">+ '+fmt(hCustom)+'</td></tr>':'')+
     '<tr><td colspan="6" style="text-align:right;padding:8px 12px;background:#27500A;color:#fff;font-weight:700;font-size:15px">Grand Total:</td><td style="padding:8px 12px;background:#27500A;color:#fff;font-weight:700;font-size:15px">'+fmt(hGrand)+'</td></tr>'+
     (hCustom>0?'<tr><td colspan="7" style="padding:6px 12px;font-size:11px;color:#888;font-style:italic">* Additional charge may include transportation, packaging, loading, previous balance or any other charge.</td></tr>':'')+
@@ -3381,7 +3394,7 @@ function downloadInvoicePDF(invId){
     '<td style="text-align:right;padding:8px 10px">'+fmt(pdfSub)+'</td></tr>';
   if(pdfPrev>0) totalRows+=
     '<tr style="color:#ba7517;font-weight:600"><td colspan="5"></td>'+
-    '<td style="text-align:right;padding:7px 10px">Previous Outstanding:</td>'+
+    '<td style="text-align:right;padding:7px 10px">'+(inv.prevFromInvoice?'Carry Forward from #'+inv.prevFromInvoice:'Previous Outstanding')+':</td>'+
     '<td style="text-align:right;padding:7px 10px">+ '+fmt(pdfPrev)+'</td></tr>';
   if(pdfCustomAmt>0) totalRows+=
     '<tr style="color:#1565c0;font-weight:600"><td colspan="5"></td>'+
@@ -3501,27 +3514,41 @@ function renderInvoices(){
   '<th>Bill #</th><th>Customer</th><th>Date</th><th>Delivery</th><th>Current Bill</th><th>Prev Outstanding</th><th>Grand Total</th><th>Paid</th><th>Amount Due</th><th>Status</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (sortDesc(state.invoices,'id').map(function(inv){
-    var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
+    var _sub=getInvoiceSubTotal(inv);
+    var _grand=getInvoiceGrand(inv);
     var due=getInvoiceDue(inv);
     var cust=getCustomer(inv.custId);
-    // Carry-forward: show link to new CF invoice if partial payment created one
+    var di=decodeInvoice(inv);
+    var prevAmt=di.prevOutstanding||0;
+
+    // ── Carry-forward notes ──
     var cfNote='';
     if(inv.cfInvoiceId){
-      cfNote='<div style="font-size:10px;color:var(--blue-400)">&#8594; CF to #'+inv.cfInvoiceId+'</div>';
+      // This invoice has a newer invoice carrying its balance forward
+      cfNote='<div style="font-size:10px;color:var(--blue-400)">&#8594; Carry forward to #'+inv.cfInvoiceId+'</div>';
     }
     if(inv.isCarryForward&&inv.prevFromInvoice){
-      cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; from #'+inv.prevFromInvoice+'</div>';
+      cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; CF from #'+inv.prevFromInvoice+'</div>';
+    } else if(!inv.isCarryForward&&prevAmt>0&&inv.prevFromInvoice){
+      // New invoice with prev outstanding from a specific bill
+      cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; Carry forward from #'+inv.prevFromInvoice+'</div>';
     }
     if(inv.fromOrderId){
       cfNote+='<div style="font-size:10px;color:var(--primary)">&#128203; ORD#'+inv.fromOrderId+'</div>';
     }
+
     var isCancelled=inv.status==='cancelled';
+    // An invoice is "superseded" if it has a cfInvoiceId — its balance moved to a newer invoice
+    var isSuperseded=!!inv.cfInvoiceId;
     var rowBg=isCancelled?'background:#fff5f5;opacity:0.75;':inv.isCarryForward?'background:var(--blue-50);':'';
+
     return '<tr style="'+rowBg+'">'+
-      '<td><strong>#'+inv.id+'</strong>'+cfNote+(inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+(isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
+      '<td><strong>#'+inv.id+'</strong>'+cfNote+
+        (inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+
+        (isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
       '<td>'+cust.name+'</td><td>'+inv.date+'</td><td>'+inv.deliveryDate+'</td>'+
-      '<td>'+(isCancelled?'<s style="color:var(--text3)">'+fmt(c2.currentBill)+'</s>':fmt(c2.currentBill))+'</td>'+
-      '<td>'+(c2.prev>0?'<span class="fc-amber fw600">'+fmt(c2.prev)+'</span>':'—')+'</td>'+
+      '<td>'+(isCancelled?'<s style="color:var(--text3)">'+fmt(_sub)+'</s>':fmt(_sub))+'</td>'+
+      '<td>'+(prevAmt>0?'<span class="fc-amber fw600">'+fmt(prevAmt)+(inv.prevFromInvoice?' <span style="font-size:9px;font-weight:400">(from #'+inv.prevFromInvoice+')</span>':'')+'</span>':'—')+'</td>'+
       '<td class="fw600">'+(isCancelled?'<s style="color:var(--text3)">'+fmt(_grand)+'</s>':fmt(_grand))+'</td>'+
       '<td class="fc-green">'+fmt(inv.paid||0)+'</td>'+
       '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
@@ -3530,12 +3557,12 @@ function renderInvoices(){
         '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+inv.id+')">View</button>'+
         (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF('+inv.id+')">&#128196; PDF</button>':'')+
         (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice('+inv.id+')">&#11015; HTML</button>':'')+
-        (!isCancelled&&due>0&&!inv.cfInvoiceId?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal('+inv.id+')">Pay</button>':'')+
-        (!isCancelled&&inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
+        (!isCancelled&&!isSuperseded&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal('+inv.id+')">Pay</button>':'')+
+        (isSuperseded?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
         (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp('+inv.id+')">&#128362; Share</button>':'')+
-        (!isCancelled?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice('+inv.id+')">Cancel</button>':
-          '<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>'+
-          '<button class="btn btn-danger btn-sm" onclick="deleteInvoice('+inv.id+')" style="margin-left:4px">🗑 Delete</button>')+
+        (!isCancelled&&!isSuperseded?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice('+inv.id+')">Cancel</button>':'')+
+        (isCancelled?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>'+
+          '<button class="btn btn-danger btn-sm" onclick="deleteInvoice('+inv.id+')" style="margin-left:4px">🗑 Delete</button>':'')+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -3640,7 +3667,7 @@ async function shareInvoiceWhatsApp(invId){
     '📅 Date: '+inv.date+'\n'+
     '🚚 Delivery: '+inv.deliveryDate+'\n\n'+
     '💰 *Bill Summary*\n'+
-    'Current Bill: ₹'+c2.currentBill.toFixed(2)+'\n'+
+    'Current Bill: ₹'+(getInvoiceSubTotal(inv)).toFixed(2)+'\n'+
     (c2.prev>0?'Previous Due: ₹'+c2.prev.toFixed(2)+'\n':'')+
     'Grand Total: ₹'+_grand.toFixed(2)+'\n'+
     'Paid: ₹'+(inv.paid||0).toFixed(2)+'\n'+
@@ -3730,7 +3757,8 @@ async function buildInvoicePDFBlob(inv, cust, c2, due){
     doc.text('Rs.'+pdfSub.toFixed(2),175,y,{align:'right'});y+=6;
     if(pdfPrev>0){
       doc.setTextColor(186,117,23);
-      doc.text('Previous Outstanding:',130,y);
+      var pdfPrevLabel=inv.prevFromInvoice?'Carry Fwd from #'+inv.prevFromInvoice:'Previous Outstanding';
+      doc.text(pdfPrevLabel+':',130,y);
       doc.text('+ Rs.'+pdfPrev.toFixed(2),175,y,{align:'right'});
       doc.setTextColor(0,0,0);y+=6;
     }
@@ -6428,7 +6456,7 @@ function renderAnalytics(){
   var fromDate=range.from, toDate=range.to;
   // Filter invoices in range
   var invs=state.invoices.filter(function(inv){return inv.date>=fromDate&&inv.date<=toDate;});
-  var totalSales=invs.reduce(function(s,inv){var c=calcInvoice(inv);return s+c.currentBill;},0);
+  var totalSales=invs.reduce(function(s,inv){return s+getInvoiceSubTotal(inv);},0);
   var totalCollected=invs.reduce(function(s,inv){return s+(inv.paid||0);},0);
   var totalDue=invs.reduce(function(s,inv){return s+getInvoiceDue(inv);},0);
   var numInvoices=invs.length;
@@ -6442,9 +6470,8 @@ function renderAnalytics(){
   // Customer breakdown
   var custMap={};
   invs.forEach(function(inv){
-    var c=calcInvoice(inv);
     if(!custMap[inv.custId]) custMap[inv.custId]={sales:0,paid:0,count:0};
-    custMap[inv.custId].sales+=c.currentBill;
+    custMap[inv.custId].sales+=getInvoiceSubTotal(inv);
     custMap[inv.custId].paid+=(inv.paid||0);
     custMap[inv.custId].count++;
   });
