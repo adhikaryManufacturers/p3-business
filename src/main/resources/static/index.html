@@ -3150,9 +3150,6 @@ async function generateInvoice(){
     state.invoices.push(saved);
     var newInvId=saved.id;
 
-    // ── Deduct stock from inventory ──
-    await deductInvoiceStock(state.invoiceItems);
-
     state.invoiceItems=[];
     if(state._fromOrderId){
       markOrderInvoiced(state._fromOrderId,newInvId);
@@ -3571,16 +3568,18 @@ window.cancelInvoice=async function cancelInvoice(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
   if(inv.status==='cancelled'){alert('Already cancelled');return;}
-  if(!confirm('Cancel Invoice #'+invId+'?\n\nThis will:\n• Mark invoice as Cancelled\n• Restore stock back to inventory\n• Cannot be undone')) return;
+  var wasDelivered=inv.delivered;
+  var confirmMsg='Cancel Invoice #'+invId+'?\n\nThis will:\n• Mark invoice as Cancelled'+(wasDelivered?'\n• Restore stock back to inventory':'')+'\n• Cannot be undone';
+  if(!confirm(confirmMsg)) return;
   inv.status='cancelled';
   try{
     await apiCall('/api/invoices/'+parseInt(invId),'PUT',inv);
-    // Restore stock
-    await restoreInvoiceStock(inv.items||[]);
+    // Only restore stock if invoice was delivered (stock was deducted on delivery)
+    if(wasDelivered) await restoreInvoiceStock(inv.items||[]);
     state.invoices=await safeGet('/api/invoices');
     state.products=await safeGet('/api/products');
     renderPage();
-    showToast('Invoice #'+invId+' cancelled and stock restored.','amber');
+    showToast('Invoice #'+invId+' cancelled'+(wasDelivered?' and stock restored.':'.'),'amber');
   }catch(e){alert('Failed to cancel: '+e.message);}
 }
 
@@ -3982,22 +3981,19 @@ function resolveItemBilling(item){
   // pktPerUnit: saved on item > stockMeta.pktPerUnit > 1
   var ppu = parseFloat(item.pktPerUnit)||parseFloat(m.pktPerUnit)||1;
 
-  // Derive billing qty from item.qty (total pcs) — only reliable field in old invoices
+  // Always display in Pkt regardless of selected unit (Bora/Cartoon/Pkt)
+  // pktQty = totalPcs / pcsPerPkt,  rate = base per-Pkt rate
   var totalPcs = parseFloat(item.qty)||0;
-  var qty;
-  if(unit==='Bora'||unit==='Cartoon'){
-    qty = totalPcs>0 ? totalPcs/(ppu*pcs) : (parseFloat(item.qtyCount)||1);
-  } else if(unit==='Pkt'){
-    qty = totalPcs>0 ? totalPcs/pcs : (parseFloat(item.qtyCount)||1);
-  } else {
-    qty = totalPcs||(parseFloat(item.qtyCount)||1);
-  }
-  qty = Math.round(qty*1000)/1000;
-
   var baseRate = parseFloat(item.rate)||0;
-  var unitRate = (unit==='Bora'||unit==='Cartoon') ? baseRate*ppu : baseRate;
-  var label = item.billingLabel||(unit==='Bora'?'Bora':unit==='Cartoon'?'Cartoon':'Pkt');
-  return {qty:qty, rate:unitRate, amt:qty*unitRate, label:label, ppu:ppu, pcs:pcs};
+  var pktQty;
+  if(totalPcs>0 && pcs>0){
+    pktQty = totalPcs/pcs;
+  } else {
+    var qc = parseFloat(item.qtyCount)||1;
+    pktQty = (unit==='Bora'||unit==='Cartoon') ? qc*ppu : qc;
+  }
+  pktQty = Math.round(pktQty*1000)/1000;
+  return {qty:pktQty, rate:baseRate, amt:pktQty*baseRate, label:'Pkt', ppu:ppu, pcs:pcs};
 }
 
 
@@ -4334,6 +4330,10 @@ async function confirmDelivery(invId){
   inv.delivered=true;inv.deliveredDate=date;
   try{
     await apiCall('/api/invoices/'+invId,'PUT',inv);
+    // ── Deduct stock on delivery ──
+    if(inv.items&&inv.items.length){
+      await deductInvoiceStock(inv.items);
+    }
     closeModal();
     showModal('✅ Delivery Confirmed',
       '<div style="text-align:center;padding:20px">'+
