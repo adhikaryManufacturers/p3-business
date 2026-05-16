@@ -611,7 +611,7 @@ function poStatus(po){
   if(po.status==='partial') return {label:'Partial',cls:'badge-amber'};
   if(diff<0) return {label:'Overdue',cls:'badge-red'};
   if(diff<=3) return {label:'Due Soon',cls:'badge-amber'};
-  if(inv&&inv.status==='cancelled') return {label:'Cancelled',cls:'badge-red',style:'background:#e24b4a;color:#fff'};
+  if(po.status==='cancelled') return {label:'Cancelled',cls:'badge-red',style:'background:#e24b4a;color:#fff'};
   return {label:'Unpaid',cls:'badge-red'};
 }
 
