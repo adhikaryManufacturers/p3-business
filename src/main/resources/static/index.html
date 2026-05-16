@@ -6478,7 +6478,8 @@ function renderAnalytics(){
   var fromDate=range.from, toDate=range.to;
   // Filter invoices in range
   var invs=state.invoices.filter(function(inv){return inv.date>=fromDate&&inv.date<=toDate;});
-  var totalSales=invs.reduce(function(s,inv){return s+getInvoiceSubTotal(inv);},0);
+  // Use getInvoiceGrand for accurate totals (includes prevOutstanding + customAmt)
+  var totalSales=invs.reduce(function(s,inv){return s+getInvoiceGrand(inv);},0);
   var totalCollected=invs.reduce(function(s,inv){return s+(inv.paid||0);},0);
   var totalDue=invs.reduce(function(s,inv){return s+getInvoiceDue(inv);},0);
   var numInvoices=invs.length;
@@ -6489,32 +6490,77 @@ function renderAnalytics(){
   var fixedExp=expBreakdown.total;
   var profit=totalSales-fixedExp;
   var netIncome=profit*0.20;
-  // Customer breakdown
+  // Customer breakdown — use getInvoiceGrand and getInvoiceDue per invoice
   var custMap={};
   invs.forEach(function(inv){
-    if(!custMap[inv.custId]) custMap[inv.custId]={sales:0,paid:0,count:0};
-    custMap[inv.custId].sales+=getInvoiceSubTotal(inv);
-    custMap[inv.custId].paid+=(inv.paid||0);
-    custMap[inv.custId].count++;
+    var cid=inv.custId;
+    if(!custMap[cid]) custMap[cid]={sales:0,paid:0,due:0,count:0};
+    custMap[cid].sales+=getInvoiceGrand(inv);
+    custMap[cid].paid+=(inv.paid||0);
+    custMap[cid].due+=getInvoiceDue(inv);
+    custMap[cid].count++;
   });
   var custRows=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
     var c=getCustomer(parseInt(cid));var d=custMap[cid];
-    return '<tr><td><strong>'+(c.name||'Unknown')+'</strong></td><td>'+d.count+'</td><td class="fw600">'+fmt(d.sales)+'</td><td class="fc-green">'+fmt(d.paid)+'</td><td class="fc-red">'+fmt(Math.max(0,d.sales-d.paid))+'</td></tr>';
+    return '<tr><td><strong>'+(c.name||'Unknown')+'</strong></td><td>'+d.count+'</td><td class="fw600">'+fmt(d.sales)+'</td><td class="fc-green">'+fmt(d.paid)+'</td><td class="fc-red">'+fmt(d.due)+'</td></tr>';
   }).join('');
-  // Product breakdown
+  // Product breakdown — use resolveItemBilling for correct qty and revenue
   var prodMap={};
   invs.forEach(function(inv){
-    inv.items.forEach(function(item){
-      var key=item.productId||('custom_'+item.desc);
-      if(!prodMap[key]){prodMap[key]={name:item.desc||'Custom',qty:0,revenue:0};}
-      prodMap[key].qty+=item.qty;
-      prodMap[key].revenue+=item.qty*item.rate;
+    var di=decodeInvoice(inv);
+    (di.items||[]).forEach(function(item){
+      if(item.productId===null&&typeof item.desc==='string'&&item.desc.indexOf('__meta__')===0) return;
+      var key=item.productId||('custom_'+(item.desc||''));
+      var rb=resolveItemBilling(item);
+      if(!prodMap[key]){
+        var prod=getProduct(item.productId);
+        prodMap[key]={name:(prod&&prod.name)||item.desc||'Custom',qty:0,revenue:0};
+      }
+      prodMap[key].qty+=rb.qty;
+      prodMap[key].revenue+=rb.amt;
     });
   });
-  var prodRows=Object.keys(prodMap).sort(function(a,b){return prodMap[b].revenue-prodMap[a].revenue;}).map(function(k){
-    var d=prodMap[k];
-    return '<tr><td><strong>'+d.name+'</strong></td><td>'+d.qty+'</td><td class="fw600 fc-green">'+fmt(d.revenue)+'</td></tr>';
+  // Build sorted arrays for search + pagination
+  var custSearch=(state.anCustSearch||'').toLowerCase();
+  var custPage=parseInt(state.anCustPage)||1;
+  var prodSearch=(state.anProdSearch||'').toLowerCase();
+  var prodPage=parseInt(state.anProdPage)||1;
+  var PAGE=10;
+
+  var custAll=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
+    var c=getCustomer(parseInt(cid));var d=custMap[cid];
+    return {name:(c.name||'Unknown'),count:d.count,sales:d.sales,paid:d.paid,due:d.due};
+  });
+  var custFiltered=custSearch?custAll.filter(function(r){return r.name.toLowerCase().indexOf(custSearch)>=0;}):custAll;
+  var custTotalPages=Math.max(1,Math.ceil(custFiltered.length/PAGE));
+  if(custPage>custTotalPages) custPage=custTotalPages;
+  var custPageData=custFiltered.slice((custPage-1)*PAGE,custPage*PAGE);
+  var custRows=custPageData.map(function(r){
+    return '<tr><td><strong>'+r.name+'</strong></td><td>'+r.count+'</td><td class="fw600">'+fmt(r.sales)+'</td><td class="fc-green">'+fmt(r.paid)+'</td><td class="fc-red">'+fmt(r.due)+'</td></tr>';
   }).join('');
+
+  var prodAll=Object.keys(prodMap).sort(function(a,b){return prodMap[b].revenue-prodMap[a].revenue;}).map(function(k){
+    var d=prodMap[k];return {name:d.name,qty:d.qty,revenue:d.revenue};
+  });
+  var prodFiltered=prodSearch?prodAll.filter(function(r){return r.name.toLowerCase().indexOf(prodSearch)>=0;}):prodAll;
+  var prodTotalPages=Math.max(1,Math.ceil(prodFiltered.length/PAGE));
+  if(prodPage>prodTotalPages) prodPage=prodTotalPages;
+  var prodPageData=prodFiltered.slice((prodPage-1)*PAGE,prodPage*PAGE);
+  var prodRows=prodPageData.map(function(r){
+    return '<tr><td><strong>'+r.name+'</strong></td><td>'+r.qty+'</td><td class="fw600 fc-green">'+fmt(r.revenue)+'</td></tr>';
+  }).join('');
+
+  function mkPager(cur,total,setFn){
+    if(total<=1) return '';
+    var btns='<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;padding:8px 0 4px">';
+    btns+='<button class="btn btn-secondary btn-sm" '+(cur<=1?'disabled':'')+' onclick="'+setFn+'('+Math.max(1,cur-1)+')">&#8249;</button>';
+    btns+='<span style="font-size:12px;color:var(--text3)">'+cur+' / '+total+'</span>';
+    btns+='<button class="btn btn-secondary btn-sm" '+(cur>=total?'disabled':'')+' onclick="'+setFn+'('+Math.min(total,cur+1)+')">&#8250;</button>';
+    btns+='</div>';
+    return btns;
+  }
+  var custPager=mkPager(custPage,custTotalPages,'setAnCustPage');
+  var prodPager=mkPager(prodPage,prodTotalPages,'setAnProdPage');
   return '<div class="section-title">Sales Analytics</div>'+
   '<div class="section-sub">Income analysis based on 20% of (Sales &minus; Actual Expenditure)</div>'+
   '<div class="period-tabs">'+
@@ -6554,10 +6600,32 @@ function renderAnalytics(){
   '<div style="display:flex;justify-content:space-between;padding:12px 0 0;font-weight:700;color:var(--primary)"><span>Total</span><span>'+fmt(fixedExp)+'</span></div>'+
   '</div></div>'+
   // Customer sales
-  (custRows?'<div class="card"><div class="card-header"><div class="card-title">Customer Sales Breakdown</div></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Orders</th><th>Sales</th><th>Collected</th><th>Due</th></tr></thead><tbody>'+custRows+'</tbody></table></div></div>':'<div class="card"><div class="card-body"><div class="empty-state"><div>No invoices in this period</div></div></div></div>')+
+  (custAll.length?
+    '<div class="card"><div class="card-header"><div class="card-title">Customer Sales Breakdown</div>'+
+    '<input type="text" id="an-cust-search" placeholder="&#128269; Search customer..." value="'+((state.anCustSearch)||'')+'" oninput="anSearchCust(this.value)" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:200px">'+
+    '</div>'+
+    '<div class="table-wrap"><table><thead><tr><th>Customer</th><th>Orders</th><th>Sales</th><th>Collected</th><th>Due</th></tr></thead><tbody id="an-cust-tbody">'+
+    (custRows||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px;font-style:italic">No matching customers</td></tr>')+
+    '</tbody></table></div>'+
+    '<div id="an-cust-pager">'+custPager+'</div>'+
+    '<div id="an-cust-info" style="font-size:11px;color:var(--text3);padding:4px 0 8px">Showing '+custFiltered.length+' customer'+(custFiltered.length!==1?'s':'')+
+    (custSearch?' matching "'+custSearch+'"':'')+
+    '</div></div>'
+    :'<div class="card"><div class="card-body"><div class="empty-state"><div>No invoices in this period</div></div></div></div>')+
   '</div>'+
   // Product breakdown
-  (prodRows?'<div class="card"><div class="card-header"><div class="card-title">Product Revenue Breakdown</div></div><div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty Sold</th><th>Revenue</th></tr></thead><tbody>'+prodRows+'</tbody></table></div></div>':'<div class="card"><div class="card-body"><div class="empty-state"><div>No product data in this period</div></div></div></div>');
+  (prodAll.length?
+    '<div class="card"><div class="card-header"><div class="card-title">Product Revenue Breakdown</div>'+
+    '<input type="text" id="an-prod-search" placeholder="&#128269; Search product..." value="'+((state.anProdSearch)||'')+'" oninput="anSearchProd(this.value)" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:200px">'+
+    '</div>'+
+    '<div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty Sold</th><th>Revenue</th></tr></thead><tbody id="an-prod-tbody">'+
+    (prodRows||'<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:16px;font-style:italic">No matching products</td></tr>')+
+    '</tbody></table></div>'+
+    '<div id="an-prod-pager">'+prodPager+'</div>'+
+    '<div id="an-prod-info" style="font-size:11px;color:var(--text3);padding:4px 0 8px">Showing '+prodFiltered.length+' product'+(prodFiltered.length!==1?'s':'')+
+    (prodSearch?' matching "'+prodSearch+'"':'')+
+    '</div></div>'
+    :'<div class="card"><div class="card-body"><div class="empty-state"><div>No product data in this period</div></div></div></div>');
 }
 function getDateRange(period,customFrom,customTo){
   var now=new Date();
@@ -6572,7 +6640,100 @@ function getDateRange(period,customFrom,customTo){
   if(period==='year') return {from:new Date(y,0,1).toISOString().split('T')[0],to:new Date(y,11,31).toISOString().split('T')[0]};
   return {from:customFrom,to:customTo};
 }
-function setAnalyticsPeriod(p){state.analyticsPeriod=p;renderPage();}
+function setAnalyticsPeriod(p){state.analyticsPeriod=p;state.anCustSearch='';state.anProdSearch='';state.anCustPage=1;state.anProdPage=1;renderPage();}
+function setAnCustPage(p){state.anCustPage=p;renderAnTable('cust');}
+function setAnProdPage(p){state.anProdPage=p;renderAnTable('prod');}
+function anSearchCust(v){state.anCustSearch=v;state.anCustPage=1;renderAnTable('cust');}
+function anSearchProd(v){state.anProdSearch=v;state.anProdPage=1;renderAnTable('prod');}
+
+function renderAnTable(type){
+  var PAGE=10;
+  var isCust=(type==='cust');
+  var search=(isCust?(state.anCustSearch||''):(state.anProdSearch||'')).toLowerCase();
+  var page=parseInt(isCust?state.anCustPage:state.anProdPage)||1;
+
+  // Rebuild from state.invoices (same period filter as analytics page)
+  var period=state.analyticsPeriod||'month';
+  var customFrom=state.analyticsFrom||new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split('T')[0];
+  var customTo=state.analyticsTo||today();
+  var range=getDateRange(period,customFrom,customTo);
+  var invs=state.invoices.filter(function(inv){return inv.date>=range.from&&inv.date<=range.to;});
+
+  var rows, totalPages, filtered;
+
+  if(isCust){
+    var custMap={};
+    invs.forEach(function(inv){
+      var cid=inv.custId;
+      if(!custMap[cid]) custMap[cid]={sales:0,paid:0,due:0,count:0};
+      custMap[cid].sales+=getInvoiceGrand(inv);
+      custMap[cid].paid+=(inv.paid||0);
+      custMap[cid].due+=getInvoiceDue(inv);
+      custMap[cid].count++;
+    });
+    var all=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
+      var c=getCustomer(parseInt(cid));var d=custMap[cid];
+      return {name:(c.name||'Unknown'),count:d.count,sales:d.sales,paid:d.paid,due:d.due};
+    });
+    filtered=search?all.filter(function(r){return r.name.toLowerCase().indexOf(search)>=0;}):all;
+    totalPages=Math.max(1,Math.ceil(filtered.length/PAGE));
+    if(page>totalPages) page=totalPages;
+    if(isCust) state.anCustPage=page;
+    var pageData=filtered.slice((page-1)*PAGE,page*PAGE);
+    rows=pageData.map(function(r){
+      return '<tr><td><strong>'+r.name+'</strong></td><td>'+r.count+'</td><td class="fw600">'+fmt(r.sales)+'</td><td class="fc-green">'+fmt(r.paid)+'</td><td class="fc-red">'+fmt(r.due)+'</td></tr>';
+    }).join('');
+    var tbody=document.getElementById('an-cust-tbody');
+    if(tbody) tbody.innerHTML=rows||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px;font-style:italic">No matching customers</td></tr>';
+  } else {
+    var prodMap={};
+    invs.forEach(function(inv){
+      var di=decodeInvoice(inv);
+      (di.items||[]).forEach(function(item){
+        if(item.productId===null&&typeof item.desc==='string'&&item.desc.indexOf('__meta__')===0) return;
+        var key=item.productId||('custom_'+(item.desc||''));
+        var rb=resolveItemBilling(item);
+        if(!prodMap[key]){var prod=getProduct(item.productId);prodMap[key]={name:(prod&&prod.name)||item.desc||'Custom',qty:0,revenue:0};}
+        prodMap[key].qty+=rb.qty;
+        prodMap[key].revenue+=rb.amt;
+      });
+    });
+    var allP=Object.keys(prodMap).sort(function(a,b){return prodMap[b].revenue-prodMap[a].revenue;}).map(function(k){var d=prodMap[k];return {name:d.name,qty:d.qty,revenue:d.revenue};});
+    filtered=search?allP.filter(function(r){return r.name.toLowerCase().indexOf(search)>=0;}):allP;
+    totalPages=Math.max(1,Math.ceil(filtered.length/PAGE));
+    if(page>totalPages) page=totalPages;
+    state.anProdPage=page;
+    var pageDataP=filtered.slice((page-1)*PAGE,page*PAGE);
+    rows=pageDataP.map(function(r){
+      return '<tr><td><strong>'+r.name+'</strong></td><td>'+r.qty+'</td><td class="fw600 fc-green">'+fmt(r.revenue)+'</td></tr>';
+    }).join('');
+    var tbodyP=document.getElementById('an-prod-tbody');
+    if(tbodyP) tbodyP.innerHTML=rows||'<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:16px;font-style:italic">No matching products</td></tr>';
+  }
+
+  // Update pager
+  var pagerId=isCust?'an-cust-pager':'an-prod-pager';
+  var pagerEl=document.getElementById(pagerId);
+  if(pagerEl){
+    var setFn=isCust?'setAnCustPage':'setAnProdPage';
+    if(totalPages<=1){pagerEl.innerHTML='';}
+    else{
+      pagerEl.innerHTML='<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;padding:8px 0 4px">'+
+        '<button class="btn btn-secondary btn-sm" '+(page<=1?'disabled':'')+' onclick="'+setFn+'('+Math.max(1,page-1)+')">&#8249;</button>'+
+        '<span style="font-size:12px;color:var(--text3)">'+page+' / '+totalPages+'</span>'+
+        '<button class="btn btn-secondary btn-sm" '+(page>=totalPages?'disabled':'')+' onclick="'+setFn+'('+Math.min(totalPages,page+1)+')">&#8250;</button>'+
+        '</div>';
+    }
+  }
+
+  // Update info
+  var infoId=isCust?'an-cust-info':'an-prod-info';
+  var infoEl=document.getElementById(infoId);
+  if(infoEl){
+    var word=isCust?'customer':'product';
+    infoEl.textContent='Showing '+filtered.length+' '+word+(filtered.length!==1?'s':'')+(search?' matching "'+search+'"':'');
+  }
+}
 
 // ===================== AUTH SYSTEM =====================
 var authState={
