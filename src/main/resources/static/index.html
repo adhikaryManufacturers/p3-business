@@ -459,6 +459,115 @@ async function apiCall(endpoint, method, body){
 }
 
 function fmt(n){return '₹'+parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+// ══════════════════════════════════════════
+// INDIA ADDRESS HELPERS
+// ══════════════════════════════════════════
+var INDIA_STATES={"Andaman and Nicobar Islands":["Nicobar","North and Middle Andaman","South Andaman"],"Andhra Pradesh":["Alluri Sitharama Raju","Anakapalli","Ananthapuramu","Annamayya","Bapatla","Chittoor","Eluru","Guntur","Kakinada","Konaseema","Krishna","Kurnool","Nandyal","NTR","Palnadu","Parvathipuram Manyam","Prakasam","Sri Potti Sriramulu Nellore","Sri Sathya Sai","Srikakulam","Tirupati","Visakhapatnam","Vizianagaram","West Godavari","YSR Kadapa"],"Arunachal Pradesh":["Anjaw","Changlang","Dibang Valley","East Kameng","East Siang","Kamle","Kra Daadi","Kurung Kumey","Lepa Rada","Lohit","Longding","Lower Dibang Valley","Lower Siang","Lower Subansiri","Namsai","Pakke Kessang","Papum Pare","Shi Yomi","Siang","Tawang","Tirap","Upper Siang","Upper Subansiri","West Kameng","West Siang"],"Assam":["Bajali","Baksa","Barpeta","Biswanath","Bongaigaon","Cachar","Charaideo","Chirang","Darrang","Dhemaji","Dhubri","Dibrugarh","Dima Hasao","Goalpara","Golaghat","Hailakandi","Hojai","Jorhat","Kamrup","Kamrup Metropolitan","Karbi Anglong","Karimganj","Kokrajhar","Lakhimpur","Majuli","Morigaon","Nagaon","Nalbari","Sivasagar","Sonitpur","South Salmara-Mankachar","Tamulpur","Tinsukia","Udalguri","West Karbi Anglong"],"Bihar":["Araria","Arwal","Aurangabad","Banka","Begusarai","Bhagalpur","Bhojpur","Buxar","Darbhanga","East Champaran","Gaya","Gopalganj","Jamui","Jehanabad","Kaimur","Katihar","Khagaria","Kishanganj","Lakhisarai","Madhepura","Madhubani","Munger","Muzaffarpur","Nalanda","Nawada","Patna","Purnia","Rohtas","Saharsa","Samastipur","Saran","Sheikhpura","Sheohar","Sitamarhi","Siwan","Supaul","Vaishali","West Champaran"],"Chandigarh":["Chandigarh"],"Chhattisgarh":["Balod","Baloda Bazar","Balrampur","Bastar","Bemetara","Bijapur","Bilaspur","Dantewada","Dhamtari","Durg","Gariyaband","Gaurela-Pendra-Marwahi","Janjgir-Champa","Jashpur","Kabirdham","Kanker","Kondagaon","Korba","Koriya","Mahasamund","Manendragarh","Mohla-Manpur","Mungeli","Narayanpur","Raigarh","Raipur","Rajnandgaon","Sakti","Sarangarh-Bilaigarh","Sukma","Surajpur","Surguja"],"Dadra and Nagar Haveli and Daman and Diu":["Dadra and Nagar Haveli","Daman","Diu"],"Delhi":["Central Delhi","East Delhi","New Delhi","North Delhi","North East Delhi","North West Delhi","Shahdara","South Delhi","South East Delhi","South West Delhi","West Delhi"],"Goa":["North Goa","South Goa"],"Gujarat":["Ahmedabad","Amreli","Anand","Aravalli","Banaskantha","Bharuch","Bhavnagar","Botad","Chhota Udaipur","Dahod","Dang","Devbhoomi Dwarka","Gandhinagar","Gir Somnath","Jamnagar","Junagadh","Kheda","Kutch","Mahisagar","Mehsana","Morbi","Narmada","Navsari","Panchmahal","Patan","Porbandar","Rajkot","Sabarkantha","Surat","Surendranagar","Tapi","Vadodara","Valsad"],"Haryana":["Ambala","Bhiwani","Charkhi Dadri","Faridabad","Fatehabad","Gurugram","Hisar","Jhajjar","Jind","Kaithal","Karnal","Kurukshetra","Mahendragarh","Nuh","Palwal","Panchkula","Panipat","Rewari","Rohtak","Sirsa","Sonipat","Yamunanagar"],"Himachal Pradesh":["Bilaspur","Chamba","Hamirpur","Kangra","Kinnaur","Kullu","Lahaul and Spiti","Mandi","Shimla","Sirmaur","Solan","Una"],"Jammu and Kashmir":["Anantnag","Bandipora","Baramulla","Budgam","Doda","Ganderbal","Jammu","Kathua","Kishtwar","Kulgam","Kupwara","Poonch","Pulwama","Rajouri","Ramban","Reasi","Samba","Shopian","Srinagar","Udhampur"],"Jharkhand":["Bokaro","Chatra","Deoghar","Dhanbad","Dumka","East Singhbhum","Garhwa","Giridih","Godda","Gumla","Hazaribagh","Jamtara","Khunti","Koderma","Latehar","Lohardaga","Pakur","Palamu","Ramgarh","Ranchi","Sahebganj","Seraikela Kharsawan","Simdega","West Singhbhum"],"Karnataka":["Bagalkote","Ballari","Belagavi","Bengaluru Rural","Bengaluru Urban","Bidar","Chamarajanagar","Chikballapur","Chikkamagaluru","Chitradurga","Dakshina Kannada","Davanagere","Dharwad","Gadag","Hassan","Haveri","Kalaburagi","Kodagu","Kolar","Koppal","Mandya","Mysuru","Raichur","Ramanagara","Shivamogga","Tumakuru","Udupi","Uttara Kannada","Vijayapura","Yadgir"],"Kerala":["Alappuzha","Ernakulam","Idukki","Kannur","Kasaragod","Kollam","Kottayam","Kozhikode","Malappuram","Palakkad","Pathanamthitta","Thiruvananthapuram","Thrissur","Wayanad"],"Ladakh":["Kargil","Leh"],"Lakshadweep":["Lakshadweep"],"Madhya Pradesh":["Agar Malwa","Alirajpur","Anuppur","Ashoknagar","Balaghat","Barwani","Betul","Bhind","Bhopal","Burhanpur","Chhatarpur","Chhindwara","Damoh","Datia","Dewas","Dhar","Dindori","Guna","Gwalior","Harda","Hoshangabad","Indore","Jabalpur","Jhabua","Katni","Khandwa","Khargone","Mandla","Mandsaur","Morena","Narsinghpur","Neemuch","Niwari","Panna","Raisen","Rajgarh","Ratlam","Rewa","Sagar","Satna","Sehore","Seoni","Shahdol","Shajapur","Sheopur","Shivpuri","Sidhi","Singrauli","Tikamgarh","Ujjain","Umaria","Vidisha"],"Maharashtra":["Ahmednagar","Akola","Amravati","Aurangabad","Beed","Bhandara","Buldhana","Chandrapur","Dhule","Gadchiroli","Gondia","Hingoli","Jalgaon","Jalna","Kolhapur","Latur","Mumbai City","Mumbai Suburban","Nagpur","Nanded","Nandurbar","Nashik","Osmanabad","Palghar","Parbhani","Pune","Raigad","Ratnagiri","Sangli","Satara","Sindhudurg","Solapur","Thane","Wardha","Washim","Yavatmal"],"Manipur":["Bishnupur","Chandel","Churachandpur","Imphal East","Imphal West","Jiribam","Kakching","Kamjong","Kangpokpi","Noney","Pherzawl","Senapati","Tamenglong","Tengnoupal","Thoubal","Ukhrul"],"Meghalaya":["East Garo Hills","East Jaintia Hills","East Khasi Hills","Ri Bhoi","South Garo Hills","South West Garo Hills","South West Khasi Hills","West Garo Hills","West Jaintia Hills","West Khasi Hills"],"Mizoram":["Aizawl","Champhai","Hnahthial","Khawzawl","Kolasib","Lawngtlai","Lunglei","Mamit","Saiha","Saitual","Serchhip"],"Nagaland":["Chumoukedima","Dimapur","Kiphire","Kohima","Longleng","Mokokchung","Mon","Niuland","Noklak","Peren","Phek","Shamator","Tsemenyu","Tuensang","Wokha","Zunheboto"],"Odisha":["Angul","Balangir","Balasore","Bargarh","Bhadrak","Boudh","Cuttack","Deogarh","Dhenkanal","Gajapati","Ganjam","Jagatsinghpur","Jajpur","Jharsuguda","Kalahandi","Kandhamal","Kendrapara","Kendujhar","Khordha","Koraput","Malkangiri","Mayurbhanj","Nabarangpur","Nayagarh","Nuapada","Puri","Rayagada","Sambalpur","Sonepur","Sundargarh"],"Puducherry":["Karaikal","Mahe","Puducherry","Yanam"],"Punjab":["Amritsar","Barnala","Bathinda","Faridkot","Fatehgarh Sahib","Fazilka","Ferozepur","Gurdaspur","Hoshiarpur","Jalandhar","Kapurthala","Ludhiana","Malerkotla","Mansa","Moga","Mohali","Muktsar","Nawanshahr","Pathankot","Patiala","Ropar","Sangrur","Tarn Taran"],"Rajasthan":["Ajmer","Alwar","Banswara","Baran","Barmer","Bharatpur","Bhilwara","Bikaner","Bundi","Chittorgarh","Churu","Dausa","Dholpur","Dungarpur","Hanumangarh","Jaipur","Jaisalmer","Jalore","Jhalawar","Jhunjhunu","Jodhpur","Karauli","Kota","Nagaur","Pali","Pratapgarh","Rajsamand","Sawai Madhopur","Sikar","Sirohi","Sri Ganganagar","Tonk","Udaipur"],"Sikkim":["East Sikkim","North Sikkim","Pakyong","Soreng","South Sikkim","West Sikkim"],"Tamil Nadu":["Ariyalur","Chengalpattu","Chennai","Coimbatore","Cuddalore","Dharmapuri","Dindigul","Erode","Kallakurichi","Kancheepuram","Kanyakumari","Karur","Krishnagiri","Madurai","Mayiladuthurai","Nagapattinam","Namakkal","Nilgiris","Perambalur","Pudukkottai","Ramanathapuram","Ranipet","Salem","Sivaganga","Tenkasi","Thanjavur","Theni","Thoothukudi","Tiruchirappalli","Tirunelveli","Tirupathur","Tiruppur","Tiruvallur","Tiruvannamalai","Tiruvarur","Vellore","Viluppuram","Virudhunagar"],"Telangana":["Adilabad","Bhadradri Kothagudem","Hanumakonda","Hyderabad","Jagtial","Jangaon","Jayashankar Bhupalpally","Jogulamba Gadwal","Kamareddy","Karimnagar","Khammam","Kumuram Bheem","Mahabubabad","Mahabubnagar","Mancherial","Medak","Medchal-Malkajgiri","Mulugu","Nagarkurnool","Nalgonda","Narayanpet","Nirmal","Nizamabad","Peddapalli","Rajanna Sircilla","Rangareddy","Sangareddy","Siddipet","Suryapet","Vikarabad","Wanaparthy","Warangal","Yadadri Bhuvanagiri"],"Tripura":["Dhalai","Gomati","Khowai","North Tripura","Sepahijala","Sipahijala","South Tripura","Unakoti","West Tripura"],"Uttar Pradesh":["Agra","Aligarh","Ambedkar Nagar","Amethi","Amroha","Auraiya","Ayodhya","Azamgarh","Baghpat","Bahraich","Ballia","Balrampur","Banda","Barabanki","Bareilly","Basti","Bhadohi","Bijnor","Budaun","Bulandshahr","Chandauli","Chitrakoot","Deoria","Etah","Etawah","Farrukhabad","Fatehpur","Firozabad","Gautam Buddha Nagar","Ghaziabad","Ghazipur","Gonda","Gorakhpur","Hamirpur","Hapur","Hardoi","Hathras","Jalaun","Jaunpur","Jhansi","Kannauj","Kanpur Dehat","Kanpur Nagar","Kasganj","Kaushambi","Kheri","Kushinagar","Lalitpur","Lucknow","Maharajganj","Mahoba","Mainpuri","Mathura","Mau","Meerut","Mirzapur","Moradabad","Muzaffarnagar","Pilibhit","Pratapgarh","Prayagraj","Raebareli","Rampur","Saharanpur","Sambhal","Sant Kabir Nagar","Shahjahanpur","Shamli","Shravasti","Siddharthnagar","Sitapur","Sonbhadra","Sultanpur","Unnao","Varanasi"],"Uttarakhand":["Almora","Bageshwar","Chamoli","Champawat","Dehradun","Haridwar","Nainital","Pauri Garhwal","Pithoragarh","Rudraprayag","Tehri Garhwal","Udham Singh Nagar","Uttarkashi"],"West Bengal":["Alipurduar","Bankura","Birbhum","Cooch Behar","Dakshin Dinajpur","Darjeeling","Hooghly","Howrah","Jalpaiguri","Jhargram","Kalimpong","Kolkata","Malda","Murshidabad","Nadia","North 24 Parganas","Paschim Bardhaman","Paschim Medinipur","Purba Bardhaman","Purba Medinipur","Purulia","South 24 Parganas","Uttar Dinajpur"]}
+;
+
+function addrFieldsHtml(prefix, val){
+  // val = stored address string "Place|Town|District|State|PIN"
+  var parts=(val||'').split('|');
+  var place=parts[0]||'', town=parts[1]||'', dist=parts[2]||'', st=parts[3]||'', pin=parts[4]||'';
+  var stateOpts=Object.keys(INDIA_STATES).sort().map(function(s){
+    return '<option value="'+s+'"'+(s===st?' selected':'')+'>'+s+'</option>';
+  }).join('');
+  var distOpts=st&&INDIA_STATES[st]?INDIA_STATES[st].map(function(d){
+    return '<option value="'+d+'"'+(d===dist?' selected':'')+'>'+d+'</option>';
+  }).join(''):'<option value="">-- Select State first --</option>';
+  return '<div class="form-group"><label>Place<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+    '<input type="text" id="'+prefix+'-place" value="'+place+'" placeholder="e.g. Gauripur" required></div>'+
+    '<div class="form-group"><label>Town / Village<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+    '<input type="text" id="'+prefix+'-town" value="'+town+'" placeholder="e.g. Baruapatty" required></div>'+
+    '<div class="form-group"><label>State<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+    '<select id="'+prefix+'-state" onchange="onAddrStateChange(this.id.replace(/-state$/,\'\'))" required>'+
+    '<option value="">-- Select State --</option>'+stateOpts+'</select></div>'+
+    '<div class="form-group"><label>District<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+    '<select id="'+prefix+'-district" required>'+
+    '<option value="">-- Select District --</option>'+distOpts+'</select></div>'+
+    '<div class="form-group"><label>PIN Code<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+    '<input type="text" id="'+prefix+'-pin" value="'+pin+'" placeholder="6-digit PIN" maxlength="6" pattern="[0-9]{6}" required></div>';
+}
+
+function onAddrStateChange(elOrPrefix){
+  var prefix=typeof elOrPrefix==='string'?elOrPrefix:elOrPrefix.id.replace(/-state$/,'');
+  var st=(document.getElementById(prefix+'-state')||{}).value||'';
+  var distSel=document.getElementById(prefix+'-district');
+  if(!distSel) return;
+  var dists=(st&&INDIA_STATES[st])||[];
+  distSel.innerHTML='<option value="">-- Select District --</option>'+
+    dists.map(function(d){return '<option value="'+d+'">'+d+'</option>';}).join('');
+}
+
+function readAddr(prefix){
+  var place=(document.getElementById(prefix+'-place')||{}).value||'';
+  var town=(document.getElementById(prefix+'-town')||{}).value||'';
+  var dist=(document.getElementById(prefix+'-district')||{}).value||'';
+  var st=(document.getElementById(prefix+'-state')||{}).value||'';
+  var pin=(document.getElementById(prefix+'-pin')||{}).value||'';
+  return place+'|'+town+'|'+dist+'|'+st+'|'+pin;
+}
+
+function validateAddr(prefix){
+  var place=(document.getElementById(prefix+'-place')||{}).value||'';
+  var town=(document.getElementById(prefix+'-town')||{}).value||'';
+  var dist=(document.getElementById(prefix+'-district')||{}).value||'';
+  var st=(document.getElementById(prefix+'-state')||{}).value||'';
+  var pin=(document.getElementById(prefix+'-pin')||{}).value||'';
+  if(!place||!town||!dist||!st||!pin) return 'Please fill all address fields (Place, Town/Village, District, State, PIN Code)';
+  if(!/^[0-9]{6}$/.test(pin)) return 'PIN Code must be exactly 6 digits';
+  return null;
+}
+
+function fmtAddr(addr){
+  if(!addr) return '';
+  var p=addr.split('|');
+  if(p.length<4) return addr; // legacy plain text
+  var place=p[0],town=p[1],dist=p[2],st=p[3],pin=p[4]||'';
+  var parts=[];
+  if(place) parts.push(place);
+  if(town) parts.push(town);
+  if(dist) parts.push(dist);
+  if(st) parts.push(st);
+  if(pin) parts.push(pin);
+  return parts.join(', ');
+}
+
+
+// Build select options with empty-state and "Add New" option
+function buildSelectOpts(items, valueFn, labelFn, selectedFn, emptyLabel, addNewLabel, addNewFn){
+  if(!items||!items.length){
+    return '<option value="" disabled selected>'+emptyLabel+'</option>'+
+           '<option value="__add_new__">＋ '+addNewLabel+'</option>';
+  }
+  var opts='<option value="">-- Select --</option>'+
+    items.map(function(item){
+      var val=valueFn(item), lbl=labelFn(item), sel=selectedFn?selectedFn(item):'';
+      return '<option value="'+val+'" '+sel+'>'+lbl+'</option>';
+    }).join('');
+  opts+='<option value="__add_new__" style="color:var(--primary);font-weight:600">＋ '+addNewLabel+'</option>';
+  return opts;
+}
+function onSelectAddNew(el, navTarget){
+  var nav=navTarget||el.dataset.addnav||'';
+  if(el.value==='__add_new__'){
+    el.value='';
+    if(typeof closeModal==='function') closeModal();
+    navigate(nav);
+  }
+}
+function invCustChange(el){
+  if(el.value==='__add_new__'){el.value='';navigate('customers');return;}
+  state._invCustId=el.value;onCustChange();
+}
+function coWhoChange(el){
+  if(el.value==='__add_new__'){el.value='';if(typeof closeModal==='function')closeModal();navigate('customers');return;}
+  onCoWhoChange();
+}
+function poVendorChange(el){onSelectAddNew(el,'vendors');}
+function payrollEmpChange(el){onSelectAddNew(el,'staff');}
+function coWhoEditChange(el){onSelectAddNew(el,'customers');}
 function sortDesc(arr,field){
   return arr.slice().sort(function(a,b){
     var av=a[field]||0,bv=b[field]||0;
@@ -1946,9 +2055,9 @@ function renderPayroll(){
   '<div><div class="section-title">Payroll Management</div><div class="section-sub">Track salaries, advances and partial payments across all months</div></div>'+
   '<div class="form-row">'+
   '<input type="month" value="'+month+'" onchange="state.payrollMonth=this.value;renderPage()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+
-  '<select id="payroll-emp-select" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;min-width:180px">'+
-  '<option value="">— Select Employee —</option>'+
-  state.staff.map(function(s){return '<option value="'+s.id+'">'+s.name+'</option>';}).join('')+
+  '<select id="payroll-emp-select" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;min-width:180px" onchange="payrollEmpChange(this)">'+
+  buildSelectOpts(state.staff,function(s){return s.id;},function(s){return s.name;},null,
+  'No staff yet','Add New Staff')+
   '</select>'+
   '<button class="btn btn-primary" onclick="processPayrollForSelected()">+ Process Payroll</button>'+
   '</div></div>'+
@@ -2606,9 +2715,10 @@ function renderCreateInvoice(){
   '</div></div>'+
   '<div class="card"><div class="card-header"><div class="card-title">Bill To (Customer)</div></div><div class="card-body">'+
   '<div class="form-group" style="margin-bottom:12px"><label>Select Customer<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-  '<select id="inv-cust" onchange="state._invCustId=this.value;onCustChange()">'+
+  '<select id="inv-cust" onchange="invCustChange(this)">'+
   '<option value="">— Select —</option>'+
-  state.customers.map(function(cu){return '<option value="'+cu.id+'" '+(String(cu.id)===String(savedCustId)?'selected':'')+'>'+cu.name+' — '+cu.phone+'</option>';}).join('')+
+  buildSelectOpts(state.customers,function(cu){return cu.id;},function(cu){return cu.name+' — '+cu.phone;},function(cu){return String(cu.id)===String(savedCustId)?'selected':'';},
+  'No customers yet','Add New Customer')+
   '<option value="new">+ Add New Customer</option>'+
   '</select></div>'+
   '<div id="cust-details" style="font-size:13px;color:var(--text2)"></div>'+
@@ -3081,7 +3191,7 @@ function onCustChange(){
     if(cust&&cust.id){
       detDiv.innerHTML='<div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">'+
         '<div><span style="color:var(--text3)">Phone:</span> <strong>'+cust.phone+'</strong></div>'+
-        (cust.address?'<div><span style="color:var(--text3)">Address:</span> '+cust.address+'</div>':'')+
+        (cust.address?'<div><span style="color:var(--text3)">Address:</span> '+fmtAddr(cust.address)+'</div>':'')+
         '</div>';
     } else {
       detDiv.innerHTML='';
@@ -3308,7 +3418,7 @@ function buildInvoiceHTML(invId, forDownload){
   '<div style="background:#f5f5f0;padding:12px;border-radius:6px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#27500A;font-weight:700;margin-bottom:4px">From (Supplier)</div>'+
   '<div style="font-weight:700">Pranita Paper Plates</div><div style="font-size:12px;color:#666">A unit of Adhikary Manufacturer\'s and Suppliers</div></div>'+
   '<div style="background:#f5f5f0;padding:12px;border-radius:6px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#27500A;font-weight:700;margin-bottom:4px">Bill To (Client)</div>'+
-  '<div style="font-weight:700">'+cust.name+'</div><div style="font-size:12px;color:#666">'+cust.address+'<br>Ph: '+cust.phone+'</div></div></div>'+
+  '<div style="font-weight:700">'+cust.name+'</div><div style="font-size:12px;color:#666">'+fmtAddr(cust.address)+'<br>Ph: '+cust.phone+'</div></div></div>'+
   '<table class="inv-tbl"><thead><tr><th>Sr.</th><th>Description</th><th>HSN</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead>'+
   '<tbody>'+itemsHTML+'</tbody>'+
   (function(){
@@ -3475,7 +3585,7 @@ function downloadInvoicePDF(invId){
   '<div class="party-sub">A unit of Adhikary Manufacturer\'s and Suppliers</div></div>'+
   '<div class="party"><div class="party-lbl">Bill To (Client)</div>'+
   '<div class="party-name">'+cust.name+'</div>'+
-  '<div class="party-sub">'+(cust.address||'')+'<br>Ph: '+(cust.phone||'')+'</div></div>'+
+  '<div class="party-sub">'+fmtAddr(cust.address||'')+'<br>Ph: '+(cust.phone||'')+'</div></div>'+
   '</div>'+
   /* table */
   '<table>'+
@@ -4442,7 +4552,7 @@ function renderCustomers(){
       '<td><span class="badge badge-blue">C'+String(c.id).padStart(3,'0')+'</span></td>'+
       '<td><strong>'+c.name+'</strong></td>'+
       '<td>'+c.phone+'</td>'+
-      '<td style="font-size:12px;color:var(--text2)">'+c.address+'</td>'+
+      '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(c.address)+'</td>'+
       '<td>'+statusBadge+'</td>'+
       '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+c.id+',\"customer\")">&#128203; '+ordCnt+' Orders</button>':'<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(null,'+c.id+')">+ Order</button>')+'</td>'+
       '<td>'+invCnt+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'')+'</td>'+
@@ -4465,7 +4575,8 @@ function showAddCustomerModal(){
     '<div class="form-group full"><label>Full Name / Business Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="nc-name" placeholder="Customer name"></div>'+
     '<div class="form-group"><label>Phone<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="nc-phone" placeholder="10-digit number"></div>'+
     '<div class="form-group"><label>Bale Balance</label><input type="number" id="nc-bale" value="0"></div>'+
-    '<div class="form-group full"><label>Address</label><input type="text" id="nc-address" placeholder="City, State, PIN"></div>'+
+    '<div class="form-group full"><label style="font-weight:600;color:var(--primary)">Address</label></div>'+
+    addrFieldsHtml('nc-addr','')+
     '</div>',
     '<button class="btn btn-primary" onclick="saveNewCustomer()">Add Customer</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
@@ -4473,7 +4584,9 @@ function showAddCustomerModal(){
 async function saveNewCustomer(){
   var name=document.getElementById('nc-name').value.trim();
   if(!name){alert('Name required');return;}
-  var customer={name:name,phone:document.getElementById('nc-phone').value,address:document.getElementById('nc-address').value,baleBalance:parseInt(document.getElementById('nc-bale').value)||0,status:'new'};
+  var _ncAddrErr=validateAddr('nc-addr');
+  if(_ncAddrErr){alert(_ncAddrErr);return;}
+  var customer={name:name,phone:document.getElementById('nc-phone').value,address:readAddr('nc-addr'),baleBalance:parseInt(document.getElementById('nc-bale').value)||0,status:'new'};
   try{
     var saved=await apiCall('/api/customers','POST',customer);
     state.customers.push(saved);
@@ -4487,14 +4600,17 @@ function showEditCustomerModal(id){
     '<div class="form-group full"><label>Full Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ec-name" value="'+c.name+'"></div>'+
     '<div class="form-group"><label>Phone<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ec-phone" value="'+c.phone+'"></div>'+
     '<div class="form-group"><label>Bale Balance</label><input type="number" id="ec-bale" value="'+(c.baleBalance||0)+'"></div>'+
-    '<div class="form-group full"><label>Address</label><input type="text" id="ec-address" value="'+c.address+'"></div>'+
+    '<div class="form-group full"><label style="font-weight:600;color:var(--primary)">Address</label></div>'+
+    addrFieldsHtml('ec-addr',c.address)+
     '</div>',
     '<button class="btn btn-primary" onclick="saveEditCustomer('+id+')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditCustomer(id){
   var c=getCustomer(id);
   c.name=document.getElementById('ec-name').value;c.phone=document.getElementById('ec-phone').value;
-  c.address=document.getElementById('ec-address').value;c.baleBalance=parseInt(document.getElementById('ec-bale').value)||0;
+  var _ecAddrErr=validateAddr('ec-addr');
+  if(_ecAddrErr){alert(_ecAddrErr);return;}
+  c.address=readAddr('ec-addr');c.baleBalance=parseInt(document.getElementById('ec-bale').value)||0;
   try{
     await apiCall('/api/customers/'+parseInt(id),'PUT',c);
     closeModal();renderPage();
@@ -4842,7 +4958,7 @@ function renderAllContacts(){
       '<td style="color:var(--text3);font-size:11px">'+(idx+1)+'</td>'+
       '<td><strong>'+c.name+'</strong>'+(c.notes?'<div style="font-size:10px;color:var(--text3)">'+c.notes+'</div>':'')+'</td>'+
       '<td>'+c.phone+'</td>'+
-      '<td style="font-size:11px;color:var(--text2)">'+c.address+'</td>'+
+      '<td style="font-size:11px;color:var(--text2)">'+fmtAddr(c.address)+'</td>'+
       '<td><span class="badge '+c.stageBadge+'">'+c.stageLabel+'</span></td>'+
       '<td style="font-size:12px">'+c.contactedOn+'</td>'+
       '<td>'+ordersCell+'</td>'+
@@ -4867,10 +4983,10 @@ function renderAllContacts(){
 function exportContactsCSV(){
   var rows=[['Name','Phone','Address','Stage','Contacted On','Orders','Notes']];
   (state.prospects||[]).forEach(function(p){
-    rows.push([p.name,p.phone,p.address,p.crmStatus,p.contactedOn,prospectOrderCount(p.id),p.notes||'']);
+    rows.push([p.name,p.phone,fmtAddr(p.address),p.crmStatus,p.contactedOn,prospectOrderCount(p.id),p.notes||'']);
   });
   (state.customers||[]).forEach(function(c){
-    rows.push([c.name,c.phone,c.address,c.status||'confirmed','—',custOrderCount(c.id),'']);
+    rows.push([c.name,c.phone,fmtAddr(c.address),c.status||'confirmed','—',custOrderCount(c.id),'']);
   });
   var csv=rows.map(function(r){return r.map(function(v){return '"'+(v||'').toString().replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var encoded='data:text/csv;base64,'+btoa(unescape(encodeURIComponent(csv)));
@@ -4906,7 +5022,7 @@ function renderCRM(){
     var ordCnt=prospectOrderCount(p.id);
     return '<tr>'+
       '<td><strong>'+p.name+'</strong></td><td>'+p.phone+'</td>'+
-      '<td style="font-size:12px;color:var(--text2)">'+p.address+'</td>'+
+      '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(p.address)+'</td>'+
       '<td>'+p.contactedOn+'</td>'+
       '<td><span class="badge badge-amber">Reached Out</span></td>'+
       '<td style="font-size:12px;color:var(--text3)">'+p.notes+'</td>'+
@@ -4930,7 +5046,7 @@ function renderCRM(){
     var invoicedOrder=(state.customerOrders||[]).find(function(o){return o.prospectId===p.id&&o.status==='invoiced';});
     return '<tr>'+
       '<td><strong>'+p.name+'</strong></td><td>'+p.phone+'</td>'+
-      '<td style="font-size:12px;color:var(--text2)">'+p.address+'</td>'+
+      '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(p.address)+'</td>'+
       '<td>'+p.contactedOn+'</td>'+
       '<td><span class="badge badge-blue">Order Given</span></td>'+
       '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+p.id+',\"prospect\")">&#128203; '+ordCnt+' Orders</button>':'—')+'</td>'+
@@ -4952,7 +5068,8 @@ function showAddProspectModal(){
     '<div class="form-group full"><label>Full Name / Business Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ap-name" placeholder="Name or business"></div>'+
     '<div class="form-group"><label>Phone<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ap-phone" placeholder="10-digit number"></div>'+
     '<div class="form-group"><label>Contacted On</label><input type="date" id="ap-date" value="'+today()+'"></div>'+
-    '<div class="form-group full"><label>Address</label><input type="text" id="ap-address" placeholder="City, State"></div>'+
+    '<div class="form-group full"><label style="font-weight:600;color:var(--primary)">Address</label></div>'+
+    addrFieldsHtml('ap-addr','')+
     '<div class="form-group"><label>CRM Status</label>'+
     '<select id="ap-status">'+
     '<option value="reached-out">Reached Out</option>'+
@@ -4966,7 +5083,9 @@ function showAddProspectModal(){
 async function saveNewProspect(){
   var name=document.getElementById('ap-name').value.trim();
   if(!name){alert('Name required');return;}
-  var prospect={name:name,phone:document.getElementById('ap-phone').value,address:document.getElementById('ap-address').value,contactedOn:document.getElementById('ap-date').value,crmStatus:document.getElementById('ap-status').value,notes:document.getElementById('ap-notes').value};
+  var _apAddrErr=validateAddr('ap-addr');
+  if(_apAddrErr){alert(_apAddrErr);return;}
+  var prospect={name:name,phone:document.getElementById('ap-phone').value,address:readAddr('ap-addr'),contactedOn:document.getElementById('ap-date').value,crmStatus:document.getElementById('ap-status').value,notes:document.getElementById('ap-notes').value};
   try{
     var saved=await apiCall('/api/prospects','POST',prospect);
     state.prospects.push(saved);
@@ -4980,7 +5099,8 @@ function showEditProspectModal(id){
     '<div class="form-group full"><label>Name</label><input type="text" id="ep2-name" value="'+p.name+'"></div>'+
     '<div class="form-group"><label>Phone<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ep2-phone" value="'+(p.phone||'')+'"></div>'+
     '<div class="form-group"><label>Contacted On</label><input type="date" id="ep2-date" value="'+(p.contactedOn||today())+'"></div>'+
-    '<div class="form-group full"><label>Address</label><input type="text" id="ep2-address" value="'+(p.address||'')+'"></div>'+
+    '<div class="form-group full"><label style="font-weight:600;color:var(--primary)">Address</label></div>'+
+    addrFieldsHtml('ep2-addr',p.address||'')+
     '<div class="form-group"><label>CRM Status</label>'+
     '<select id="ep2-status">'+
     '<option value="reached-out" '+(p.crmStatus==='reached-out'?'selected':'')+'>Reached Out</option>'+
@@ -4995,7 +5115,9 @@ async function saveEditProspect(id){
   var p=getProspect(id);
   p.name=document.getElementById('ep2-name').value;
   p.phone=document.getElementById('ep2-phone').value;
-  p.address=document.getElementById('ep2-address').value;
+  var _ep2AddrErr=validateAddr('ep2-addr');
+  if(_ep2AddrErr){alert(_ep2AddrErr);return;}
+  p.address=readAddr('ep2-addr');
   p.contactedOn=document.getElementById('ep2-date').value;
   p.crmStatus=document.getElementById('ep2-status').value;
   p.notes=document.getElementById('ep2-notes').value;
@@ -5095,14 +5217,15 @@ function renderCustomerOrders(){
 // ===================== CREATE / EDIT ORDER MODAL =====================
 function showCreateOrderModal(prospectId, custId){
   var prospectOpts=state.prospects.map(function(p){return '<option value="p_'+p.id+'" '+(prospectId&&p.id===prospectId?'selected':'')+'>'+p.name+' [Prospect]</option>';}).join('');
-  var custOpts=state.customers.map(function(c){return '<option value="c_'+c.id+'" '+(custId&&c.id===custId?'selected':'')+'>'+c.name+' [Customer]</option>';}).join('');
+  var custOpts=buildSelectOpts(state.customers,function(c){return 'c_'+c.id;},function(c){return c.name+' [Customer]';},function(c){return custId&&c.id===custId?'selected':'';},
+    'No customers yet','Add New Customer');
   var isCust=!!custId;
   window._coItems=[{id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,rate:0,unit:'Pkt'}];
   showModal('Create Order',
     '<div class="form-grid">'+
     '<div class="form-group full"><label>Customer / Prospect<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-    '<select id="co-who" onchange="onCoWhoChange()">'+
-    '<option value="">— Select —</option>'+prospectOpts+custOpts+
+    '<select id="co-who" onchange="coWhoChange(this)">'+
+    '<option value="">— Select Customer/Prospect —</option>'+prospectOpts+custOpts+
     '<option value="__new_prospect__">+ Add New Prospect</option>'+
     '</select></div>'+
     '<div class="form-group"><label>Order Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="co-date" value="'+today()+'"></div>'+
@@ -5339,11 +5462,13 @@ async function saveNewOrder(){
 function showEditOrderModal(orderId){
   var o=getCustOrder(orderId);
   var prospectOpts=state.prospects.map(function(p){return '<option value="p_'+p.id+'" '+(o.prospectId===p.id?'selected':'')+'>'+p.name+' [Prospect]</option>';}).join('');
-  var custOpts=state.customers.map(function(c){return '<option value="c_'+c.id+'" '+(o.custId===c.id?'selected':'')+'>'+c.name+' [Customer]</option>';}).join('');
+  var custOpts=buildSelectOpts(state.customers,function(c){return 'c_'+c.id;},function(c){return c.name+' [Customer]';},function(c){return o.custId===c.id?'selected':'';},
+    'No customers yet','Add New Customer');
   var itemRows=(o.items||[]).map(function(item,i){
     return '<div class="form-grid" style="margin-bottom:8px" id="coi-'+i+'">'+
     '<div class="form-group"><label>Product</label><select id="coi-prod-'+i+'" onchange="onOrderItemSelect('+i+')" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%">'+
-    '<option value="">—</option>'+state.products.map(function(p){return '<option value="'+p.id+'" '+(p.id===item.productId?'selected':'')+'>'+p.name+'</option>';}).join('')+'</select></div>'+
+    buildSelectOpts(state.products,function(p){return p.id;},function(p){return p.name;},function(p){return p.id===item.productId?'selected':'';},
+    'No products yet','Add New Product')+'</select></div>'+
     '<div class="form-group"><label>Qty<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="coi-qty-'+i+'" value="'+item.qty+'" min="1" oninput="updateOrderTotal()"></div>'+
     '<div class="form-group"><label>Unit</label><select id="coi-unit-'+i+'"><option '+(item.unit==='Pcs'?'selected':'')+'>Pcs</option><option '+(item.unit==='Kg'?'selected':'')+'>Kg</option><option '+(item.unit==='Box'?'selected':'')+'>Box</option></select></div>'+
     '<div class="form-group"><label>Rate</label><input type="number" id="coi-rate-'+i+'" value="'+item.rate+'" step="0.25" oninput="updateOrderTotal()"></div>'+
@@ -5351,7 +5476,7 @@ function showEditOrderModal(orderId){
   }).join('');
   showModal('Edit Order ORD#'+orderId,
     '<div class="form-grid">'+
-    '<div class="form-group full"><label>Customer / Prospect<span style="color:var(--red-400);margin-left:2px">*</span></label><select id="co-who"><option value="">—</option>'+prospectOpts+custOpts+'</select></div>'+
+    '<div class="form-group full"><label>Customer / Prospect<span style="color:var(--red-400);margin-left:2px">*</span></label><select id="co-who" onchange="coWhoEditChange(this)"><option value="">—</option>'+prospectOpts+custOpts+'</select></div>'+
     '<div class="form-group"><label>Order Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="co-date" value="'+o.date+'"></div>'+
     '<div class="form-group"><label>Delivery Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="co-delivery" value="'+o.deliveryDate+'"></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="co-notes" value="'+(o.notes||'')+'"></div>'+
@@ -5764,7 +5889,7 @@ function renderVendorDashboard(){
   (recentPOs.map(function(po){
     var v=getVendor(po.vendorId);var s=poStatus(po);var due=getPODue(po);
     return '<tr><td><strong>PO#'+po.id+'</strong></td><td>'+v.name+'</td><td>'+po.date+'</td>'+
-      '<td style="font-size:12px;color:var(--text3)">'+(po.items||[]).map(function(i){return i.material;}).join(', ')+'</td>'+
+      '<td style="font-size:12px;color:var(--text3)">'+(po.items||[]).map(function(i){return (i.category?'['+i.category+'] ':'')+i.material;}).join(', ')+'</td>'+
       '<td class="fw600">'+fmt(po.totalAmount)+'</td>'+
       '<td class="fc-green">'+fmt(po.paid||0)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
@@ -5789,7 +5914,7 @@ function renderVendors(){
     return '<tr>'+
       '<td><div style="font-weight:600">'+v.name+'</div><div style="font-size:11px;color:var(--text3)">'+v.contact+'</div></td>'+
       '<td>'+v.phone+'</td>'+
-      '<td style="font-size:12px;color:var(--text2)">'+v.address+'</td>'+
+      '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(v.address)+'</td>'+
       '<td style="font-family:monospace;font-size:11px">'+(v.gstin||'—')+'</td>'+
       '<td style="font-size:12px;color:var(--text2)">'+v.materials+'</td>'+
       '<td>'+orders+'</td>'+
@@ -5810,7 +5935,8 @@ function showAddVendorModal(){
     '<div class="form-group full"><label>Company / Vendor Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="vn-name" placeholder="e.g. Assam Paper Mart"></div>'+
     '<div class="form-group"><label>Contact Person</label><input type="text" id="vn-contact" placeholder="Name"></div>'+
     '<div class="form-group"><label>Phone<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="vn-phone" placeholder="10-digit number"></div>'+
-    '<div class="form-group full"><label>Address</label><input type="text" id="vn-address" placeholder="City, State"></div>'+
+    '<div class="form-group full"><label style="font-weight:600;color:var(--primary)">Address</label></div>'+
+    addrFieldsHtml('vn-addr','')+
     '<div class="form-group"><label>GSTIN (optional)</label><input type="text" id="vn-gstin" placeholder="18AABCA..."></div>'+
     '<div class="form-group"><label>Materials Supplied</label><input type="text" id="vn-materials" placeholder="e.g. Kraft Paper, PE Coating"></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="vn-notes" placeholder="Any notes"></div>'+
@@ -5820,7 +5946,9 @@ function showAddVendorModal(){
 async function saveNewVendor(){
   var name=document.getElementById('vn-name').value;
   if(!name){alert('Vendor name required');return;}
-  var vendor={name:name,contact:document.getElementById('vn-contact').value,phone:document.getElementById('vn-phone').value,address:document.getElementById('vn-address').value,gstin:document.getElementById('vn-gstin').value,materials:document.getElementById('vn-materials').value,notes:document.getElementById('vn-notes').value};
+  var _vnAddrErr=validateAddr('vn-addr');
+  if(_vnAddrErr){alert(_vnAddrErr);return;}
+  var vendor={name:name,contact:document.getElementById('vn-contact').value,phone:document.getElementById('vn-phone').value,address:readAddr('vn-addr'),gstin:document.getElementById('vn-gstin').value,materials:document.getElementById('vn-materials').value,notes:document.getElementById('vn-notes').value};
   try{
     var saved=await apiCall('/api/vendors','POST',vendor);
     state.vendors.push(saved);
@@ -5834,7 +5962,8 @@ function showEditVendorModal(id){
     '<div class="form-group full"><label>Company Name<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ev-name" value="'+v.name+'"></div>'+
     '<div class="form-group"><label>Contact Person</label><input type="text" id="ev-contact" value="'+(v.contact||'')+'"></div>'+
     '<div class="form-group"><label>Phone<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="ev-phone" value="'+(v.phone||'')+'"></div>'+
-    '<div class="form-group full"><label>Address</label><input type="text" id="ev-address" value="'+(v.address||'')+'"></div>'+
+    '<div class="form-group full"><label style="font-weight:600;color:var(--primary)">Address</label></div>'+
+    addrFieldsHtml('ev-addr',v.address||'')+
     '<div class="form-group"><label>GSTIN</label><input type="text" id="ev-gstin" value="'+(v.gstin||'')+'"></div>'+
     '<div class="form-group"><label>Materials</label><input type="text" id="ev-materials" value="'+(v.materials||'')+'"></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="ev-notes" value="'+(v.notes||'')+'"></div>'+
@@ -5844,7 +5973,9 @@ function showEditVendorModal(id){
 async function saveEditVendor(id){
   var v=getVendor(id);
   v.name=document.getElementById('ev-name').value;v.contact=document.getElementById('ev-contact').value;
-  v.phone=document.getElementById('ev-phone').value;v.address=document.getElementById('ev-address').value;
+  var _evAddrErr=validateAddr('ev-addr');
+  if(_evAddrErr){alert(_evAddrErr);return;}
+  v.phone=document.getElementById('ev-phone').value;v.address=readAddr('ev-addr');
   v.gstin=document.getElementById('ev-gstin').value;v.materials=document.getElementById('ev-materials').value;
   v.notes=document.getElementById('ev-notes').value;
   try{
@@ -5904,65 +6035,175 @@ function renderPurchaseOrders(){
   +'</tbody></table></div></div>';
 }
 
-function showAddPOModal(vendorId){
-  showModal('New Purchase Order',
-    '<div class="form-grid">'+
-    '<div class="form-group"><label>Vendor<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-    '<select id="po-vendor">'+state.vendors.map(function(v){return '<option value="'+v.id+'" '+(v.id===vendorId?'selected':'')+'>'+v.name+'</option>';}).join('')+'</select></div>'+
-    '<div class="form-group"><label>Order Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="po-date" value="'+today()+'"></div>'+
-    '<div class="form-group"><label>Payment Due Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="po-due" value="'+new Date(Date.now()+15*86400000).toISOString().split('T')[0]+'"></div>'+
-    '<div class="form-group"><label>Notes</label><input type="text" id="po-notes" placeholder="Optional notes"></div>'+
+// ── PO Item categories ──
+var PO_CATEGORIES={
+  'Paper Plate Circle':{unit:'KG',  rateLabel:'Rate (₹/KG)', showPkt:false},
+  'Paper Plate Roll'  :{unit:'KG',  rateLabel:'Rate (₹/KG)', showPkt:false},
+  'Disposable Plastic':{unit:'Pkt', rateLabel:'Rate (₹/Pkt)',showPkt:true}
+};
+
+function buildPOItemRow(i){
+  return '<div class="form-grid" style="margin-bottom:8px;align-items:end" id="poi-'+i+'">'+
+    '<div class="form-group">'+
+      '<label>Category<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+      '<select id="poi-cat-'+i+'" onchange="onPOCatChange('+i+')" style="font-size:13px">'+
+        '<option value="">-- Select --</option>'+
+        Object.keys(PO_CATEGORIES).map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
+      '</select>'+
     '</div>'+
-    '<div class="divider"></div>'+
-    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">Items</div>'+
-    '<div id="po-items-wrap">'+
-    '<div class="form-grid" style="margin-bottom:8px" id="poi-0">'+
-    '<div class="form-group"><label>Material<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="poi-mat-0" placeholder="e.g. Kraft Paper Roll"></div>'+
-    '<div class="form-group"><label>Qty<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="poi-qty-0" value="1" oninput="updatePOTotal()"></div>'+
-    '<div class="form-group"><label>Unit</label><select id="poi-unit-0"><option>KG</option><option>Meter</option><option>Roll</option><option>Sheet</option><option>Litre</option></select></div>'+
-    '<div class="form-group"><label>Rate (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="poi-rate-0" value="0" oninput="updatePOTotal()"></div>'+
-    '</div></div>'+
-    '<button class="btn btn-ghost btn-sm" onclick="addPOItemRow()" style="margin-bottom:12px">+ Add Item</button>'+
-    '<div style="background:var(--green-50);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--primary)" id="po-total-display">Total: ₹0.00</div>',
-    '<button class="btn btn-primary" onclick="savePO()">Create Order</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
-  window._poItemCount=1;
+    '<div class="form-group">'+
+      '<label>Material Name<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+      '<input type="text" id="poi-mat-'+i+'" placeholder="e.g. 6 inch plate">'+
+    '</div>'+
+    '<div id="poi-pkt-wrap-'+i+'" style="display:none" class="form-group">'+
+      '<label>Pkt per Cartoon</label>'+
+      '<input type="number" id="poi-ppc-'+i+'" value="1" min="1" oninput="updatePOItemTotal('+i+')" style="width:80px">'+
+    '</div>'+
+    '<div class="form-group">'+
+      '<label id="poi-qty-lbl-'+i+'">Qty<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
+        '<input type="number" id="poi-qty-'+i+'" value="1" min="1" oninput="updatePOItemTotal('+i+')" style="width:70px">'+
+        '<span id="poi-unit-lbl-'+i+'" style="font-size:12px;color:var(--text3)">—</span>'+
+      '</div>'+
+    '</div>'+
+    '<div class="form-group">'+
+      '<label id="poi-rate-lbl-'+i+'">Rate (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+      '<input type="number" id="poi-rate-'+i+'" value="0" min="0" step="0.01" oninput="updatePOItemTotal('+i+')" style="width:90px">'+
+    '</div>'+
+    '<div class="form-group">'+
+      '<label>Amount</label>'+
+      '<div id="poi-amt-'+i+'" style="font-weight:600;color:var(--primary);padding:6px 0;font-size:14px">₹0.00</div>'+
+    '</div>'+
+    (i>0?'<button class="btn btn-danger btn-sm" onclick="removePOItem('+i+')" style="margin-bottom:8px">✕</button>':'<span></span>')+
+  '</div>';
 }
-var _poItemCount=1;
-function addPOItemRow(){
-  var wrap=document.getElementById('po-items-wrap');
-  var i=window._poItemCount||1;
-  var div=document.createElement('div');
-  div.className='form-grid';div.style.marginBottom='8px';div.id='poi-'+i;
-  div.innerHTML='<div class="form-group"><label>Material<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="text" id="poi-mat-'+i+'" placeholder="Material name"></div>'+
-    '<div class="form-group"><label>Qty<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="poi-qty-'+i+'" value="1" oninput="updatePOTotal()"></div>'+
-    '<div class="form-group"><label>Unit</label><select id="poi-unit-'+i+'"><option>KG</option><option>Meter</option><option>Roll</option><option>Sheet</option><option>Litre</option></select></div>'+
-    '<div class="form-group"><label>Rate (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="poi-rate-'+i+'" value="0" oninput="updatePOTotal()"></div>';
-  wrap.appendChild(div);
-  window._poItemCount=(window._poItemCount||1)+1;
+
+function onPOCatChange(i){
+  var cat=(document.getElementById('poi-cat-'+i)||{}).value||'';
+  var cfg=PO_CATEGORIES[cat];
+  var pktWrap=document.getElementById('poi-pkt-wrap-'+i);
+  var unitLbl=document.getElementById('poi-unit-lbl-'+i);
+  var rateLbl=document.getElementById('poi-rate-lbl-'+i);
+  var qtyLbl=document.getElementById('poi-qty-lbl-'+i);
+  if(!cfg||!cat){
+    if(pktWrap) pktWrap.style.display='none';
+    if(unitLbl) unitLbl.textContent='—';
+    if(rateLbl) rateLbl.textContent='Rate (₹)';
+    if(qtyLbl) qtyLbl.innerHTML='Qty<span style="color:var(--red-400);margin-left:2px">*</span>';
+    return;
+  }
+  if(cfg.showPkt){
+    if(pktWrap) pktWrap.style.display='';
+    if(unitLbl) unitLbl.textContent='Cartoon(s)';
+    if(qtyLbl) qtyLbl.innerHTML='Qty (Cartoon)<span style="color:var(--red-400);margin-left:2px">*</span>';
+  } else {
+    if(pktWrap) pktWrap.style.display='none';
+    if(unitLbl) unitLbl.textContent=cfg.unit;
+    if(qtyLbl) qtyLbl.innerHTML='Qty ('+cfg.unit+')<span style="color:var(--red-400);margin-left:2px">*</span>';
+  }
+  if(rateLbl) rateLbl.textContent=cfg.rateLabel;
+  updatePOItemTotal(i);
 }
+
+function updatePOItemTotal(i){
+  var cat=(document.getElementById('poi-cat-'+i)||{}).value||'';
+  var cfg=PO_CATEGORIES[cat];
+  var qty=parseFloat((document.getElementById('poi-qty-'+i)||{}).value)||0;
+  var rate=parseFloat((document.getElementById('poi-rate-'+i)||{}).value)||0;
+  var ppc=parseFloat((document.getElementById('poi-ppc-'+i)||{}).value)||1;
+  var amt=0;
+  if(cfg&&cfg.showPkt){
+    // Disposable Plastic: qty=cartoons, ppc=pkt/cartoon, rate=per pkt
+    // Amount = cartoons * pkt/cartoon * rate/pkt
+    amt=qty*ppc*rate;
+  } else {
+    // Paper Plate: qty=KG, rate=per KG
+    amt=qty*rate;
+  }
+  var amtEl=document.getElementById('poi-amt-'+i);
+  if(amtEl) amtEl.textContent=fmt(amt);
+  updatePOTotal();
+}
+
 function updatePOTotal(){
   var total=0;var n=window._poItemCount||1;
   for(var i=0;i<n;i++){
-    var qty=parseFloat((document.getElementById('poi-qty-'+i)||{}).value)||0;
-    var rate=parseFloat((document.getElementById('poi-rate-'+i)||{}).value)||0;
-    total+=qty*rate;
+    var amtEl=document.getElementById('poi-amt-'+i);
+    if(amtEl){
+      var v=parseFloat(amtEl.textContent.replace(/[₹,]/g,''))||0;
+      total+=v;
+    }
   }
   var el=document.getElementById('po-total-display');
-  if(el) el.textContent='Total: '+fmt(total);
+  if(el) el.innerHTML='Total: <strong>'+fmt(total)+'</strong>';
 }
+
+function removePOItem(i){
+  var el=document.getElementById('poi-'+i);
+  if(el) el.remove();
+  updatePOTotal();
+}
+
+function showAddPOModal(vendorId){
+  window._poItemCount=1;
+  showModal('New Purchase Order',
+    '<div class="form-grid">'+
+    '<div class="form-group"><label>Vendor<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+    '<select id="po-vendor" onchange="poVendorChange(this)">'+
+    buildSelectOpts(state.vendors,function(v){return v.id;},function(v){return v.name;},function(v){return v.id===vendorId?'selected':'';},
+    'No vendors yet','Add New Vendor')+
+    '</select></div>'+
+    '<div class="form-group"><label>Order Date</label><input type="date" id="po-date" value="'+today()+'"></div>'+
+    '<div class="form-group"><label>Payment Due Date</label><input type="date" id="po-due" value="'+new Date(Date.now()+15*86400000).toISOString().split('T')[0]+'"></div>'+
+    '<div class="form-group"><label>Notes</label><input type="text" id="po-notes" placeholder="Optional notes"></div>'+
+    '</div>'+
+    '<div class="divider"></div>'+
+    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">Items</div>'+
+    '<div id="po-items-wrap">'+buildPOItemRow(0)+'</div>'+
+    '<button class="btn btn-ghost btn-sm" onclick="addPOItemRow()" style="margin:8px 0 12px">+ Add Item</button>'+
+    '<div style="background:var(--green-50);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--primary)" id="po-total-display">Total: <strong>₹0.00</strong></div>',
+    '<button class="btn btn-primary" onclick="savePO()">Create Order</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+}
+
+var _poItemCount=1;
+function addPOItemRow(){
+  var wrap=document.getElementById('po-items-wrap');
+  if(!wrap) return;
+  var i=window._poItemCount||1;
+  var div=document.createElement('div');
+  div.innerHTML=buildPOItemRow(i);
+  wrap.appendChild(div.firstChild);
+  window._poItemCount=i+1;
+}
+
 async function savePO(){
-  var vendorId=parseInt(document.getElementById('po-vendor').value);
-  var date=document.getElementById('po-date').value;
-  var dueDate=document.getElementById('po-due').value;
-  var notes=document.getElementById('po-notes').value;
+  var vendorId=parseInt((document.getElementById('po-vendor')||{}).value||0);
+  var date=(document.getElementById('po-date')||{}).value;
+  var dueDate=(document.getElementById('po-due')||{}).value;
+  var notes=(document.getElementById('po-notes')||{}).value||'';
   var items=[];var total=0;
   var n=window._poItemCount||1;
   for(var i=0;i<n;i++){
-    var mat=(document.getElementById('poi-mat-'+i)||{}).value;
+    var row=document.getElementById('poi-'+i);
+    if(!row) continue;
+    var cat=(document.getElementById('poi-cat-'+i)||{}).value||'';
+    var mat=(document.getElementById('poi-mat-'+i)||{}).value||'';
     var qty=parseFloat((document.getElementById('poi-qty-'+i)||{}).value)||0;
-    var unit=(document.getElementById('poi-unit-'+i)||{}).value||'KG';
     var rate=parseFloat((document.getElementById('poi-rate-'+i)||{}).value)||0;
-    if(mat&&qty>0){items.push({material:mat,qty:qty,unit:unit,rate:rate});total+=qty*rate;}
+    var ppc=parseFloat((document.getElementById('poi-ppc-'+i)||{}).value)||1;
+    var cfg=PO_CATEGORIES[cat];
+    if(!cat||!mat||qty<=0) continue;
+    var unit,amt,displayQty,displayUnit;
+    if(cfg&&cfg.showPkt){
+      unit='Pkt'; amt=qty*ppc*rate;
+      displayQty=qty+' Cartoon ('+(qty*ppc)+' Pkt)';
+      displayUnit='Pkt';
+    } else {
+      unit=cfg?cfg.unit:'KG'; amt=qty*rate;
+      displayQty=qty; displayUnit=unit;
+    }
+    items.push({category:cat,material:mat,qty:qty,pktPerCartoon:cfg&&cfg.showPkt?ppc:null,unit:unit,rate:rate,amount:amt,displayQty:displayQty,displayUnit:displayUnit});
+    total+=amt;
   }
   if(!vendorId||!items.length){alert('Please select a vendor and add at least one item.');return;}
   var po={vendorId:vendorId,date:date,items:items,totalAmount:total,paid:0,status:'unpaid',dueDate:dueDate,notes:notes};
@@ -5970,7 +6211,7 @@ async function savePO(){
     var saved=await apiCall('/api/purchase-orders','POST',po);
     state.purchaseOrders.push(saved);
     closeModal();renderPage();
-  }catch(e){alert('Failed to save purchase order: '+e.message);}
+  }catch(e){alert('Failed to save: '+e.message);}
 }
 function showPODetailModal(poId){
   var po=state.purchaseOrders.find(function(p){return p.id===poId;});
@@ -5981,8 +6222,13 @@ function showPODetailModal(poId){
     '<div style="font-weight:700">'+v.name+'</div><div style="font-size:12px;color:var(--text3)">'+v.phone+'</div></div>'+
     '<div style="background:var(--gray-50);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--primary);font-weight:700;text-transform:uppercase;margin-bottom:4px">Order Details</div>'+
     '<div style="font-size:12px">Date: '+po.date+'</div><div style="font-size:12px">Due: '+po.dueDate+'</div></div></div>'+
-    '<table class="inv-tbl"><thead><tr><th>Material</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+(
-    (po.items||[]).map(function(item){return '<tr><td>'+item.material+'</td><td>'+item.qty+'</td><td>'+item.unit+'</td><td>'+fmt(item.rate)+'</td><td class="fw600">'+fmt(item.qty*item.rate)+'</td></tr>';}).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
+    '<table class="inv-tbl"><thead><tr><th>Category</th><th>Material</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+(
+    (po.items||[]).map(function(item){
+      var qtyStr=item.pktPerCartoon?item.qty+' Cartoon ('+(item.qty*item.pktPerCartoon)+' Pkt)':item.qty+' '+(item.displayUnit||item.unit||'');
+      var rateStr=item.category==='Disposable Plastic'?fmt(item.rate)+'/Pkt':fmt(item.rate)+'/'+(item.displayUnit||item.unit||'unit');
+      var amt=item.amount!=null?item.amount:(item.pktPerCartoon?item.qty*item.pktPerCartoon*item.rate:item.qty*item.rate);
+      return '<tr><td><span class="badge badge-blue" style="font-size:10px">'+(item.category||'—')+'</span></td><td>'+item.material+'</td><td>'+qtyStr+'</td><td>'+rateStr+'</td><td class="fw600">'+fmt(amt)+'</td></tr>';
+    }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
     +'</tbody><tfoot>'+
     '<tr><td colspan="4" style="text-align:right;padding:8px 12px">Total:</td><td style="padding:8px 12px;font-weight:600">'+fmt(po.totalAmount)+'</td></tr>'+
     '<tr><td colspan="4" style="text-align:right;padding:8px 12px;color:var(--primary)">Paid:</td><td style="padding:8px 12px;color:var(--primary);font-weight:600">'+fmt(po.paid||0)+'</td></tr>'+
