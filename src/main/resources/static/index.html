@@ -481,7 +481,7 @@ function addrFieldsHtml(prefix, val){
     '<div class="form-group"><label>Town / Village<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
     '<input type="text" id="'+prefix+'-town" value="'+town+'" placeholder="e.g. Baruapatty" required></div>'+
     '<div class="form-group"><label>State<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-    '<select id="'+prefix+'-state" onchange="onAddrStateChange(this.id.replace(/-state$/,\'\'))" required>'+
+    '<select id="'+prefix+'-state" data-prefix="'+prefix+'" onchange="onAddrStateChange(this)" required>'+
     '<option value="">-- Select State --</option>'+stateOpts+'</select></div>'+
     '<div class="form-group"><label>District<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
     '<select id="'+prefix+'-district" required>'+
@@ -491,8 +491,15 @@ function addrFieldsHtml(prefix, val){
 }
 
 function onAddrStateChange(elOrPrefix){
-  var prefix=typeof elOrPrefix==='string'?elOrPrefix:elOrPrefix.id.replace(/-state$/,'');
-  var st=(document.getElementById(prefix+'-state')||{}).value||'';
+  var prefix,st;
+  if(typeof elOrPrefix==='string'){
+    prefix=elOrPrefix;
+    st=(document.getElementById(prefix+'-state')||{}).value||'';
+  } else {
+    prefix=elOrPrefix.dataset?elOrPrefix.dataset.prefix:elOrPrefix.getAttribute('data-prefix');
+    if(!prefix) prefix=elOrPrefix.id.replace(/-state$/,'');
+    st=elOrPrefix.value||'';
+  }
   var distSel=document.getElementById(prefix+'-district');
   if(!distSel) return;
   var dists=(st&&INDIA_STATES[st])||[];
