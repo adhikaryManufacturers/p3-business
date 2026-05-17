@@ -473,9 +473,15 @@ function addrFieldsHtml(prefix, val){
   var stateOpts=Object.keys(INDIA_STATES).sort().map(function(s){
     return '<option value="'+s+'"'+(s===st?' selected':'')+'>'+s+'</option>';
   }).join('');
-  var distOpts=st&&INDIA_STATES[st]?INDIA_STATES[st].map(function(d){
-    return '<option value="'+d+'"'+(d===dist?' selected':'')+'>'+d+'</option>';
-  }).join(''):'<option value="">-- Select State first --</option>';
+  // Always build district opts from current state; empty if no state selected
+  var distOpts='<option value="">-- Select District --</option>';
+  if(st && INDIA_STATES[st]){
+    distOpts+=INDIA_STATES[st].map(function(d){
+      return '<option value="'+d+'"'+(d===dist?' selected':'')+'>'+d+'</option>';
+    }).join('');
+  }
+  // Use a unique init token so we can trigger district populate after render
+  var initAttr=st?(' data-init-state="'+st+'"'):'';
   return '<div class="form-group"><label>Place<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
     '<input type="text" id="'+prefix+'-place" value="'+place+'" placeholder="e.g. Gauripur" required></div>'+
     '<div class="form-group"><label>Town / Village<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
@@ -484,27 +490,30 @@ function addrFieldsHtml(prefix, val){
     '<select id="'+prefix+'-state" data-prefix="'+prefix+'" onchange="onAddrStateChange(this)" required>'+
     '<option value="">-- Select State --</option>'+stateOpts+'</select></div>'+
     '<div class="form-group"><label>District<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-    '<select id="'+prefix+'-district" required>'+
-    '<option value="">-- Select District --</option>'+distOpts+'</select></div>'+
+    '<select id="'+prefix+'-district"'+initAttr+' required>'+distOpts+'</select></div>'+
     '<div class="form-group"><label>PIN Code<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
     '<input type="text" id="'+prefix+'-pin" value="'+pin+'" placeholder="6-digit PIN" maxlength="6" pattern="[0-9]{6}" required></div>';
 }
 
-function onAddrStateChange(elOrPrefix){
+function onAddrStateChange(elOrPrefix, selectedDist){
   var prefix,st;
   if(typeof elOrPrefix==='string'){
     prefix=elOrPrefix;
     st=(document.getElementById(prefix+'-state')||{}).value||'';
   } else {
-    prefix=elOrPrefix.dataset?elOrPrefix.dataset.prefix:elOrPrefix.getAttribute('data-prefix');
-    if(!prefix) prefix=elOrPrefix.id.replace(/-state$/,'');
+    prefix=(elOrPrefix.dataset&&elOrPrefix.dataset.prefix)||elOrPrefix.getAttribute('data-prefix')||elOrPrefix.id.replace(/-state$/,'');
     st=elOrPrefix.value||'';
   }
   var distSel=document.getElementById(prefix+'-district');
   if(!distSel) return;
   var dists=(st&&INDIA_STATES[st])||[];
+  if(!dists.length){
+    distSel.innerHTML='<option value="">-- Select State first --</option>';
+    return;
+  }
+  var prev=selectedDist||distSel.value||'';
   distSel.innerHTML='<option value="">-- Select District --</option>'+
-    dists.map(function(d){return '<option value="'+d+'">'+d+'</option>';}).join('');
+    dists.map(function(d){return '<option value="'+d+'"'+(d===prev?' selected':'')+'>'+d+'</option>';}).join('');
 }
 
 function readAddr(prefix){
@@ -1464,6 +1473,18 @@ function showModal(title,bodyHtml,footerHtml){
     mf.innerHTML=footerHtml||'';
   }
   ov.style.display='flex';
+  // Auto-populate district dropdowns for pre-selected states
+  setTimeout(function(){
+    var stSels=(ov||document).querySelectorAll('select[data-prefix]');
+    stSels.forEach(function(sel){
+      if(sel.value){
+        var prefix=sel.dataset.prefix||(sel.id.replace(/-state$/,''));
+        var distEl=document.getElementById(prefix+'-district');
+        var savedDist=distEl?distEl.getAttribute('data-init-state')||'':'';
+        onAddrStateChange(sel, savedDist);
+      }
+    });
+  },0);
 }
 
 function resetModal(){
