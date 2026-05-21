@@ -1271,7 +1271,6 @@ function renderAccount() {
       </button>`;
     return;
   }
-  }
   el.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
@@ -1377,8 +1376,12 @@ function logout() {
   showToast('Logged out');
 }
 
-/* ══ INIT ══ */
-loadProducts();
+/* ── INIT ── */
+document.addEventListener('DOMContentLoaded', function() {
+  loadProducts();
+});
+// Also run immediately in case DOMContentLoaded already fired
+if (document.readyState !== 'loading') loadProducts();
 </script>
 </body>
 </html>
