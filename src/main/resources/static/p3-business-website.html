@@ -1294,12 +1294,15 @@ async function postOrderToAPI(order) {
     if (res.ok) {
       const data = await res.json();
       console.log('✅ Order saved to P3 app:', data);
+      showToast('✅ Order sent to P3 Business app!');
     } else {
       const err = await res.text();
       console.warn('❌ Order API error:', res.status, err);
+      showToast('⚠️ Order saved locally. Sync pending.');
     }
   } catch(e) {
-    console.warn('Order API (non-blocking):', e.message);
+    console.warn('Order API (CORS/network):', e.message);
+    showToast('⚠️ Order saved locally. Will sync when online.');
   }
 }
 
