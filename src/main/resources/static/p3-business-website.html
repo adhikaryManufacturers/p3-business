@@ -778,19 +778,82 @@ let PRODUCTS = [];
 let cart = {};
 let currentUser = null;
 let selectedPayment = null;
-let myOrders = []; // stores orders placed in this session + loaded from localStorage
 
-// Load persisted orders from localStorage on startup
-try {
-  const saved = localStorage.getItem('p3_orders');
-  if (saved) myOrders = JSON.parse(saved);
-} catch(e) { myOrders = []; }
+// ── Per-user order storage ──
+// Orders stored as: p3_orders_<userId> or p3_orders_<phone>
+// This ensures each customer only sees their own orders
+
+function getUserKey() {
+  if (!currentUser) return null;
+  // Use id if available (registered), else phone as fallback
+  return 'p3_orders_' + (currentUser.id || currentUser.phone || 'guest');
+}
+
+function loadUserOrders() {
+  const key = getUserKey();
+  if (!key) return [];
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : [];
+  } catch(e) { return []; }
+}
+
+function saveUserOrders(orders) {
+  const key = getUserKey();
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify(orders)); } catch(e) {}
+}
+
+let myOrders = []; // loaded per-user after login
 
 // Load persisted user from localStorage
 try {
   const savedUser = localStorage.getItem('p3_user');
-  if (savedUser) currentUser = JSON.parse(savedUser);
+  if (savedUser) {
+    currentUser = JSON.parse(savedUser);
+    myOrders = loadUserOrders(); // load THIS user's orders
+  }
 } catch(e) { currentUser = null; }
+
+// Pending registrations/orders to sync when API becomes available
+let pendingSync = [];
+try {
+  const ps = localStorage.getItem('p3_pending_sync');
+  if (ps) pendingSync = JSON.parse(ps);
+} catch(e) { pendingSync = []; }
+
+async function trySyncPending() {
+  if (!pendingSync.length) return;
+  const remaining = [];
+  for (const item of pendingSync) {
+    try {
+      const res = await fetch(CFG.api + item.url, {
+        method: item.method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item.body)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // If this was a customer registration, update currentUser.id
+        if (item.type === 'register' && data.id && currentUser && currentUser.phone === item.body.phone) {
+          currentUser.id = data.id;
+          try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
+          // Migrate orders to new key
+          const oldOrders = loadUserOrders();
+          const newKey = 'p3_orders_' + data.id;
+          try { localStorage.setItem(newKey, JSON.stringify(oldOrders)); } catch(e) {}
+        }
+        console.log('✅ Synced pending item:', item.type);
+      } else {
+        remaining.push(item); // still failed, keep for next time
+      }
+    } catch(e) {
+      remaining.push(item); // network error, keep for next time
+    }
+  }
+  pendingSync = remaining;
+  try { localStorage.setItem('p3_pending_sync', JSON.stringify(pendingSync)); } catch(e) {}
+}
 
 /* ══════════════════════════════════════════════════════
    HELPERS
@@ -891,6 +954,8 @@ async function loadProducts() {
         buildProductsCats();
         renderGrid(PRODUCTS, 'products-grid');
         console.log('✅ Live products loaded from Railway:', list.length);
+    // API is reachable — try syncing any pending registrations/orders
+    trySyncPending();
       }
     }
   } catch(e) {
@@ -1236,8 +1301,9 @@ function finalizeOrder(oid, total, addr, items, method, payId) {
     payId: payId || null,
     createdAt: new Date().toISOString(),
   };
-  myOrders.unshift(newOrder); // add to top
-  try { localStorage.setItem('p3_orders', JSON.stringify(myOrders)); } catch(e) {}
+  myOrders = loadUserOrders(); // reload this user's orders fresh
+  myOrders.unshift(newOrder);  // add new order at top
+  saveUserOrders(myOrders);    // save back to THIS user's key
 
   // 2. POST order to Railway API (non-blocking)
   postOrderToAPI(newOrder).catch(e => console.warn('Order API failed:', e));
@@ -1301,8 +1367,27 @@ async function postOrderToAPI(order) {
       showToast('⚠️ Order saved locally. Sync pending.');
     }
   } catch(e) {
-    console.warn('Order API (CORS/network):', e.message);
-    showToast('⚠️ Order saved locally. Will sync when online.');
+    console.warn('⚠️ Order API unreachable:', e.message, '— queuing for sync');
+    // Queue for sync when API becomes reachable
+    try {
+      const syncItems = Object.entries(cart_snapshot).map(([id, qty]) => {
+        const p = PRODUCTS.find(x => x.id == id);
+        return { productId: parseInt(id), qty, unit: p?(p.unit||'Pcs'):'Pcs', rate: p?p.price:0 };
+      }).filter(i => i.qty > 0);
+      pendingSync.push({
+        type: 'order', url: '/api/orders', method: 'POST',
+        body: {
+          custId:       currentUser?.id || null,
+          date:         new Date().toISOString().split('T')[0],
+          deliveryDate: new Date(Date.now()+3*24*60*60*1000).toISOString().split('T')[0],
+          notes:        order.addr ? ('Customer: '+(order.addr.name||'')+' | Phone: '+(order.addr.phone||'')+' | Addr: '+(order.addr.addr||'')+', '+(order.addr.city||'')+' | Payment: '+order.payment) : '',
+          status:       'CONFIRMED',
+          items:        syncItems,
+        }
+      });
+      try { localStorage.setItem('p3_pending_sync', JSON.stringify(pendingSync)); } catch(e2) {}
+    } catch(e3) { console.warn('Queue error:', e3); }
+    showToast('⚠️ Order saved locally. Will sync to P3 app when online.');
   }
 }
 
@@ -1364,6 +1449,8 @@ function renderOrders() {
     el.innerHTML = `<div class="empty-state"><div class="empty-ico">📦</div><div class="empty-title">Login to view orders</div><button class="btn-primary" style="max-width:160px;margin:0 auto" onclick="showPage('account')">Login</button></div>`;
     return;
   }
+  // Always reload from THIS user's localStorage key
+  myOrders = loadUserOrders();
   if (!myOrders.length) {
     el.innerHTML = `<div class="empty-state">
       <div class="empty-ico">📦</div>
@@ -1503,18 +1590,21 @@ async function doLogin() {
       if (found) {
         currentUser = { id: found.id, name: found.name, phone: found.phone, address: found.address || '' };
         try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
+        myOrders = loadUserOrders(); // load THIS customer's orders
+        await trySyncPending();      // try to sync any pending registrations/orders
         renderAccount();
-        showToast('✓ Welcome back, ' + currentUser.name + '!');
+        showToast('✅ Welcome back, ' + currentUser.name + '!');
         return;
       }
     }
   } catch(e) { console.warn('Login API:', e.message); }
 
-  // Fallback: local session (customer not registered yet)
-  currentUser = { id: null, name: name || 'Customer', phone, address: '' };
+  // Fallback: local session (API unreachable or customer not found)
+  currentUser = { id: null, name: name || phone, phone, address: '' };
   try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
+  myOrders = loadUserOrders(); // load any locally saved orders for this phone
   renderAccount();
-  showToast('✓ Logged in as ' + currentUser.name);
+  showToast('⚠️ Logged in locally (phone not found in P3 app)');
 }
 
 async function doSignup() {
@@ -1526,43 +1616,52 @@ async function doSignup() {
   const btn = document.querySelector('#auth-fields .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Registering…'; }
 
-  // POST to /api/customers — matches your Customer entity exactly
-  // Customer fields: name, phone, address, baleBalance(default 0), status
+  const customerPayload = {
+    name:        name,
+    phone:       phone,
+    address:     address || '',
+    baleBalance: 0,
+    status:      'ACTIVE',
+  };
+
   try {
     const res = await fetch(CFG.api + '/api/customers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name:        name,
-        phone:       phone,
-        address:     address || '',
-        baleBalance: 0,
-        status:      'ACTIVE',
-      })
+      body: JSON.stringify(customerPayload)
     });
     if (res.ok) {
       const saved = await res.json();
-      currentUser = { id: saved.id, name: saved.name, phone: saved.phone, address: saved.address || '' };
-      showToast('✓ Registered! Welcome, ' + currentUser.name + '!');
+      // ✅ Got real ID from P3 app — customer is in the database
+      currentUser = { id: saved.id, name: saved.name || name, phone: saved.phone || phone, address: saved.address || address || '' };
+      showToast('✅ Registered! Welcome, ' + currentUser.name + '!');
+      console.log('✅ Customer saved to P3 app with id:', saved.id);
     } else {
-      throw new Error('Registration failed');
+      const errText = await res.text();
+      throw new Error('API returned: ' + res.status + ' ' + errText);
     }
   } catch(e) {
-    console.warn('Signup API:', e.message);
-    // Fallback local session
+    console.warn('⚠️ Registration API failed:', e.message, '— saving locally + queuing sync');
+    // Save locally with null id — will sync when API is reachable
     currentUser = { id: null, name, phone, address: address || '' };
-    showToast('✓ Welcome, ' + name + '!');
+    // Queue for background sync
+    pendingSync.push({ type: 'register', url: '/api/customers', method: 'POST', body: customerPayload });
+    try { localStorage.setItem('p3_pending_sync', JSON.stringify(pendingSync)); } catch(e2) {}
+    showToast('✓ Registered locally. Will sync to P3 app when online.');
   }
 
   try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
+  myOrders = loadUserOrders(); // init empty order list for new user
   renderAccount();
 }
 
 function logout() {
   currentUser = null;
+  myOrders = []; // clear in-memory orders — each user loads their own on login
   try { localStorage.removeItem('p3_user'); } catch(e) {}
+  updateBadge(); // reset cart badge
   renderAccount();
-  showToast('Logged out');
+  showToast('Logged out successfully');
 }
 
 /* ── INIT ── */
