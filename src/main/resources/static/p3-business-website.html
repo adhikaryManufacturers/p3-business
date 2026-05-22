@@ -1829,17 +1829,15 @@ async function doSignup() {
   const email   = document.getElementById('a-email')?.value.trim();
   const phone   = document.getElementById('a-phone')?.value.trim();
   const address = document.getElementById('a-address')?.value.trim();
+  const pass    = document.getElementById('a-pass')?.value;
   if (!name)  { showToast('Enter your full name'); return; }
   if (!email) { showToast('Enter your email address'); return; }
   if (!phone) { showToast('Enter your phone number'); return; }
+  if (!pass)  { showToast('Enter a password'); return; }
+  if (pass.length < 6) { showToast('Password must be at least 6 characters'); return; }
 
   const btn = document.querySelector('#auth-fields .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Creating account…'; }
-
-  const email   = document.getElementById('a-email')?.value.trim();
-  const pass    = document.getElementById('a-pass')?.value;
-  if (!pass)  { showToast('Enter a password'); return; }
-  if (pass.length < 6) { showToast('Password must be at least 6 characters'); return; }
 
   // Step 1 — Register in User table (for login) with role CUSTOMER
   try {
