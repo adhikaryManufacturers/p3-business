@@ -1216,8 +1216,25 @@ function goCheckout() {
 }
 function renderCheckout() {
   const sub=cartSub(), total=sub;
+  const syncWarning = !currentUser?.id
+    ? `<div style="background:#FFF3CD;border:1px solid #FFD54F;border-radius:var(--r);padding:10px 13px;font-size:12px;color:#856404;margin-bottom:12px;line-height:1.6">
+        ⚠️ Your account is not synced to P3 Business yet. Open this website from
+        <strong><a href="https://p3-business-production.up.railway.app/p3-business-website.html" style="color:#856404;text-decoration:underline">the Railway URL</a></strong>
+        for orders to appear in the admin panel with your name.
+       </div>`
+    : '';
+  const userInfo = currentUser?.id
+    ? `<div class="info-box ib-green mb-3">
+        <span style="font-size:18px">✅</span>
+        <div>Ordering as <strong>${currentUser.name}</strong> · ${currentUser.phone || ''}<br>
+        <span style="font-size:11px;opacity:0.8">P3 Customer #${currentUser.id}</span></div>
+       </div>`
+    : `<div class="info-box ib-amber mb-3">
+        <span style="font-size:16px">👤</span>
+        <div>Ordering as <strong>${currentUser.name}</strong> · ${currentUser.phone || ''}</div>
+       </div>`;
   document.getElementById('checkout-content').innerHTML = `
-    <div class="info-box ib-green mb-3"><span class="ico"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2" fill="none"/><polyline points="16 11 18 13 22 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></span><div>Ordering as <strong>${currentUser.name}</strong> · ${currentUser.phone}</div></div>
+    ${syncWarning}${userInfo}
     <div class="sec-card">
       <div class="sc-title"><span class="ico"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2" fill="none"/></svg></span> Delivery Address</div>
       <div class="row g-2">
@@ -1338,18 +1355,22 @@ async function postOrderToAPI(order) {
     const deliveryDate = new Date(Date.now() + 3*24*60*60*1000).toISOString().split('T')[0];
 
     // Build payload matching CustomerOrder entity exactly
+    const custId = currentUser?.id ? parseInt(currentUser.id) : null;
     const payload = {
-      custId:       currentUser?.id || null,
+      custId:       custId,
+      prospectId:   null,
       date:         today,
       deliveryDate: deliveryDate,
-      notes:        (order.addr.notes || '') +
-                    (order.addr.name  ? ' | Customer: ' + order.addr.name  : '') +
-                    (order.addr.phone ? ' | Phone: '    + order.addr.phone : '') +
-                    (order.addr.addr  ? ' | Address: '  + order.addr.addr + ', ' + (order.addr.city||'') + ' - ' + (order.addr.pin||'') : '') +
-                    ' | Payment: ' + order.payment,
-      status:       'CONFIRMED',
+      notes:        [
+        order.addr.notes  ? 'Note: '    + order.addr.notes  : '',
+        order.addr.addr   ? 'Addr: '    + order.addr.addr + ', ' + (order.addr.city||'') + ' - ' + (order.addr.pin||'') : '',
+        'Payment: ' + order.payment,
+        'OrderRef: ' + order.id,
+      ].filter(Boolean).join(' | '),
+      status:       'pending',
       items:        orderItems,
     };
+    console.log('📦 Posting order — custId:', custId, 'payload:', JSON.stringify(payload, null, 2));
 
     const res = await fetch(CFG.api + '/api/orders', {
       method:  'POST',
@@ -1377,11 +1398,15 @@ async function postOrderToAPI(order) {
       pendingSync.push({
         type: 'order', url: '/api/orders', method: 'POST',
         body: {
-          custId:       currentUser?.id || null,
+          custId:       currentUser?.id ? parseInt(currentUser.id) : null,
           date:         new Date().toISOString().split('T')[0],
           deliveryDate: new Date(Date.now()+3*24*60*60*1000).toISOString().split('T')[0],
-          notes:        order.addr ? ('Customer: '+(order.addr.name||'')+' | Phone: '+(order.addr.phone||'')+' | Addr: '+(order.addr.addr||'')+', '+(order.addr.city||'')+' | Payment: '+order.payment) : '',
-          status:       'CONFIRMED',
+          notes:        order.addr ? [
+            order.addr.addr ? 'Addr: '+(order.addr.addr||'')+', '+(order.addr.city||'')+' - '+(order.addr.pin||'') : '',
+            'Payment: '+order.payment,
+            'OrderRef: '+order.id,
+          ].filter(Boolean).join(' | ') : ('OrderRef: '+order.id),
+          status:       'pending',
           items:        syncItems,
         }
       });
@@ -1463,14 +1488,19 @@ function renderOrders() {
   const sm = { confirmed:'sp-confirmed', processing:'sp-processing', shipped:'sp-shipped', delivered:'sp-delivered', cancelled:'sp-cancelled' };
   el.innerHTML = myOrders.map(o => `
     <div class="order-card" onclick="showTracking('${o.id}','${o.status}','${o.date}')">
-      <div class="d-flex justify-content-between align-items-start mb-2">
-        <div style="font-family:var(--font-head);font-size:13px;font-weight:700">${o.id}</div>
+      <div class="d-flex justify-content-between align-items-start mb-1">
+        <div>
+          <div style="font-family:var(--font-head);font-size:13px;font-weight:800;color:var(--gd)">${o.id}</div>
+          <div style="font-size:10px;color:var(--sub);margin-top:1px">${o.date}</div>
+        </div>
         <span class="spill ${sm[o.status] || 'sp-confirmed'}">${o.status}</span>
       </div>
-      <div style="font-size:12px;color:var(--sub);margin-bottom:8px;line-height:1.5">${o.items}</div>
+      <div style="font-size:12px;color:var(--txt);margin:8px 0;line-height:1.6;background:var(--bg);border-radius:var(--r);padding:8px 10px">${o.items}</div>
       <div class="d-flex justify-content-between align-items-center" style="border-top:.5px solid #f0f0f0;padding-top:8px">
-        <span style="font-family:var(--font-head);font-weight:700;font-size:13px;color:var(--gd)">₹${o.amount}</span>
-        <span style="font-size:11px;color:var(--sub)">${o.date} · ${o.payment}</span>
+        <span style="font-family:var(--font-head);font-weight:800;font-size:14px;color:var(--gd)">₹${o.amount}</span>
+        <span style="font-size:11px;color:var(--sub);display:flex;align-items:center;gap:6px">
+          <span style="background:${o.payment==='Razorpay'?'#E6F1FB':'#EAF3DE'};color:${o.payment==='Razorpay'?'#185FA5':'#3B6D11'};padding:2px 8px;border-radius:10px;font-weight:600">${o.payment}</span>
+        </span>
       </div>
     </div>`).join('');
 }
@@ -1518,10 +1548,13 @@ function renderAccount() {
     el.innerHTML = `
       <div class="u-profile">
         <div class="u-avatar">${currentUser.name.charAt(0).toUpperCase()}</div>
-        <div>
+        <div style="flex:1">
           <div style="font-size:14px;font-weight:700">${currentUser.name}</div>
-          <div style="font-size:12px;color:var(--gd)">${currentUser.phone || 'No phone added'}</div>
-          <div style="font-size:11px;color:var(--sub)">${currentUser.address || 'No address saved'}</div>
+          <div style="font-size:12px;color:var(--gd)">${currentUser.phone || 'No phone'}</div>
+          ${currentUser.id
+            ? `<div style="font-size:10px;background:var(--gp);color:var(--gd);padding:2px 8px;border-radius:10px;display:inline-block;margin-top:3px;font-weight:600">✅ P3 Customer #${currentUser.id}</div>`
+            : `<div style="font-size:10px;background:#FFF8E1;color:#795548;padding:2px 8px;border-radius:10px;display:inline-block;margin-top:3px;font-weight:600">⚠️ Not synced to P3 app yet</div>`
+          }
         </div>
       </div>
       <button class="amenu-btn" onclick="showPage('orders')">
@@ -1634,7 +1667,9 @@ async function doSignup() {
       const saved = await res.json();
       // ✅ Got real ID from P3 app — customer is in the database
       currentUser = { id: saved.id, name: saved.name || name, phone: saved.phone || phone, address: saved.address || address || '' };
-      showToast('✅ Registered! Welcome, ' + currentUser.name + '!');
+      try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e2) {}
+      myOrders = loadUserOrders();
+      showToast('✅ Registered in P3 app! Customer ID: ' + saved.id);
       console.log('✅ Customer saved to P3 app with id:', saved.id);
     } else {
       const errText = await res.text();
@@ -1651,8 +1686,8 @@ async function doSignup() {
   }
 
   try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
-  myOrders = loadUserOrders(); // init empty order list for new user
-  renderAccount();
+  myOrders = loadUserOrders();
+  renderAccount(); // re-render immediately to show P3 Customer # badge
 }
 
 function logout() {
