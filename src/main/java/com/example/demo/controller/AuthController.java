@@ -20,10 +20,10 @@ public class AuthController {
 
     @GetMapping("/")
     public String home() {
-        return "Backend is running successfully!";
+        return "P3 Business backend is running!";
     }
 
-    // LOGIN API
+    // ── LOGIN — same endpoint for both admin and customer ──────────────────
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody User user) {
 
@@ -32,43 +32,68 @@ public class AuthController {
         if (existing.isPresent() &&
                 existing.get().getPassword().equals(user.getPassword())) {
 
+            User u = existing.get();
             LoginResponse res = new LoginResponse(
                     true,
-                    existing.get().getEmail(),
+                    u.getId(),
+                    u.getName(),
+                    u.getEmail(),
+                    u.getPhone(),
+                    u.getRole(),
+                    u.getAddress(),
                     "Login successful"
             );
-
             return ResponseEntity.ok(res);
 
         } else {
-            LoginResponse res = new LoginResponse(
-                    false,
-                    null,
-                    "Invalid credentials"
-            );
-
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(res);
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(new LoginResponse(false, null, "Invalid email or password"));
         }
     }
+
+    // ── SIGNUP ──────────────────────────────────────────────────────────────
+    // source header: "website" → CUSTOMER role
+    //                "suite"   → ADMIN role (or any other value)
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody User user) {
+    public ResponseEntity<LoginResponse> signup(
+            @RequestBody User user,
+            @RequestHeader(value = "X-Source", defaultValue = "website") String source) {
 
-        Optional<User> existing = repo.findByEmail(user.getEmail());
-
-        if (existing.isPresent()) {
+        // Check duplicate email
+        if (repo.findByEmail(user.getEmail()).isPresent()) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body(new LoginResponse(false, null, "Email already registered"));
         }
 
-        repo.save(user);
+        // ── Role assignment based on source ──────────────────────────────
+        // website → always CUSTOMER
+        // suite   → ADMIN
+        if ("suite".equalsIgnoreCase(source)) {
+            user.setRole("ADMIN");
+        } else {
+            user.setRole("CUSTOMER");
+        }
 
-        return ResponseEntity.ok(
-                new LoginResponse(true, user.getEmail(), "Registration successful")
+        // Never allow role override from request body for security
+        User saved = repo.save(user);
+
+        LoginResponse res = new LoginResponse(
+                true,
+                saved.getId(),
+                saved.getName(),
+                saved.getEmail(),
+                saved.getPhone(),
+                saved.getRole(),
+                saved.getAddress(),
+                "Registration successful"
         );
+        return ResponseEntity.ok(res);
     }
 
-    @GetMapping("/users") // ✅ ADD
+    // ── GET ALL USERS (admin use) ───────────────────────────────────────────
+    @GetMapping("/users")
     public ResponseEntity<?> getAllUsers() {
         return ResponseEntity.ok(repo.findAll());
     }

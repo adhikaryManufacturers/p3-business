@@ -323,6 +323,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--txt);overflow
 .tb{padding-bottom:20px;padding-top:2px}
 .tlabel{font-size:13px;font-weight:600;margin-bottom:2px}
 .tsub{font-size:11px;color:var(--sub)}
+.track-time{font-size:10px;color:var(--sub);margin-top:2px;font-style:italic}
 
 /* ── AUTH ── */
 .auth-wrap{max-width:360px;margin:0 auto}
@@ -896,6 +897,12 @@ function showToast(msg) {
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
 }
+function togglePass(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
 function openWA(msg, phone) {
   const url = 'https://wa.me/' + (phone || CFG.phone) + '?text=' + encodeURIComponent(msg);
   // Use anchor tag click — works in all browsers without popup blocker issues
@@ -1485,7 +1492,22 @@ function renderOrders() {
     </div>`;
     return;
   }
-  const sm = { confirmed:'sp-confirmed', processing:'sp-processing', shipped:'sp-shipped', delivered:'sp-delivered', cancelled:'sp-cancelled' };
+  const sm = {
+    pending:'sp-confirmed', confirmed:'sp-confirmed',
+    processing:'sp-processing',
+    invoiced:'sp-shipped',      // invoiced = dispatched
+    dispatched:'sp-shipped',
+    delivered:'sp-delivered',
+    cancelled:'sp-cancelled',
+  };
+  const sl = {
+    pending:'Order Placed', confirmed:'Order Placed',
+    processing:'Processing',
+    invoiced:'Dispatched 🚚',   // invoiced = dispatched on customer side
+    dispatched:'Dispatched 🚚',
+    delivered:'Delivered ✅',
+    cancelled:'Cancelled',
+  };
   el.innerHTML = myOrders.map(o => `
     <div class="order-card" onclick="showTracking('${o.id}','${o.status}','${o.date}')">
       <div class="d-flex justify-content-between align-items-start mb-1">
@@ -1493,7 +1515,7 @@ function renderOrders() {
           <div style="font-family:var(--font-head);font-size:13px;font-weight:800;color:var(--gd)">${o.id}</div>
           <div style="font-size:10px;color:var(--sub);margin-top:1px">${o.date}</div>
         </div>
-        <span class="spill ${sm[o.status] || 'sp-confirmed'}">${o.status}</span>
+        <span class="spill ${sm[(o.status||'').toLowerCase()] || 'sp-confirmed'}">${sl[(o.status||'').toLowerCase()] || o.status}</span>
       </div>
       <div style="font-size:12px;color:var(--txt);margin:8px 0;line-height:1.6;background:var(--bg);border-radius:var(--r);padding:8px 10px">${o.items}</div>
       <div class="d-flex justify-content-between align-items-center" style="border-top:.5px solid #f0f0f0;padding-top:8px">
@@ -1504,36 +1526,151 @@ function renderOrders() {
       </div>
     </div>`).join('');
 }
-function showTracking(oid, status, date) {
-  const STEPS = [
-    {label:'Order Confirmed', sub:'Received & confirmed', svgIcon:`<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><polyline points="22 4 12 14.01 9 11.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>`, time:date},
-    {label:'Processing',      sub:'Being packed at facility', svgIcon:`<svg viewBox="0 0 24 24"><rect x="2" y="7" width="6" height="14" rx="1" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 10l6-4v4l6-4v15H8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><line x1="2" y1="21" x2="22" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`, time:'Within 2 hours'},
-    {label:'Shipped',         sub:'Out for delivery', svgIcon:`<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 8h4l3 4v5h-7V8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><circle cx="5.5" cy="18.5" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="18.5" cy="18.5" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/></svg>`, time:'Next business day'},
-    {label:'Delivered',       sub:'Delivered to address', svgIcon:`<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="2" fill="none"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" stroke-width="2" fill="none"/></svg>`, time:'1–3 business days'},
-  ];
-  const si = {confirmed:0, processing:1, shipped:2, delivered:3};
-  const cur = si[status] ?? 0;
-  const stepsHtml = STEPS.map((s,i) => {
-    const done=i<cur, active=i===cur, last=i===STEPS.length-1;
-    return `<div class="ts">
-      <div class="ts-left">
-        <div class="td ${done?'td-done':active?'td-active':'td-pending'}">${done?`<span class="ico" style="font-size:11px"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></span>`:`<span class="ico" style="font-size:11px">${s.svgIcon}</span>`}</div>
-        ${!last?`<div class="tl ${done?'tl-done':'tl-pending'}"></div>`:''}
-      </div>
-      <div class="tb">
-        <div class="tlabel" style="${active?'color:var(--a)':done?'color:var(--gd)':'color:var(--sub)'}">${s.label}</div>
-        <div class="tsub">${active?'<strong>Current status</strong>':done?'✓ Completed':s.sub}</div>
-      </div>
-    </div>`;
-  }).join('');
+async function showTracking(oid, localStatus, date) {
+  // Show modal immediately with local status while fetching live status
   document.getElementById('modal-body').innerHTML = `
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <div><div style="font-family:var(--font-head);font-size:15px;font-weight:700">${oid}</div><div style="font-size:12px;color:var(--sub)">Order Tracking</div></div>
+      <div>
+        <div style="font-family:var(--font-head);font-size:15px;font-weight:700">${oid}</div>
+        <div style="font-size:12px;color:var(--sub)">Order Tracking · Loading live status…</div>
+      </div>
     </div>
-    ${stepsHtml}
-    <div class="info-box ib-green mt-3">
-      <span class="ico" style="font-size:15px"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="currentColor"/><path d="M20.52 3.449C12.831-3.984.106 1.407.101 11.893c0 2.096.549 4.14 1.595 5.945L0 24l6.335-1.652A11.882 11.882 0 0 0 12 24c6.627 0 12-5.373 12-12 0-3.205-1.26-6.22-3.48-8.551zM12 22c-1.885 0-3.731-.505-5.337-1.464l-.38-.227-3.96 1.033 1.058-3.856-.25-.395A9.936 9.936 0 0 1 2 12C2.006 6.19 6.63 1.5 12 1.5c2.67 0 5.18 1.04 7.07 2.93A9.965 9.965 0 0 1 22 12c0 5.522-4.478 10-10 10z" fill="currentColor"/></svg></span>
-      <div>Need help? <a href="#" onclick="openWA('Hi! Help needed for order ${oid}');return false;" style="color:var(--gd);font-weight:700">Chat on WhatsApp →</a></div>
+    <div style="text-align:center;padding:32px;color:var(--sub)">
+      <div style="font-size:28px;margin-bottom:8px;animation:floatY 1s ease-in-out infinite">📦</div>
+      Fetching latest status…
+    </div>`;
+  document.getElementById('modal-bg').classList.add('open');
+
+  // ── Status mapping: P3 app status → tracking step index ──
+  // P3 app statuses:  pending/CONFIRMED → step 0 (Order Confirmed)
+  //                   invoiced          → step 2 (Order Dispatched)
+  //                   delivered         → step 3 (Order Delivered)
+  //                   cancelled         → special
+  function mapStatus(raw) {
+    const s = (raw || '').toLowerCase().trim();
+    if (s === 'invoiced')              return 'dispatched';  // invoice = dispatched
+    if (s === 'delivered')             return 'delivered';
+    if (s === 'cancelled' || s === 'canceled') return 'cancelled';
+    if (s === 'processing')            return 'processing';
+    return 'confirmed'; // pending, CONFIRMED, etc.
+  }
+
+  // Try to fetch live status from P3 app API
+  let liveStatus = localStatus;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(CFG.api + '/api/orders', { signal: ctrl.signal });
+    clearTimeout(t);
+    if (res.ok) {
+      const allOrders = await res.json();
+      // Match by notes containing OrderRef or by custId + date
+      const match = allOrders.find(o => {
+        const notes = (o.notes || '').toLowerCase();
+        return notes.includes('orderref: ' + oid.toLowerCase()) ||
+               notes.includes(oid.toLowerCase());
+      });
+      if (match) {
+        liveStatus = match.status || localStatus;
+        // Update local order status so it's correct next time
+        myOrders = loadUserOrders();
+        const idx = myOrders.findIndex(o => o.id === oid);
+        if (idx !== -1) {
+          myOrders[idx].status = liveStatus;
+          saveUserOrders(myOrders);
+        }
+        console.log('✅ Live status for', oid, ':', liveStatus);
+      }
+    }
+  } catch(e) {
+    console.log('ℹ️ Using local status:', e.message);
+  }
+
+  const mappedStatus = mapStatus(liveStatus);
+
+  // ── 4 tracking steps with correct labels ──
+  const STEPS = [
+    {
+      label: 'Order Confirmed',
+      sub:   'Received by P3 Business',
+      emoji: '✅',
+      time:  date,
+    },
+    {
+      label: 'Processing',
+      sub:   'Being packed at our facility',
+      emoji: '🏭',
+      time:  'Within 24 hours',
+    },
+    {
+      label: 'Order Dispatched',        // ← shows when admin generates invoice
+      sub:   'Invoice generated · Out for delivery',
+      emoji: '🚚',
+      time:  'Invoice generated by admin',
+    },
+    {
+      label: 'Order Delivered',         // ← shows when admin marks delivered
+      sub:   'Delivered to your address',
+      emoji: '🏠',
+      time:  '1–3 business days',
+    },
+  ];
+
+  // Map status name → step index
+  const stepIdx = {
+    confirmed:  0,
+    processing: 1,
+    dispatched: 2,   // invoiced in P3 app = dispatched on website
+    delivered:  3,
+  };
+
+  const isCancelled = mappedStatus === 'cancelled';
+  const cur = isCancelled ? -1 : (stepIdx[mappedStatus] ?? 0);
+
+  const stepsHtml = isCancelled
+    ? `<div style="text-align:center;padding:24px;background:var(--crp);border-radius:var(--rl)">
+        <div style="font-size:36px;margin-bottom:8px">❌</div>
+        <div style="font-family:var(--font-head);font-weight:700;color:var(--cr);font-size:15px">Order Cancelled</div>
+        <div style="font-size:12px;color:var(--cr);margin-top:4px">This order has been cancelled.</div>
+       </div>`
+    : STEPS.map((s, i) => {
+        const done   = i < cur;
+        const active = i === cur;
+        const last   = i === STEPS.length - 1;
+        return `<div class="ts">
+          <div class="ts-left">
+            <div class="td ${done ? 'td-done' : active ? 'td-active' : 'td-pending'}" style="font-size:14px">
+              ${done ? '✓' : s.emoji}
+            </div>
+            ${!last ? `<div class="tl ${done ? 'tl-done' : 'tl-pending'}"></div>` : ''}
+          </div>
+          <div class="tb">
+            <div class="tlabel" style="${active ? 'color:var(--a);font-weight:700' : done ? 'color:var(--gd)' : 'color:var(--sub)'}">
+              ${s.label}
+              ${active ? '<span style="font-size:10px;background:var(--al);color:var(--a);padding:1px 7px;border-radius:10px;margin-left:6px;font-weight:600">Current</span>' : ''}
+            </div>
+            <div class="tsub">${active ? '<strong>' + s.sub + '</strong>' : done ? '✓ ' + s.sub : s.sub}</div>
+            ${(active || done) ? `<div class="track-time">${s.time}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <div style="font-family:var(--font-head);font-size:15px;font-weight:700">${oid}</div>
+        <div style="font-size:12px;color:var(--sub)">Order Tracking</div>
+      </div>
+      <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;
+        background:${mappedStatus==='delivered'?'#EAF3DE':mappedStatus==='dispatched'?'var(--gp)':mappedStatus==='cancelled'?'var(--crp)':'var(--al)'};
+        color:${mappedStatus==='delivered'?'#3B6D11':mappedStatus==='dispatched'?'var(--gd)':mappedStatus==='cancelled'?'var(--cr)':'var(--a)'}">
+        ${mappedStatus==='delivered'?'✅ Delivered':mappedStatus==='dispatched'?'🚚 Dispatched':mappedStatus==='cancelled'?'❌ Cancelled':'⏳ '+STEPS[cur]?.label||'Confirmed'}
+      </span>
+    </div>
+    <div style="margin-bottom:16px">${stepsHtml}</div>
+    <div class="info-box ib-green">
+      <span style="font-size:16px">💬</span>
+      <div>Need help? <a href="#" onclick="openWA('Hi! I need help with order ${oid}');return false;" style="color:var(--gd);font-weight:700">Chat on WhatsApp →</a></div>
     </div>`;
   document.getElementById('modal-bg').classList.add('open');
 }
@@ -1550,11 +1687,17 @@ function renderAccount() {
         <div class="u-avatar">${currentUser.name.charAt(0).toUpperCase()}</div>
         <div style="flex:1">
           <div style="font-size:14px;font-weight:700">${currentUser.name}</div>
-          <div style="font-size:12px;color:var(--gd)">${currentUser.phone || 'No phone'}</div>
-          ${currentUser.id
-            ? `<div style="font-size:10px;background:var(--gp);color:var(--gd);padding:2px 8px;border-radius:10px;display:inline-block;margin-top:3px;font-weight:600">✅ P3 Customer #${currentUser.id}</div>`
-            : `<div style="font-size:10px;background:#FFF8E1;color:#795548;padding:2px 8px;border-radius:10px;display:inline-block;margin-top:3px;font-weight:600">⚠️ Not synced to P3 app yet</div>`
-          }
+          <div style="font-size:12px;color:var(--sub)">${currentUser.email || ''}</div>
+          <div style="font-size:11px;color:var(--sub)">${currentUser.phone || ''}</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+            <span style="font-size:10px;background:${currentUser.role==='ADMIN'?'#E3F2FD':'var(--gp)'};color:${currentUser.role==='ADMIN'?'#185FA5':'var(--gd)'};padding:2px 8px;border-radius:10px;font-weight:700">
+              ${currentUser.role === 'ADMIN' ? '🔑 Admin' : '👤 Customer'}
+            </span>
+            ${currentUser.id
+              ? `<span style="font-size:10px;background:var(--gp);color:var(--gd);padding:2px 8px;border-radius:10px;font-weight:600">✅ ID #${currentUser.id}</span>`
+              : `<span style="font-size:10px;background:#FFF8E1;color:#795548;padding:2px 8px;border-radius:10px;font-weight:600">⚠️ Not synced</span>`
+            }
+          </div>
         </div>
       </div>
       <button class="amenu-btn" onclick="showPage('orders')">
@@ -1590,11 +1733,16 @@ function renderAccount() {
           <button class="atab" id="tab-s" onclick="switchTab('signup')">Sign Up</button>
         </div>
         <div id="auth-fields">
-          <div class="mb-2"><label class="flabel">Your Name</label><input class="finput" id="a-name-login" placeholder="Your name (optional)"></div>
-          <div class="mb-3"><label class="flabel">Phone Number</label><input class="finput" id="a-phone" type="tel" placeholder="+91 XXXXXXXXXX"></div>
-          <button class="btn-primary" onclick="doLogin()"><span class="ico"><svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><polyline points="10 17 15 12 10 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><line x1="15" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span> Login</button>
+          <div class="mb-2"><label class="flabel">Email Address</label><input class="finput" id="a-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+          <div class="mb-3"><label class="flabel">Password</label>
+            <div style="position:relative">
+              <input class="finput" id="a-pass" type="password" placeholder="Your password" autocomplete="current-password" style="padding-right:40px">
+              <span onclick="togglePass('a-pass')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--sub)" title="Show/hide">👁</span>
+            </div>
+          </div>
+          <button class="btn-primary" onclick="doLogin()">🔐 Login</button>
           <div class="divider">or</div>
-          <div style="text-align:center;font-size:12px;color:var(--sub)">Enter your registered phone number</div>
+          <div style="text-align:center;font-size:12px;color:var(--sub)">New customer? <a onclick="switchTab('signup')" style="color:var(--g);cursor:pointer;font-weight:600">Create an account →</a></div>
         </div>
       </div>
     </div>`;
@@ -1603,91 +1751,160 @@ function switchTab(t) {
   ['login','signup'].forEach(x => document.getElementById('tab-'+(x==='login'?'l':'s')).classList.toggle('active', x===t));
   const f = document.getElementById('auth-fields');
   f.innerHTML = t === 'signup'
-    ? `<div class="mb-2"><label class="flabel">Full Name *</label><input class="finput" id="a-name" placeholder="Your full name"></div><div class="mb-2"><label class="flabel">Phone Number *</label><input class="finput" id="a-phone" type="tel" placeholder="+91 XXXXXXXXXX"></div><div class="mb-3"><label class="flabel">Address (optional)</label><input class="finput" id="a-address" placeholder="Your delivery address"></div><button class="btn-primary" onclick="doSignup()"><span class="ico"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2" fill="none"/><line x1="19" y1="8" x2="19" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="22" y1="11" x2="16" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span> Register</button><div style="text-align:center;font-size:11px;color:var(--sub);margin-top:8px">Registered customers appear in your P3 Business app</div>`
-    : `<div class="mb-2"><label class="flabel">Your Name</label><input class="finput" id="a-name-login" placeholder="Your name (optional)"></div><div class="mb-3"><label class="flabel">Phone Number</label><input class="finput" id="a-phone" type="tel" placeholder="+91 XXXXXXXXXX"></div><button class="btn-primary" onclick="doLogin()"><span class="ico"><svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><polyline points="10 17 15 12 10 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><line x1="15" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span> Login</button><div class="divider">or</div><div style="text-align:center;font-size:12px;color:var(--sub)">Enter your registered phone number</div>`;
+    ? `<div class="mb-2"><label class="flabel">Full Name *</label><input class="finput" id="a-name" placeholder="Your full name" autocomplete="name"></div>
+       <div class="mb-2"><label class="flabel">Email Address *</label><input class="finput" id="a-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+       <div class="mb-2"><label class="flabel">Phone Number *</label><input class="finput" id="a-phone" type="tel" placeholder="+91 XXXXXXXXXX" autocomplete="tel"></div>
+       <div class="mb-2"><label class="flabel">Address</label><input class="finput" id="a-address" placeholder="Your delivery address"></div>
+       <div class="mb-3"><label class="flabel">Password *</label>
+         <div style="position:relative">
+           <input class="finput" id="a-pass" type="password" placeholder="Create a strong password" autocomplete="new-password" style="padding-right:40px">
+           <span onclick="togglePass('a-pass')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--sub)" title="Show/hide">👁</span>
+         </div>
+       </div>
+       <button class="btn-primary" onclick="doSignup()">🎉 Create Account</button>
+       <div style="text-align:center;font-size:11px;color:var(--sub);margin-top:10px;line-height:1.5">
+         By registering, you agree to our terms.<br>Your account will be created as a <strong>Customer</strong>.
+       </div>`
+    : `<div class="mb-2"><label class="flabel">Email Address</label><input class="finput" id="a-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+       <div class="mb-3"><label class="flabel">Password</label>
+         <div style="position:relative">
+           <input class="finput" id="a-pass" type="password" placeholder="Your password" autocomplete="current-password" style="padding-right:40px">
+           <span onclick="togglePass('a-pass')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--sub)" title="Show/hide">👁</span>
+         </div>
+       </div>
+       <button class="btn-primary" onclick="doLogin()">🔐 Login</button>
+       <div class="divider">or</div>
+       <div style="text-align:center;font-size:12px;color:var(--sub)">New customer? <a onclick="switchTab('signup')" style="color:var(--g);cursor:pointer;font-weight:600">Create an account →</a></div>`;
 }
 async function doLogin() {
-  const phone = document.getElementById('a-phone')?.value.trim();
-  const name  = document.getElementById('a-name-login')?.value.trim();
-  if (!phone) { showToast('Enter your phone number'); return; }
+  const email = document.getElementById('a-email')?.value.trim();
+  const pass  = document.getElementById('a-pass')?.value;
+  if (!email) { showToast('Enter your email address'); return; }
+  if (!pass)  { showToast('Enter your password'); return; }
 
   const btn = document.querySelector('#auth-fields .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
 
   try {
-    // Try to find customer by phone in your P3 app
-    const res = await fetch(CFG.api + '/api/customers');
-    if (res.ok) {
-      const customers = await res.json();
-      const found = customers.find(c => c.phone === phone || c.phone === phone.replace(/\s/g,''));
-      if (found) {
-        currentUser = { id: found.id, name: found.name, phone: found.phone, address: found.address || '' };
-        try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
-        myOrders = loadUserOrders(); // load THIS customer's orders
-        await trySyncPending();      // try to sync any pending registrations/orders
-        renderAccount();
-        showToast('✅ Welcome back, ' + currentUser.name + '!');
+    const res = await fetch(CFG.api + '/api/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password: pass })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      // ── Role check: only CUSTOMER can login on website ──
+      if (data.role === 'ADMIN') {
+        if (btn) { btn.disabled = false; btn.textContent = '🔐 Login'; }
+        showToast('❌ Admin accounts must use P3 Business Suite');
         return;
       }
+      currentUser = {
+        id:      data.id,
+        name:    data.name,
+        email:   data.email,
+        phone:   data.phone   || '',
+        role:    data.role    || 'CUSTOMER',
+        address: data.address || '',
+      };
+      try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
+      myOrders = loadUserOrders();
+      await trySyncPending();
+      renderAccount();
+      showToast('✅ Welcome back, ' + currentUser.name + '!');
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = '🔐 Login'; }
+      showToast('❌ ' + (data.message || 'Invalid email or password'));
     }
-  } catch(e) { console.warn('Login API:', e.message); }
-
-  // Fallback: local session (API unreachable or customer not found)
-  currentUser = { id: null, name: name || phone, phone, address: '' };
-  try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
-  myOrders = loadUserOrders(); // load any locally saved orders for this phone
-  renderAccount();
-  showToast('⚠️ Logged in locally (phone not found in P3 app)');
+  } catch(e) {
+    console.warn('Login API error:', e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '🔐 Login'; }
+    showToast('⚠️ Cannot reach server. Check your connection.');
+  }
 }
 
 async function doSignup() {
   const name    = document.getElementById('a-name')?.value.trim();
+  const email   = document.getElementById('a-email')?.value.trim();
   const phone   = document.getElementById('a-phone')?.value.trim();
   const address = document.getElementById('a-address')?.value.trim();
-  if (!name || !phone) { showToast('Name and phone are required'); return; }
+  if (!name)  { showToast('Enter your full name'); return; }
+  if (!email) { showToast('Enter your email address'); return; }
+  if (!phone) { showToast('Enter your phone number'); return; }
 
   const btn = document.querySelector('#auth-fields .btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Registering…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating account…'; }
 
-  const customerPayload = {
-    name:        name,
-    phone:       phone,
-    address:     address || '',
-    baleBalance: 0,
-    status:      'ACTIVE',
-  };
+  const email   = document.getElementById('a-email')?.value.trim();
+  const pass    = document.getElementById('a-pass')?.value;
+  if (!pass)  { showToast('Enter a password'); return; }
+  if (pass.length < 6) { showToast('Password must be at least 6 characters'); return; }
 
+  // Step 1 — Register in User table (for login) with role CUSTOMER
   try {
-    const res = await fetch(CFG.api + '/api/customers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(customerPayload)
+    const authRes = await fetch(CFG.api + '/api/signup', {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Source':     'website'          // ← tells backend to set role = CUSTOMER
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        phone:    phone    || '',
+        address:  address  || '',
+        password: pass,
+        // role is set by backend based on X-Source header — not from here
+      })
     });
-    if (res.ok) {
-      const saved = await res.json();
-      // ✅ Got real ID from P3 app — customer is in the database
-      currentUser = { id: saved.id, name: saved.name || name, phone: saved.phone || phone, address: saved.address || address || '' };
-      try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e2) {}
-      myOrders = loadUserOrders();
-      showToast('✅ Registered in P3 app! Customer ID: ' + saved.id);
-      console.log('✅ Customer saved to P3 app with id:', saved.id);
-    } else {
-      const errText = await res.text();
-      throw new Error('API returned: ' + res.status + ' ' + errText);
+    const authData = await authRes.json();
+
+    if (!authRes.ok || !authData.success) {
+      if (btn) { btn.disabled = false; btn.textContent = '🎉 Create Account'; }
+      showToast('❌ ' + (authData.message || 'Registration failed'));
+      return;
+    }
+
+    // ✅ User account created — set currentUser from auth response
+    currentUser = {
+      id:      authData.id,
+      name:    authData.name    || name,
+      email:   authData.email   || email,
+      phone:   authData.phone   || phone   || '',
+      role:    authData.role    || 'CUSTOMER',
+      address: authData.address || address || '',
+    };
+    console.log('✅ User registered with role:', currentUser.role, 'id:', currentUser.id);
+  } catch(e) {
+    console.warn('Auth signup error:', e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '🎉 Create Account'; }
+    showToast('⚠️ Cannot reach server. Try again.');
+    return;
+  }
+
+  // Step 2 — Also register in Customer table (for P3 app visibility)
+  try {
+    const custRes = await fetch(CFG.api + '/api/customers', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, phone: phone || '', address: address || '',
+        baleBalance: 0, status: 'ACTIVE',
+      })
+    });
+    if (custRes.ok) {
+      const custData = await custRes.json();
+      console.log('✅ Customer record created in P3 app, custId:', custData.id);
     }
   } catch(e) {
-    console.warn('⚠️ Registration API failed:', e.message, '— saving locally + queuing sync');
-    // Save locally with null id — will sync when API is reachable
-    currentUser = { id: null, name, phone, address: address || '' };
-    // Queue for background sync
-    pendingSync.push({ type: 'register', url: '/api/customers', method: 'POST', body: customerPayload });
-    try { localStorage.setItem('p3_pending_sync', JSON.stringify(pendingSync)); } catch(e2) {}
-    showToast('✓ Registered locally. Will sync to P3 app when online.');
+    console.warn('Customer table sync (non-critical):', e.message);
   }
 
   try { localStorage.setItem('p3_user', JSON.stringify(currentUser)); } catch(e) {}
   myOrders = loadUserOrders();
-  renderAccount(); // re-render immediately to show P3 Customer # badge
+  showToast('✅ Account created! Welcome, ' + currentUser.name + '!');
+  renderAccount();
 }
 
 function logout() {
