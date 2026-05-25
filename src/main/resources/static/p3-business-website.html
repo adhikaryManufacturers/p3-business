@@ -1550,12 +1550,15 @@ function finalizeOrder(oid, total, addr, items, method, payId) {
 async function postOrderToAPI(order) {
   try {
     // Build items array matching OrderItem entity: {productId, qty, unit, rate}
-    const orderItems = Object.entries(cart_snapshot).map(([id, qty]) => {
+    const orderItems = Object.entries(cart_snapshot).map(([id, item]) => {
       const p = PRODUCTS.find(x => x.id == id);
+      // cart stores objects {qtyUnit, qtyCount, billingPkts} — use billingPkts as qty
+      const billingPkts = item && typeof item === 'object' ? (item.billingPkts || item.qtyCount || 1) : (item || 1);
+      const unit = item && typeof item === 'object' ? (item.qtyUnit || 'Pkt') : 'Pkt';
       return {
         productId: parseInt(id),
-        qty:       qty,
-        unit:      p ? (p.unit || 'Pcs') : 'Pcs',
+        qty:       billingPkts,
+        unit:      unit,
         rate:      p ? p.price : 0,
       };
     }).filter(i => i.qty > 0);
@@ -1569,15 +1572,19 @@ async function postOrderToAPI(order) {
     const payload = {
       custId:       custId,
       prospectId:   null,
+      customerName: order.addr.name  || (currentUser?.name || ''),
+      customerPhone:order.addr.phone || (currentUser?.phone || ''),
       date:         today,
       deliveryDate: deliveryDate,
       notes:        [
+        order.addr.name   ? 'Customer: ' + order.addr.name + ' | Ph: ' + (order.addr.phone||'') : '',
         order.addr.notes  ? 'Note: '    + order.addr.notes  : '',
         order.addr.addr   ? 'Addr: '    + order.addr.addr + ', ' + (order.addr.city||'') + ' - ' + (order.addr.pin||'') : '',
         'Payment: ' + order.payment,
         'OrderRef: ' + order.id,
       ].filter(Boolean).join(' | '),
       status:       'pending',
+      estTotal:     order.amount,
       items:        orderItems,
     };
     console.log('📦 Posting order — custId:', custId, 'payload:', JSON.stringify(payload, null, 2));
@@ -1601,9 +1608,11 @@ async function postOrderToAPI(order) {
     console.warn('⚠️ Order API unreachable:', e.message, '— queuing for sync');
     // Queue for sync when API becomes reachable
     try {
-      const syncItems = Object.entries(cart_snapshot).map(([id, qty]) => {
+      const syncItems = Object.entries(cart_snapshot).map(([id, item]) => {
         const p = PRODUCTS.find(x => x.id == id);
-        return { productId: parseInt(id), qty, unit: p?(p.unit||'Pcs'):'Pcs', rate: p?p.price:0 };
+        const billingPkts = item && typeof item === 'object' ? (item.billingPkts || item.qtyCount || 1) : (item || 1);
+        const unit = item && typeof item === 'object' ? (item.qtyUnit || 'Pkt') : 'Pkt';
+        return { productId: parseInt(id), qty: billingPkts, unit, rate: p?p.price:0 };
       }).filter(i => i.qty > 0);
       pendingSync.push({
         type: 'order', url: '/api/orders', method: 'POST',
