@@ -5236,9 +5236,14 @@ function renderCustomerOrders(){
     else if(o.prospectId){var pv=getProspect(o.prospectId);name=pv.name||'—';typeLabel='Prospect';badge='badge-amber';}
     else if(o.notes){
       // Parse customer name from notes field (set by website orders)
-      var _nm=o.notes.match(/Customer:\s*([^|]+)/);
-      var _ph=o.notes.match(/Ph:\s*([^|]+)/);
-      if(_nm){name='<span style="color:var(--primary)">'+_nm[1].trim()+'</span>'+(_ph?'<div style="font-size:10px;color:var(--text3)">'+_ph[1].trim()+'</div>':'');typeLabel='Website';badge='badge-blue';}
+      // Handles: "Customer: abcd | Ph: 999..." or "Customer: abcd | Phone: 999..."
+      var _nm=o.notes.match(/Customer:\s*([^|]+)/i);
+      var _ph=o.notes.match(/Ph(?:one)?:\s*([^|]+)/i);
+      if(_nm){
+        name=_nm[1].trim();
+        typeLabel='Website';
+        badge='badge-blue';
+      }
     }
     var total=getOrderTotal(o);
     var dDiff=(new Date(o.deliveryDate)-new Date())/(1000*60*60*24);

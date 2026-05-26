@@ -1687,14 +1687,42 @@ function renderSuccess(order) {
 /* ══════════════════════════════════════════════════════
    ORDERS
 ══════════════════════════════════════════════════════ */
-function renderOrders() {
+async function renderOrders() {
   const el = document.getElementById('orders-content');
   if (!currentUser) {
     el.innerHTML = `<div class="empty-state"><div class="empty-ico">📦</div><div class="empty-title">Login to view orders</div><button class="btn-primary" style="max-width:160px;margin:0 auto" onclick="showPage('account')">Login</button></div>`;
     return;
   }
-  // Always reload from THIS user's localStorage key
+  // Step 1: Load from localStorage and render immediately
   myOrders = loadUserOrders();
+  _drawOrderCards(el, myOrders);
+
+  // Step 2: Fetch live statuses from API and re-render if anything changed
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(CFG.api + '/api/orders', { signal: ctrl.signal });
+    clearTimeout(t);
+    if (res.ok) {
+      const allOrders = await res.json();
+      let changed = false;
+      myOrders = myOrders.map(o => {
+        const match = allOrders.find(ao =>
+          (ao.notes || '').toLowerCase().includes('orderref: ' + o.id.toLowerCase())
+        );
+        if (match && match.status) {
+          // Always use live API status — never trust localStorage for status
+          if (match.status !== o.status) changed = true;
+          return { ...o, status: match.status };
+        }
+        return o;
+      });
+      if (changed) {
+        saveUserOrders(myOrders);
+        _drawOrderCards(el, myOrders); // re-render with updated statuses
+      }
+    }
+  } catch(e) {}
   if (!myOrders.length) {
     el.innerHTML = `<div class="empty-state">
       <div class="empty-ico">📦</div>
@@ -1704,10 +1732,15 @@ function renderOrders() {
     </div>`;
     return;
   }
+  _drawOrderCards(el, myOrders);
+}
+
+function _drawOrderCards(el, orders) {
+  if (!orders || !orders.length) return;
   const sm = {
     pending:'sp-confirmed', confirmed:'sp-confirmed',
     processing:'sp-processing',
-    invoiced:'sp-shipped',      // invoiced = dispatched
+    invoiced:'sp-shipped',      // invoice generated = dispatched to customer
     dispatched:'sp-shipped',
     delivered:'sp-delivered',
     cancelled:'sp-cancelled',
@@ -1715,19 +1748,21 @@ function renderOrders() {
   const sl = {
     pending:'Order Placed', confirmed:'Order Placed',
     processing:'Processing',
-    invoiced:'Dispatched 🚚',   // invoiced = dispatched on customer side
+    invoiced:'Invoice Generated 📄',
     dispatched:'Dispatched 🚚',
     delivered:'Delivered ✅',
-    cancelled:'Cancelled',
+    cancelled:'Cancelled ✗',
   };
-  el.innerHTML = myOrders.map(o => `
+  el.innerHTML = orders.map(o => {
+    const statusKey = (o.status||'').toLowerCase();
+    return `
     <div class="order-card" onclick="showTracking('${o.id}','${o.status}','${o.date}')">
       <div class="d-flex justify-content-between align-items-start mb-1">
         <div>
           <div style="font-family:var(--font-head);font-size:13px;font-weight:800;color:var(--gd)">${o.id}</div>
           <div style="font-size:10px;color:var(--sub);margin-top:1px">${o.date}</div>
         </div>
-        <span class="spill ${sm[(o.status||'').toLowerCase()] || 'sp-confirmed'}">${sl[(o.status||'').toLowerCase()] || o.status}</span>
+        <span class="spill ${sm[statusKey] || 'sp-confirmed'}">${sl[statusKey] || o.status}</span>
       </div>
       <div style="font-size:12px;color:var(--txt);margin:8px 0;line-height:1.6;background:var(--bg);border-radius:var(--r);padding:8px 10px">${o.items}</div>
       <div class="d-flex justify-content-between align-items-center" style="border-top:.5px solid #f0f0f0;padding-top:8px">
@@ -1736,7 +1771,8 @@ function renderOrders() {
           <span style="background:${o.payment==='Razorpay'?'#E6F1FB':'#EAF3DE'};color:${o.payment==='Razorpay'?'#185FA5':'#3B6D11'};padding:2px 8px;border-radius:10px;font-weight:600">${o.payment}</span>
         </span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 async function showTracking(oid, localStatus, date) {
   // Show modal immediately with local status while fetching live status
@@ -1760,11 +1796,12 @@ async function showTracking(oid, localStatus, date) {
   //                   cancelled         → special
   function mapStatus(raw) {
     const s = (raw || '').toLowerCase().trim();
-    if (s === 'invoiced')              return 'dispatched';  // invoice = dispatched
-    if (s === 'delivered')             return 'delivered';
+    if (s === 'invoiced')                      return 'invoiced';
+    if (s === 'dispatched')                    return 'dispatched';
+    if (s === 'delivered')                     return 'delivered';
     if (s === 'cancelled' || s === 'canceled') return 'cancelled';
-    if (s === 'processing')            return 'processing';
-    return 'confirmed'; // pending, CONFIRMED, etc.
+    if (s === 'processing')                    return 'processing';
+    return 'confirmed'; // pending, confirmed, etc.
   }
 
   // Try to fetch live status from P3 app API
@@ -1815,10 +1852,16 @@ async function showTracking(oid, localStatus, date) {
       time:  'Within 24 hours',
     },
     {
-      label: 'Order Dispatched',        // ← shows when admin generates invoice
-      sub:   'Invoice generated · Out for delivery',
-      emoji: '🚚',
+      label: 'Invoice Generated',       // ← shows when admin generates invoice
+      sub:   'Invoice ready · Being prepared for dispatch',
+      emoji: '📄',
       time:  'Invoice generated by admin',
+    },
+    {
+      label: 'Order Dispatched',        // ← shows when admin marks dispatched
+      sub:   'Out for delivery',
+      emoji: '🚚',
+      time:  'On the way',
     },
     {
       label: 'Order Delivered',         // ← shows when admin marks delivered
@@ -1832,8 +1875,9 @@ async function showTracking(oid, localStatus, date) {
   const stepIdx = {
     confirmed:  0,
     processing: 1,
-    dispatched: 2,   // invoiced in P3 app = dispatched on website
-    delivered:  3,
+    invoiced:   2,   // admin generates invoice → step 2
+    dispatched: 3,   // admin marks dispatched → step 3
+    delivered:  4,   // admin marks delivered → step 4
   };
 
   const isCancelled = mappedStatus === 'cancelled';
