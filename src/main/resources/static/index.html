@@ -447,7 +447,7 @@ var state = {
 
 // ===================== UTILS =====================
 // ===================== API CONFIG =====================
-var API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8080' : '';
+var API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8080' : 'https://p3-business-production.up.railway.app';
 
 async function apiCall(endpoint, method, body){
   var opts = { method: method||'GET', headers: {'Content-Type':'application/json'} };
@@ -5235,12 +5235,11 @@ function renderCustomerOrders(){
     if(o.custId){var cv=getCustomer(o.custId);name=cv.name||'—';typeLabel='Customer';badge='badge-green';}
     else if(o.prospectId){var pv=getProspect(o.prospectId);name=pv.name||'—';typeLabel='Prospect';badge='badge-amber';}
     else if(o.notes){
-      // Parse customer name from notes field (set by website orders)
-      // Handles: "Customer: abcd | Ph: 999..." or "Customer: abcd | Phone: 999..."
-      var _nm=o.notes.match(/Customer:\s*([^|]+)/i);
-      var _ph=o.notes.match(/Ph(?:one)?:\s*([^|]+)/i);
-      if(_nm){
-        name=_nm[1].trim();
+      // Parse customer name from notes — handles all formats written by website
+      // e.g. "Customer: abcd | Ph: 9999..." or "Customer: abcd | Phone: 9999..."
+      var _nm=(o.notes.match(/Customer:\s*([^|]+)/i)||[])[1];
+      if(_nm && _nm.trim() && _nm.trim()!=='—'){
+        name=_nm.trim();
         typeLabel='Website';
         badge='badge-blue';
       }
