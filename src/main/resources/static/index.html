@@ -1122,6 +1122,23 @@ function updateUserTime(){
 }
 setInterval(updateUserTime,30000);
 
+// Auto-refresh orders every 30 seconds when on orders page
+setInterval(async function(){
+  try {
+    var newOrders = await safeGet('/api/orders');
+    if(newOrders && newOrders.length !== (state.customerOrders||[]).length){
+      state.customerOrders = newOrders;
+      if(state.page === 'orders'){
+        renderPage();
+        showToast('Orders refreshed — '+newOrders.length+' orders','green');
+      }
+    } else if(newOrders){
+      state.customerOrders = newOrders;
+      if(state.page === 'orders') renderPage();
+    }
+  } catch(e){}
+}, 30000);
+
 var THEMES={
   forest:{'--primary':'#3B6D11','--primary-light':'#EAF3DE','--bg':'#f8faf5','--surface':'#fff','--text':'#1a2e0a','--text2':'#4a6030','--text3':'#7a9060','--sidebar-bg':'#27500A','--green-800':'#27500A','--green-100':'#C0DD97','--green-50':'#EAF3DE','--border':'rgba(0,0,0,0.1)'},
   ocean:{'--primary':'#0C447C','--primary-light':'#E6F1FB','--bg':'#f0f7ff','--surface':'#fff','--text':'#0a1e2e','--text2':'#1a4a6a','--text3':'#3a7090','--sidebar-bg':'#0a2d52','--green-800':'#0a2d52','--green-100':'#90c8f0','--green-50':'#E6F1FB','--border':'rgba(0,0,0,0.1)'},
@@ -3319,11 +3336,7 @@ async function generateInvoice(){
       state._fromOrderId=null;state._fromOrderCustId=null;state._fromOrderDelivery=null;
     }
     var cust=state.customers.find(function(c){return c.id===custId;});
-    if(cust){
-      cust.status=getCustStatus(cust.id);
-      // Also persist updated status
-      apiCall('/api/customers/'+cust.id,'PUT',cust).catch(function(){});
-    }
+    if(cust) cust.status='confirmed';
     showInvoiceSaveModal(newInvId);
     renderPage();
   }catch(e){alert('Failed to create invoice: '+e.message);}
@@ -4533,15 +4546,6 @@ async function confirmDelivery(invId){
     if(inv.items&&inv.items.length){
       await deductInvoiceStock(inv.items);
     }
-    // ── Update customer status based on deliveries ──
-    var delivCust=state.customers.find(function(c){return String(c.id)===String(inv.custId);});
-    if(delivCust){
-      var newStatus=getCustStatus(delivCust.id);
-      if(delivCust.status!==newStatus){
-        delivCust.status=newStatus;
-        apiCall('/api/customers/'+delivCust.id,'PUT',delivCust).catch(function(){});
-      }
-    }
     closeModal();
     showModal('✅ Delivery Confirmed',
       '<div style="text-align:center;padding:20px">'+
@@ -4557,120 +4561,54 @@ async function confirmDelivery(invId){
 }
 
 // ===================== CUSTOMERS =====================
-// ── Customer Status Logic ──
-function setCustFilter(f){state.custFilter=f;renderPage();}
-
-function getCustStatus(custId){
-  var invs=state.invoices.filter(function(i){return String(i.custId)===String(custId)&&i.status!=='cancelled';});
-  var deliveredInvs=invs.filter(function(i){return i.delivered;});
-  var deliveredCount=deliveredInvs.length;
-  if(deliveredCount>=3) return 'repetitive';
-  if(deliveredCount>=1) return 'existing';
-  if(invs.length>0) return 'confirmed';
-  return 'new';
-}
-function getCustLastDeliveryDate(custId){
-  var deliveredInvs=state.invoices.filter(function(i){
-    return String(i.custId)===String(custId)&&i.delivered&&i.deliveredDate;
-  });
-  if(!deliveredInvs.length) return null;
-  return deliveredInvs.reduce(function(latest,i){
-    return (!latest||i.deliveredDate>latest)?i.deliveredDate:latest;
-  },null);
-}
-function isAlertCustomer(custId){
-  var st=getCustStatus(custId);
-  if(st!=='existing'&&st!=='repetitive') return false;
-  var lastDel=getCustLastDeliveryDate(custId);
-  if(!lastDel) return false;
-  var days=(new Date(today())-new Date(lastDel))/(1000*60*60*24);
-  return days>=15;
-}
-function custStatusBadge(st){
-  if(st==='repetitive') return '<span class="badge" style="background:#7c3aed;color:#fff">&#9733; Repetitive</span>';
-  if(st==='existing')   return '<span class="badge" style="background:#1565c0;color:#fff">Existing</span>';
-  if(st==='confirmed')  return '<span class="badge badge-green">&#10003; Confirmed</span>';
-  return '<span class="badge badge-amber">New</span>';
-}
-
 function renderCustomers(){
-  var custData=state.customers.map(function(c){
-    var st=getCustStatus(c.id);
-    var alert=isAlertCustomer(c.id);
-    return {c:c,st:st,alert:alert};
-  });
-  var newCusts    =custData.filter(function(d){return d.st==='new';});
-  var confCusts   =custData.filter(function(d){return d.st==='confirmed';});
-  var existCusts  =custData.filter(function(d){return d.st==='existing';});
-  var repCusts    =custData.filter(function(d){return d.st==='repetitive';});
-  var alertCusts  =custData.filter(function(d){return d.alert;});
-  var activeFilter=state.custFilter||'all';
-  var displayed=custData;
-  if(activeFilter==='new')         displayed=newCusts;
-  else if(activeFilter==='confirmed') displayed=confCusts;
-  else if(activeFilter==='existing')  displayed=existCusts;
-  else if(activeFilter==='repetitive') displayed=repCusts;
-  else if(activeFilter==='alert')      displayed=alertCusts;
-  function metricCard(label,count,sub,filter,color,icon){
-    var active=activeFilter===filter;
-    return '<div class="metric '+color+'" data-filter="'+filter+'" onclick="setCustFilter(this.dataset.filter)" style="cursor:pointer;'+(active?'box-shadow:0 0 0 3px var(--primary);':'')+'" title="Click to filter">'+
-      '<div class="metric-label">'+(icon?icon+' ':'')+label+'</div>'+
-      '<div class="metric-value">'+count+'</div>'+
-      '<div class="metric-sub">'+sub+'</div>'+
-      (active?'<div style="font-size:10px;font-weight:600;color:var(--primary)">&#10003; Filtered</div>':'')+
-      '</div>';
-  }
+  var newCusts=state.customers.filter(function(c){return (c.status||'new')==='new';});
+  var confCusts=state.customers.filter(function(c){return c.status==='confirmed';});
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">'+
-  '<div><div class="section-title">Customer Directory</div><div class="section-sub">Click a card to filter table</div></div>'+
+  '<div><div class="section-title">Customer Directory</div><div class="section-sub">All customers — <span style="color:var(--amber-400);font-weight:600">New</span> = no invoice yet &nbsp;|&nbsp; <span style="color:var(--primary);font-weight:600">Confirmed</span> = invoice generated</div></div>'+
   '<div class="gap-12">'+
-  (activeFilter!=='all'?'<button class="btn btn-ghost btn-sm" data-f="all" onclick="setCustFilter(this.dataset.f)">&#10005; Clear Filter</button>':'')+
-  '<button class="btn btn-secondary" onclick="navigate(\'crm\')">&#128270; CRM</button>'+
-  '<button class="btn btn-secondary" onclick="navigate(\'customer-orders\')">&#128203; Orders</button>'+
+  '<button class="btn btn-secondary" onclick="navigate(\'crm\')">&#128270; CRM / Prospects</button>'+
+  '<button class="btn btn-secondary" onclick="navigate(\'customer-orders\')">&#128203; Order List</button>'+
   '<button class="btn btn-primary" onclick="showAddCustomerModal()">+ Add Customer</button>'+
   '</div></div>'+
+
+  // Summary row
   '<div class="metrics" style="margin-bottom:16px">'+
-  metricCard('All Customers',custData.length,'In directory','all','blue','')+
-  metricCard('New',newCusts.length,'No invoice yet','new','amber','&#9675;')+
-  metricCard('Confirmed',confCusts.length,'Invoice generated','confirmed','green','&#10003;')+
-  metricCard('Existing',existCusts.length,'1–2 deliveries','existing','','&#11088;')+
-  metricCard('Repetitive',repCusts.length,'3+ deliveries','repetitive','','&#9733;')+
-  metricCard('Alert',alertCusts.length,'Inactive 15+ days','alert','red','&#9888;')+
+  '<div class="metric amber"><div class="metric-label">New Customers</div><div class="metric-value">'+newCusts.length+'</div><div class="metric-sub">No invoice yet</div></div>'+
+  '<div class="metric green"><div class="metric-label">Confirmed</div><div class="metric-value">'+confCusts.length+'</div><div class="metric-sub">Invoice generated</div></div>'+
+  '<div class="metric blue"><div class="metric-label">Total Customers</div><div class="metric-value">'+state.customers.length+'</div><div class="metric-sub">In directory</div></div>'+
   '</div>'+
-  (alertCusts.length&&activeFilter!=='alert'?
-    '<div style="background:#fff5f5;border:1px solid #e24b4a;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">'+
-    '<span style="color:#e24b4a;font-size:16px">&#9888;</span>'+
-    '<span style="font-size:13px;color:#c0392b"><strong>'+alertCusts.length+' alert customer'+(alertCusts.length>1?'s':'')+' — </strong>'+alertCusts.map(function(d){return d.c.name;}).join(', ')+' inactive 15+ days.</span>'+
-    '<button class="btn btn-sm" style="margin-left:auto;background:#e24b4a;color:#fff" onclick="setCustFilter(\'alert\')">View</button>'+
-    '</div>':'')+
+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Status</th><th>Last Delivery</th><th>Orders</th><th>Invoices</th><th>Total Due</th><th>Actions</th>'+
+  '<th>ID</th><th>Name</th><th>Phone</th><th>Address</th>'+
+  '<th>Status</th><th>Orders</th><th>Invoices</th><th>Total Due</th><th>Bale</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
-  (sortDesc(displayed.map(function(d){return d.c;}),'id').map(function(c){
-    var st=getCustStatus(c.id);
-    var isAlert=isAlertCustomer(c.id);
+  (sortDesc(state.customers,'id').map(function(c){
     var due=getCustomerTotalDue(c.id);
     var allInvs=state.invoices.filter(function(i){return String(i.custId)===String(c.id);});
     var invCnt=allInvs.length;
     var cancelledCnt=allInvs.filter(function(i){return i.status==='cancelled';}).length;
     var ordCnt=custOrderCount(c.id);
-    var lastDel=getCustLastDeliveryDate(c.id);
-    var daysSince=lastDel?Math.floor((new Date(today())-new Date(lastDel))/(1000*60*60*24)):null;
-    return '<tr style="'+(isAlert?'background:#fff5f5;':'')+'">'+
-      '<td><span class="badge badge-blue">C'+String(c.id).padStart(3,'0')+'</span>'+(isAlert?'<span style="color:#e24b4a;margin-left:4px" title="Inactive 15+ days">&#9888;</span>':'')+'</td>'+
+    var st=c.status||'new';
+    var statusBadge=st==='confirmed'?
+      '<span class="badge badge-green">&#10003; Confirmed</span>':
+      '<span class="badge badge-amber">New</span>';
+    return '<tr>'+
+      '<td><span class="badge badge-blue">C'+String(c.id).padStart(3,'0')+'</span></td>'+
       '<td><strong>'+c.name+'</strong></td>'+
       '<td>'+c.phone+'</td>'+
       '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(c.address)+'</td>'+
-      '<td>'+custStatusBadge(st)+'</td>'+
-      '<td style="font-size:12px">'+(lastDel?'<span '+(isAlert?'style="color:#e24b4a;font-weight:600"':'\'')+'>'+lastDel+(daysSince!==null?' <span style="font-size:10px;color:var(--text3)">('+daysSince+'d)</span>':'')+'</span>':'<span style="color:var(--text3)">—</span>')+'</td>'+
-      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" data-cid="'+c.id+'" onclick="showCustOrdersModal(parseInt(this.dataset.cid),\'customer\')">&#128203; '+ordCnt+'</button>':'<button class="btn btn-ghost btn-sm" data-cid2="'+c.id+'" onclick="showCreateOrderModal(null,parseInt(this.dataset.cid2))">+ Order</button>')+'</td>'+
+      '<td>'+statusBadge+'</td>'+
+      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+c.id+',\"customer\")">&#128203; '+ordCnt+' Orders</button>':'<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(null,'+c.id+')">+ Order</button>')+'</td>'+
       '<td>'+invCnt+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'')+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
+      '<td>'+(c.baleBalance||0)+'</td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal('+c.id+')">Edit</button>'+
-        '<button class="btn btn-primary btn-sm" data-cid="'+c.id+'" onclick="goToCreateInvoice(this.dataset.cid)">+ Invoice</button>'+
-        '<button class="btn btn-danger btn-sm" onclick="deleteCustomer('+c.id+')">Del</button>'+
+        '<button class="btn btn-primary btn-sm" data-cid="\'+c.id+\'" onclick="goToCreateInvoice(this.dataset.cid)">+ Invoice</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteCustomer('+c.id+')">Delete</button>'+
       '</div></td></tr>';
-  }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No customers match this filter</td></tr>')
+  }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
 }
 function showAddCustomerModal(){
@@ -5296,6 +5234,12 @@ function renderCustomerOrders(){
     var name='—',typeLabel='',badge='badge-gray';
     if(o.custId){var cv=getCustomer(o.custId);name=cv.name||'—';typeLabel='Customer';badge='badge-green';}
     else if(o.prospectId){var pv=getProspect(o.prospectId);name=pv.name||'—';typeLabel='Prospect';badge='badge-amber';}
+    else if(o.notes){
+      // Parse customer name from notes field (set by website orders)
+      var _nm=o.notes.match(/Customer:\s*([^|]+)/);
+      var _ph=o.notes.match(/Ph:\s*([^|]+)/);
+      if(_nm){name='<span style="color:var(--primary)">'+_nm[1].trim()+'</span>'+(_ph?'<div style="font-size:10px;color:var(--text3)">'+_ph[1].trim()+'</div>':'');typeLabel='Website';badge='badge-blue';}
+    }
     var total=getOrderTotal(o);
     var dDiff=(new Date(o.deliveryDate)-new Date())/(1000*60*60*24);
     var delivClass=dDiff<0&&o.status!=='invoiced'?'overdue':dDiff<=3&&o.status!=='invoiced'?'due-soon':'';
@@ -8156,11 +8100,6 @@ window.deleteInvoice=deleteInvoice;
 window.invItemAmount=invItemAmount;
 window.invUnitRate=invUnitRate;
 window.onAddrStateChange=onAddrStateChange;
-window.getCustStatus=getCustStatus;
-window.setCustFilter=setCustFilter;
-window.isAlertCustomer=isAlertCustomer;
-window.custStatusBadge=custStatusBadge;
-window.getCustLastDeliveryDate=getCustLastDeliveryDate;
 window.readAddr=readAddr;
 window.validateAddr=validateAddr;
 window.fmtAddr=fmtAddr;
