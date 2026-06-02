@@ -4726,6 +4726,12 @@ function renderSalesDashboard(){
     '</div>':'')+
   '<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Period: <strong>'+from+'</strong> to <strong>'+to+'</strong></div>'+
 
+  // Profit calculations (35% of revenue = profit, 65% = cost)
+  var PROFIT_MARGIN = 0.35;
+  var invoicedProfit = invoicedValue * PROFIT_MARGIN;
+  var invoicedCost   = invoicedValue * (1 - PROFIT_MARGIN);
+  var orderProfit    = orderValue * PROFIT_MARGIN;
+
   // KPI metrics
   '<div class="metrics" style="margin-bottom:20px">'+
   '<div class="metric amber"><div class="metric-label">Reached Out</div><div class="metric-value">'+contacted.length+'</div><div class="metric-sub">New contacts this period</div></div>'+
@@ -4733,7 +4739,9 @@ function renderSalesDashboard(){
   '<div class="metric green"><div class="metric-label">Confirmed</div><div class="metric-value">'+confirmedInRange.length+'</div><div class="metric-sub">Invoice generated</div></div>'+
   '<div class="metric '+(convRate>=50?'green':'amber')+'"><div class="metric-label">Conversion Rate</div><div class="metric-value">'+convRate+'%</div><div class="metric-sub">Contacts → confirmed</div></div>'+
   '<div class="metric"><div class="metric-label">Orders Placed</div><div class="metric-value">'+ordersInRange.length+'</div><div class="metric-sub">Est. value: '+fmt(orderValue)+'</div></div>'+
-  '<div class="metric green"><div class="metric-label">Invoiced Value</div><div class="metric-value" style="font-size:16px">'+fmt(invoicedValue)+'</div><div class="metric-sub">'+invoicedOrders.length+' orders invoiced</div></div>'+
+  '<div class="metric green"><div class="metric-label">Invoiced Revenue</div><div class="metric-value" style="font-size:16px">'+fmt(invoicedValue)+'</div><div class="metric-sub">'+invoicedOrders.length+' orders invoiced</div></div>'+
+  '<div class="metric green"><div class="metric-label">Gross Profit (35%)</div><div class="metric-value" style="font-size:16px;color:var(--primary)">'+fmt(invoicedProfit)+'</div><div class="metric-sub">Cost: '+fmt(invoicedCost)+'</div></div>'+
+  '<div class="metric"><div class="metric-label">Est. Profit (Pending)</div><div class="metric-value" style="font-size:15px;color:var(--amber-400)">'+fmt(orderProfit)+'</div><div class="metric-sub">On undelivered orders</div></div>'+
   '</div>'+
 
   // Funnel visualization
@@ -4744,18 +4752,67 @@ function renderSalesDashboard(){
 
   // Top prospects / orders
   '<div class="card"><div class="card-header"><div class="card-title">Orders in Period</div><button class="btn btn-secondary btn-sm" onclick="navigate(\'customer-orders\')">View All</button></div>'+
-  '<div class="table-wrap"><table><thead><tr><th>Order</th><th>For</th><th>Date</th><th>Value</th><th>Status</th></tr></thead><tbody>'+
+  '<div class="table-wrap"><table><thead><tr><th>Order</th><th>For</th><th>Date</th><th>Revenue</th><th style="color:var(--primary)">Profit (35%)</th><th>Status</th></tr></thead><tbody>'+
   (ordersInRange.length?ordersInRange.slice(0,6).map(function(o){
-    var name=o.custId?getCustomer(o.custId).name:o.prospectId?getProspect(o.prospectId).name:'—';
-    return '<tr><td><strong>ORD#'+o.id+'</strong></td><td>'+name+'</td><td>'+o.date+'</td><td class="fw600">'+fmt(getOrderTotal(o))+'</td>'+
+    var oTotal=getOrderTotal(o);
+    var oProfit=oTotal*0.35;
+    var name=o.custId?getCustomer(o.custId).name:o.prospectId?getProspect(o.prospectId).name:
+      (o.notes?(o.notes.match(/Customer:\s*([^|]+)/i)||[])[1]||'—':'—');
+    return '<tr><td><strong>ORD#'+o.id+'</strong></td><td>'+name.trim()+'</td><td>'+o.date+'</td>'+
+    '<td class="fw600">'+fmt(oTotal)+'</td>'+
+    '<td style="color:var(--primary);font-weight:600">'+fmt(oProfit)+'</td>'+
     '<td><span class="badge '+(o.status==='invoiced'?'badge-green':'badge-amber')+'">'+(o.status==='invoiced'?'Invoiced':'Pending')+'</span></td></tr>';
-  }).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">No orders in this period</td></tr>')+
+  }).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">No orders in this period</td></tr>')+
   '</tbody></table></div></div></div>'+
 
   // Timeline activity
   '<div class="card"><div class="card-header"><div class="card-title">Activity Timeline</div></div><div class="card-body">'+
   renderSalesTimeline(timelineData)+
   '</div></div>'+
+
+  // Product-wise profit breakdown
+  (function(){
+    var prodMap = {};
+    ordersInRange.forEach(function(o){
+      (o.items||[]).forEach(function(item){
+        var p = (state.products||[]).find(function(x){return x.id===item.productId;});
+        var pName = p ? (p.name+(p.size?' '+p.size:'')) : ('Product #'+item.productId);
+        if(!prodMap[pName]) prodMap[pName]={name:pName,qty:0,revenue:0,profit:0,cost:0};
+        var rev = (item.qty||0)*(item.rate||0);
+        prodMap[pName].qty     += (item.qty||0);
+        prodMap[pName].revenue += rev;
+        prodMap[pName].profit  += rev*0.35;
+        prodMap[pName].cost    += rev*0.65;
+      });
+    });
+    var prodList = Object.values(prodMap).sort(function(a,b){return b.profit-a.profit;});
+    return prodList.length ?
+    '<div class="card" style="margin-top:16px">'+
+    '<div class="card-header"><div class="card-title">Product-wise Profit Breakdown</div>'+
+    '<span style="font-size:11px;color:var(--text3);font-weight:400">Based on 35% profit margin · '+from+' to '+to+'</span></div>'+
+    '<div class="table-wrap"><table><thead><tr>'+
+    '<th>Product</th><th>Qty (Pkt)</th><th>Revenue</th><th style="color:var(--text3)">Cost (65%)</th><th style="color:var(--primary)">Profit (35%)</th><th>Margin</th>'+
+    '</tr></thead><tbody>'+
+    prodList.map(function(d){
+      var pct = d.revenue>0 ? Math.round(d.profit/d.revenue*100) : 0;
+      return '<tr>'+
+      '<td><strong>'+d.name+'</strong></td>'+
+      '<td>'+d.qty+'</td>'+
+      '<td class="fw600">'+fmt(d.revenue)+'</td>'+
+      '<td style="color:var(--text3)">'+fmt(d.cost)+'</td>'+
+      '<td style="color:var(--primary);font-weight:700">'+fmt(d.profit)+'</td>'+
+      '<td><span style="background:var(--green-50);color:var(--primary);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">'+pct+'%</span></td>'+
+      '</tr>';
+    }).join('')+
+    '<tr style="background:var(--gray-50);font-weight:700">'+
+    '<td>TOTAL</td><td>'+prodList.reduce(function(s,d){return s+d.qty;},0)+'</td>'+
+    '<td>'+fmt(prodList.reduce(function(s,d){return s+d.revenue;},0))+'</td>'+
+    '<td style="color:var(--text3)">'+fmt(prodList.reduce(function(s,d){return s+d.cost;},0))+'</td>'+
+    '<td style="color:var(--primary)">'+fmt(prodList.reduce(function(s,d){return s+d.profit;},0))+'</td>'+
+    '<td><span style="background:var(--green-50);color:var(--primary);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">35%</span></td>'+
+    '</tr>'+
+    '</tbody></table></div></div>' : '';
+  })()+
 
   // Contacts breakdown table
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">'+
