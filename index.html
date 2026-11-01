@@ -25,6 +25,7 @@
 
   const _fbApp = initializeApp(firebaseConfig);
   const _db    = getFirestore(_fbApp);
+  window._db   = _db;
 
   // ── Map REST-style endpoints to Firestore collection names ────────────────
   const _collMap = {
@@ -3970,17 +3971,25 @@ async function cancelOrder(orderId){
   }catch(e){alert('Failed to cancel: '+e.message);}
 }
 window.deleteInvoice=async function deleteInvoice(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  invId=String(invId).trim();
+  var inv=state.invoices.find(function(i){return String(i.id)===invId;});
   if(!inv){alert('Invoice not found');return;}
   if(inv.status!=='cancelled'){alert('Only cancelled invoices can be deleted.');return;}
   var displayNo=inv.billNo||invId;
   if(!confirm('Permanently delete Invoice #'+displayNo+'? This cannot be undone.')) return;
   try{
-    await apiCall('/api/invoices/'+invId,'DELETE');
-    state.invoices=state.invoices.filter(function(i){return String(i.id)!==String(invId);});
+    // Import Firestore deleteDoc directly for reliability
+    var fb=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    var docRef=fb.doc(window._db,'invoices',invId);
+    await fb.deleteDoc(docRef);
+    // Remove from local state
+    state.invoices=state.invoices.filter(function(i){return String(i.id)!==invId;});
     renderPage();
     showToast('Invoice #'+displayNo+' deleted.','amber');
-  }catch(e){alert('Failed to delete: '+e.message);}
+  }catch(e){
+    console.error('Delete invoice failed:',e);
+    alert('Failed to delete: '+e.message);
+  }
 }
 
 window.bulkDeleteInvoices=async function bulkDeleteInvoices(){
