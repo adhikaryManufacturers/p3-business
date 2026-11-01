@@ -3890,7 +3890,7 @@ function renderInvoices(){
       }
     });
 
-    return sortDesc(state.invoices,'id').map(function(inv){
+    return [].concat(state.invoices).sort(function(a,b){return (b.billNo||0)-(a.billNo||0)||(b.date>a.date?1:b.date<a.date?-1:0);}).map(function(inv){
       var _sub=getInvoiceSubTotal(inv);
       var _grand=getInvoiceGrand(inv);
       var due=getInvoiceDue(inv);
@@ -3904,15 +3904,19 @@ function renderInvoices(){
       // Superseded = has a newer invoice (cfInvoiceId) OR not the latest
       var isSuperseded=!!inv.cfInvoiceId||!isLatest;
 
-      // Carry-forward notes
+      // Carry-forward notes — resolve billNo for linked invoices
+      function invDisplayNo(idOrBillNo){
+        var linked=state.invoices.find(function(x){return String(x.id)===String(idOrBillNo)||String(x.billNo)===String(idOrBillNo);});
+        return linked?(linked.billNo||linked.id):idOrBillNo;
+      }
       var cfNote='';
       if(inv.cfInvoiceId){
-        cfNote='<div style="font-size:10px;color:var(--blue-400)">&#8594; Carry forward to #'+inv.cfInvoiceId+'</div>';
+        cfNote='<div style="font-size:10px;color:var(--blue-400)">&#8594; Carry forward to #'+invDisplayNo(inv.cfInvoiceId)+'</div>';
       }
       if(inv.isCarryForward&&inv.prevFromInvoice){
-        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; CF from #'+inv.prevFromInvoice+'</div>';
+        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; CF from #'+invDisplayNo(inv.prevFromInvoice)+'</div>';
       } else if(!inv.isCarryForward&&prevAmt>0&&inv.prevFromInvoice){
-        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; Carry forward from #'+inv.prevFromInvoice+'</div>';
+        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; Carry forward from #'+invDisplayNo(inv.prevFromInvoice)+'</div>';
       }
       if(inv.fromOrderId){
         cfNote+='<div style="font-size:10px;color:var(--primary)">&#128203; ORD#'+inv.fromOrderId+'</div>';
@@ -3923,7 +3927,7 @@ function renderInvoices(){
 
       return '<tr data-bkey="invoices-'+inv.id+'" style="'+rowBg+'" class="'+(isSelected?'selected-row':'')+'" >'+
         '<td class="cb-col">'+bulkRowCbHtml('invoices',inv.id)+'</td>'+
-        '<td><strong>#'+inv.id+'</strong>'+cfNote+
+        '<td><strong>#'+(inv.billNo||inv.id)+'</strong>'+cfNote+
           (inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+
           (!isCancelled&&isSuperseded&&!inv.cfInvoiceId?'<span class="badge" style="background:#aaa;color:#fff;font-size:9px;margin-left:4px">OLD</span>':'')+
           (isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
@@ -3969,12 +3973,13 @@ window.deleteInvoice=async function deleteInvoice(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
   if(inv.status!=='cancelled'){alert('Only cancelled invoices can be deleted.');return;}
-  if(!confirm('Permanently delete Invoice #'+invId+'? This cannot be undone.')) return;
+  var displayNo=inv.billNo||invId;
+  if(!confirm('Permanently delete Invoice #'+displayNo+'? This cannot be undone.')) return;
   try{
-    await apiCall('/api/invoices/'+parseInt(invId),'DELETE');
-    state.invoices=await safeGet('/api/invoices');
+    await apiCall('/api/invoices/'+invId,'DELETE');
+    state.invoices=state.invoices.filter(function(i){return String(i.id)!==String(invId);});
     renderPage();
-    showToast('Invoice #'+invId+' deleted.','amber');
+    showToast('Invoice #'+displayNo+' deleted.','amber');
   }catch(e){alert('Failed to delete: '+e.message);}
 }
 
@@ -3990,9 +3995,9 @@ window.bulkDeleteInvoices=async function bulkDeleteInvoices(){
   }
   if(!confirm('Permanently delete '+ids.length+' invoice(s)?')) return;
   for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/invoices/'+parseInt(ids[i]),'DELETE');}catch(e){}
+    try{await apiCall('/api/invoices/'+ids[i],'DELETE');}catch(e){}
   }
-  state.invoices=await safeGet('/api/invoices');
+  state.invoices=state.invoices.filter(function(inv){return ids.indexOf(String(inv.id))===-1;});
   bulkSel['invoices']=new Set();renderPage();
 }
 
@@ -4001,17 +4006,18 @@ window.cancelInvoice=async function cancelInvoice(invId){
   if(!inv){alert('Invoice not found');return;}
   if(inv.status==='cancelled'){alert('Already cancelled');return;}
   var wasDelivered=inv.delivered;
-  var confirmMsg='Cancel Invoice #'+invId+'?\n\nThis will:\n• Mark invoice as Cancelled'+(wasDelivered?'\n• Restore stock back to inventory':'')+'\n• Cannot be undone';
+  var displayNo=inv.billNo||invId;
+  var confirmMsg='Cancel Invoice #'+displayNo+'?\n\nThis will:\n• Mark invoice as Cancelled'+(wasDelivered?'\n• Restore stock back to inventory':'')+'\n• Cannot be undone';
   if(!confirm(confirmMsg)) return;
   inv.status='cancelled';
   try{
-    await apiCall('/api/invoices/'+parseInt(invId),'PUT',inv);
+    await apiCall('/api/invoices/'+invId,'PUT',inv);
     // Only restore stock if invoice was delivered (stock was deducted on delivery)
     if(wasDelivered) await restoreInvoiceStock(inv.items||[]);
     state.invoices=await safeGet('/api/invoices');
     state.products=await safeGet('/api/products');
     renderPage();
-    showToast('Invoice #'+invId+' cancelled'+(wasDelivered?' and stock restored.':'.'),'amber');
+    showToast('Invoice #'+displayNo+' cancelled'+(wasDelivered?' and stock restored.':'.'),'amber');
   }catch(e){alert('Failed to cancel: '+e.message);}
 }
 
