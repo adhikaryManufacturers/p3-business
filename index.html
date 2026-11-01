@@ -3353,9 +3353,10 @@ function selectProduct(itemId,productId){
     if(row){
       var meta={};
       try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
-      // Reset unit to match product's stockMeta type
-      if(meta.unitType==='Pkt') item.qtyUnit='Pkt';
-      else item.qtyUnit='Pkt'; // default to Pkt, user can switch to Cartoon/Bora
+      // Default unit to match product's primary stockMeta type
+      if(meta.unitType==='Bora') item.qtyUnit='Bora';
+      else if(meta.unitType==='Cartoon') item.qtyUnit='Cartoon';
+      else item.qtyUnit='Pkt';
       item.qtyCount=1;
       invRecalcQty(item,meta);
       // Update product cell
@@ -5736,7 +5737,9 @@ function coSelectProduct(itemId,productId){
     item.productId=product.id;
     item.desc=product.name+(product.size?' - '+product.size:'');
     item.rate=product.price;
-    item.qtyUnit='Pkt';item.qtyCount=1;item.qty=1;item.unit='Pkt';
+    var coMeta={};try{if(product.stockMeta)coMeta=JSON.parse(product.stockMeta);}catch(e){}
+    item.qtyUnit=(coMeta.unitType==='Bora'?'Bora':coMeta.unitType==='Cartoon'?'Cartoon':'Pkt');
+    item.qtyCount=1;item.qty=1;item.unit='Pkt';
     item._typeFilter=item._typeFilter||product.type;
   } else if(item){
     item.productId='';item.desc='';item.rate=0;
