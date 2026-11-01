@@ -3218,21 +3218,32 @@ function invSetMetaVal(itemId, field, val){
 
 function invSetQtyUnit(itemId, unit){
   var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
-  if(!item) return;
+  if(!item){console.warn('invSetQtyUnit: item not found',itemId);return;}
   item.qtyUnit=unit;
   item.qtyCount=1;
   invRecalcQtyFull(item);
-  // Update in-place
-  var row=document.getElementById('invrow-'+itemId);
-  if(row){
-    var product=getProduct(item.productId);
-    var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
-    if(item._metaOverride) Object.assign(meta,item._metaOverride);
-    var td=row.querySelector('td:nth-child(3)');
-    if(td) td.innerHTML=invBuildQtyCell(item,meta);
-    var amtEl=document.getElementById('inv-amt-'+itemId);
-    if(amtEl) amtEl.textContent=fmt(invItemAmount(item));
-  } else { renderPage(); }
+  // Update qty cell in-place to avoid losing other field values
+  var product=getProduct(item.productId);
+  var meta={};try{if(product&&product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+  if(item._metaOverride) Object.assign(meta,item._metaOverride);
+  var newCell=invBuildQtyCell(item,meta);
+  // Try to update just the qty cell in-place
+  var tbody=document.getElementById('inv-items-body');
+  if(tbody){
+    var rows=tbody.querySelectorAll('tr');
+    for(var r=0;r<rows.length;r++){
+      if(rows[r].id==='invrow-'+itemId){
+        var tds=rows[r].querySelectorAll('td');
+        if(tds[2]) tds[2].innerHTML=newCell;
+        var amtEl=document.getElementById('inv-amt-'+itemId);
+        if(amtEl) amtEl.textContent=fmt(invItemAmount(item));
+        updateInvCalc();
+        return;
+      }
+    }
+  }
+  // Fallback: full re-render
+  renderPage();
   updateInvCalc();
 }
 
@@ -5314,7 +5325,7 @@ function renderAllContacts(){
         var l=o.status==='invoiced'?'&#10003; Placed':o.status==='cancelled'?'Cancelled':'Pending';
         return '<div style="margin-bottom:3px"><span class="badge '+s+'" style="cursor:pointer" onclick="showOrderDetailModal(\''+o.id+'\')">ORD#'+o.id+' — '+l+'</span></div>';
       }).join(''):
-      '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+(c.type==='prospect'?c.rawId:'null')+','+(c.type==='customer'?c.rawId:'null')+')">+ Place Order</button>';
+      '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+(c.type==='prospect'?'\''+c.rawId+'\'':'null')+','+(c.type==='customer'?'\''+c.rawId+'\'':'null')+')">+ Place Order</button>';
 
     var invCell=hasInvoices?
       '<div style="display:flex;flex-direction:column;gap:3px">'+
@@ -5350,7 +5361,7 @@ function renderAllContacts(){
       '<td><div class="gap-12">'+
         (c.type==='prospect'?
           '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+c.rawId+'\')">Edit</button>'+
-          (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+(contactOrders.find(function(o){return o.status==='pending';})||{id:0}).id+')">&#9998; Invoice</button>':
+          (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\''+(contactOrders.find(function(o){return o.status==='pending';})||{id:''}).id+'\')">&#9998; Invoice</button>':
           (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\''+c.rawId+'\',null)">+ Order</button>':
           (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">View Invoice</button>':'')))+
           (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\''+c.rawId+'\',\"prospect\")">Orders</button>':''):
@@ -6054,7 +6065,7 @@ function showCustOrdersModal(id,type){
         '</td></tr>';
     }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">No orders yet for this customer</td></tr>')+
     '</tbody></table></div>',
-    '<button class="btn btn-primary" onclick="closeModal();showCreateOrderModal('+(isProspect?id:'null')+','+(isProspect?'null':id)+')">+ New Order</button>'+
+    '<button class="btn btn-primary" onclick="closeModal();showCreateOrderModal('+(isProspect?'\''+id+'\'':'null')+','+(isProspect?'null':'\''+id+'\'')+')">+ New Order</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
