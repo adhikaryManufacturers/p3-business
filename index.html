@@ -3479,7 +3479,7 @@ function updateInvCalc(){
   var afterDisc=sub-disc;
   var gst=gstEnabled?afterDisc*gstRate/100:0;
   var currentBill=afterDisc+gst;
-  var custId=parseInt((document.getElementById('inv-cust')||{}).value)||0;
+  var custId=((document.getElementById('inv-cust')||{}).value)||'';
   var prev=custId?getCustomerTotalDue(custId):0;
   var grand=currentBill+prev+customAmt;
   var calc=document.getElementById('inv-calc');
@@ -3494,7 +3494,7 @@ function updateInvCalc(){
     '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:16px;font-weight:700;color:var(--primary)"><span>Grand Total</span><span>'+fmt(grand)+'</span></div>';
 }
 async function generateInvoice(){
-  var custId=parseInt((document.getElementById('inv-cust')||{}).value)||0;
+  var custId=((document.getElementById('inv-cust')||{}).value)||'';
   var date=(document.getElementById('inv-date')||{}).value;
   var deliveryDate=(document.getElementById('inv-delivery')||{}).value;
   var discount=parseFloat((document.getElementById('inv-discount')||{}).value)||0;
@@ -4938,11 +4938,11 @@ function renderCustomers(){
       '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(c.address)+'</td>'+
       '<td>'+custStatusBadge(st)+'</td>'+
       '<td style="font-size:12px">'+(lastDel?'<span '+(isAlert?'style="color:#e24b4a;font-weight:600"':'\'')+'>'+lastDel+(daysSince!==null?' <span style="font-size:10px;color:var(--text3)">('+daysSince+'d)</span>':'')+'</span>':'<span style="color:var(--text3)">—</span>')+'</td>'+
-      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" data-cid="'+c.id+'" onclick="showCustOrdersModal(parseInt(this.dataset.cid),\'customer\')">&#128203; '+ordCnt+'</button>':'<button class="btn btn-ghost btn-sm" data-cid2="'+c.id+'" onclick="showCreateOrderModal(null,parseInt(this.dataset.cid2))">+ Order</button>')+'</td>'+
+      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" data-cid="'+c.id+'" onclick="showCustOrdersModal(this.dataset.cid,\'customer\')">&#128203; '+ordCnt+'</button>':'<button class="btn btn-ghost btn-sm" data-cid2="'+c.id+'" onclick="showCreateOrderModal(null,this.dataset.cid2)">+ Order</button>')+'</td>'+
       '<td>'+invCnt+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'')+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-ghost btn-sm" onclick="navigate(\'crm\');state.crmCustId='+c.id+'">View</button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="navigate(\'crm\');state.crmCustId=\''+c.id+'\'">View</button>'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal(\''+c.id+'\')">Edit</button>'+
         '<button class="btn btn-primary btn-sm" data-cid="'+c.id+'" onclick="goToCreateInvoice(this.dataset.cid)">+ Invoice</button>'+
         '<button class="btn btn-danger btn-sm" onclick="deleteCustomer(\''+c.id+'\')">Del</button>'+
