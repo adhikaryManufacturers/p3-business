@@ -15,12 +15,12 @@
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
-    apiKey:            "REPLACE_WITH_YOUR_API_KEY",
-    authDomain:        "REPLACE_WITH_YOUR_AUTH_DOMAIN",
-    projectId:         "REPLACE_WITH_YOUR_PROJECT_ID",
-    storageBucket:     "REPLACE_WITH_YOUR_STORAGE_BUCKET",
-    messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
-    appId:             "REPLACE_WITH_YOUR_APP_ID"
+    apiKey:            "AIzaSyDHw8-syGyRi_sLUn8SlB5Vhtw5_b3-wsM",
+    authDomain:        "pranita-suite-6a85f.firebaseapp.com",
+    projectId:         "pranita-suite-6a85f",
+    storageBucket:     "pranita-suite-6a85f.firebasestorage.app",
+    messagingSenderId: "1081795715682",
+    appId:             "1:1081795715682:web:4dcf112dfbf58a481e673b"
   };
 
   const _fbApp = initializeApp(firebaseConfig);
@@ -8000,9 +8000,25 @@ window.doLogin = async function(){
   }
 
   try {
-    // Query Firestore users collection by email
-    var users = await window._fbQuery('users', 'email', id);
-    var matched = users.find(function(u){ return u.password === pass; });
+    var matched = null;
+
+    // Query Firestore — try email field first, then phone field
+    var byEmail = await window._fbQuery('users', 'email', id);
+    matched = byEmail.find(function(u){ return u.password === pass; });
+
+    if(!matched){
+      var byPhone = await window._fbQuery('users', 'phone', id);
+      matched = byPhone.find(function(u){ return u.password === pass; });
+    }
+
+    // Also check without lowercasing (in case stored with uppercase)
+    if(!matched){
+      var rawId = (document.getElementById('auth-email').value || '').trim();
+      if(rawId !== id){
+        var byRaw = await window._fbQuery('users', 'email', rawId);
+        matched = byRaw.find(function(u){ return u.password === pass; });
+      }
+    }
 
     if(matched){
       var data = Object.assign({success:true, message:'Login successful'}, matched);
@@ -8012,12 +8028,16 @@ window.doLogin = async function(){
       authState.currentUser=data;
       await bootApp(true);
     } else {
-      showAuthMsg(users.length ? 'Incorrect password.' : 'No account found with that email.');
+      var allUsers = await window.apiCall('/api/users','GET');
+      var anyMatch = (allUsers||[]).find(function(u){
+        return (u.email||'').toLowerCase()===id || u.phone===id;
+      });
+      showAuthMsg(anyMatch ? 'Incorrect password.' : 'No account found with that email or phone.');
     }
 
   } catch(e){
     console.error(e);
-    showAuthMsg('Login error: ' + e.message);
+    showAuthMsg('Login failed — check Firestore Rules are set to allow read/write. Error: ' + e.message);
   }
 };
 
@@ -8034,16 +8054,27 @@ function showResetPanel(){
   '<button class="auth-btn" onclick="doEmergencyReset()" style="background:#c0392b">Reset Login Accounts</button>'+
   '<div class="auth-link" style="margin-top:10px"><span onclick="authState.authMode=\'login\';renderAuth()">&#8592; Back to login</span></div>';
 }
-function doEmergencyReset(){
+async function doEmergencyReset(){
   if((document.getElementById('reset-confirm').value||'').trim()!=='RESET'){
     var el=document.getElementById('auth-msg');
     if(el) el.innerHTML='<div class="auth-error">Please type RESET exactly to confirm.</div>';return;
   }
-  var def=[{name:'Admin',email:'admin@pranita.com',phone:'9876543210',password:'admin123',role:'admin'}];
-  localStorage.setItem('pranita_users',JSON.stringify(def));
-  authState.users=def;
   var el=document.getElementById('auth-msg');
-  if(el) el.innerHTML='<div class="auth-success">Reset done! Login: admin@pranita.com / admin123</div>';
+  if(el) el.innerHTML='<div class="auth-sub">Resetting...</div>';
+  var adminUser={name:'Admin',email:'admin@pranita.com',phone:'9876543210',password:'admin123',role:'ADMIN'};
+  try {
+    // Delete all existing users and create fresh admin in Firestore
+    var existing = await window.apiCall('/api/users','GET');
+    for(var u of (existing||[])){
+      try{ await window.apiCall('/api/users/'+u.id,'DELETE'); }catch(e){}
+    }
+    await window.apiCall('/api/users','POST', adminUser);
+    authState.users=[adminUser];
+    if(el) el.innerHTML='<div class="auth-success">Reset done! Login: admin@pranita.com / admin123</div>';
+  } catch(e){
+    if(el) el.innerHTML='<div class="auth-error">Reset failed — make sure Firestore Rules allow read/write. Error: '+e.message+'</div>';
+    return;
+  }
   setTimeout(function(){authState.authMode='login';renderAuth();},2000);
 }
 
