@@ -1846,7 +1846,7 @@ function renderDashboard(){
   var activeStaff=state.staff.filter(function(s){return s.active;}).length;
   var pendingOrders=state.invoices.filter(function(i){return !i.delivered;}).length;
   var lowStock=state.products.filter(function(p){return p.stock<100;}).length;
-  var recentInv=[].concat(state.invoices).sort(function(a,b){return b.id-a.id;}).slice(0,5);
+  var recentInv=[].concat(state.invoices).sort(function(a,b){return (b.billNo||0)-(a.billNo||0)||(b.date>a.date?1:b.date<a.date?-1:0);}).slice(0,5);
   return '<div class="section-title">Good morning 🌿</div><div class="section-sub">P3 Business Suite — Overview</div>'+
   '<div class="metrics">'+
   '<div class="metric green"><div class="metric-label">Total Revenue</div><div class="metric-value">'+fmt(totalRevenue)+'</div><div class="metric-sub">Collected from invoices</div></div>'+
@@ -1862,7 +1862,7 @@ function renderDashboard(){
   (recentInv.map(function(inv){
     var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);var cust=getCustomer(inv.custId);
     var isCx=inv.status==='cancelled';
-    return '<tr style="'+(isCx?'opacity:0.7;background:#fff5f5':'')+'"><td><strong>#'+inv.id+'</strong></td><td>'+(cust.name||'Unknown')+'</td>'+
+    return '<tr style="'+(isCx?'opacity:0.7;background:#fff5f5':'')+'"><td><strong>#'+(inv.billNo||inv.id)+'</strong></td><td>'+(cust.name||'Unknown')+'</td>'+
       '<td>'+(isCx?'<s style="color:var(--text3)">'+fmt(_grand)+'</s>':fmt(_grand))+'</td>'+
       '<td><span class="badge '+(isCx?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+
       (isCx?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td></tr>';
@@ -3609,10 +3609,12 @@ async function generateInvoice(){
   if(customAmt>0||customAmtLabel){
     enrichedItems.push({desc:'__meta__'+JSON.stringify({ca:customAmt,cl:customAmtLabel}),productId:null,qty:0,rate:0,unit:'Pcs'});
   }
-  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null};
+  var billNo=state.nextInvoiceId;
+  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null,billNo:billNo};
   try{
     var saved=await apiCall('/api/invoices','POST',inv);
     state.invoices.push(saved);
+    state.nextInvoiceId=billNo+1;
     var newInvId=saved.id;
 
     state.invoiceItems=[];
@@ -3676,10 +3678,11 @@ function showInvoiceSaveModal(invId){
   var inv=state.invoices.find(function(i){return i.id===invId;});
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
-  showModal('Invoice #'+invId+' Generated',
+  var displayNo=inv.billNo||invId;
+  showModal('Invoice #'+displayNo+' Generated',
     '<div style="text-align:center;padding:10px 0 16px">'+
     '<div style="font-size:36px;margin-bottom:8px">&#127881;</div>'+
-    '<div style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:4px">Invoice #'+invId+' Created!</div>'+
+    '<div style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:4px">Invoice #'+displayNo+' Created!</div>'+
     '<div style="color:var(--text3);font-size:13px">Customer: '+cust.name+' | Total: '+fmt(_grand)+'</div>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px">'+
@@ -3695,9 +3698,9 @@ function showInvoiceSaveModal(invId){
     '<div style="font-size:22px;margin-bottom:4px">&#11015;</div>'+
     '<div style="font-weight:600;font-size:13px;margin-bottom:4px">Download HTML</div>'+
     '<div style="font-size:11px;color:var(--text3)">Open &amp; print</div></div></div>',
-    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview('+invId+')">&#128065; Preview</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF('+invId+')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="downloadInvoice('+invId+')">&#11015; HTML</button>'+
+    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+invId+'\')">&#128065; Preview</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\''+invId+'\')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="downloadInvoice(\''+invId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -3739,7 +3742,8 @@ function buildInvoiceHTML(invId, forDownload){
         '<td style="font-weight:600">'+fmt(ba2)+'</td></tr>';
     }).join('');
   }
-  return (forDownload?'<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invoice #'+invId+'</title>'+styles+'</head><body>':'')+
+  var displayInvNo=inv.billNo||invId;
+  return (forDownload?'<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invoice #'+displayInvNo+'</title>'+styles+'</head><body>':'')+
   '<div class="invoice-paper" style="background:#fff;border:1px solid #eee;border-radius:10px;padding:28px;"'+(!forDownload?' id="inv-preview-'+invId+'"':'')+'">'+
   (isCF?'<div style="background:#E6F1FB;border:1px solid #85B7EB;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center"><div><span style="font-size:11px;font-weight:700;color:#0C447C;text-transform:uppercase">Carry-Forward Invoice</span><div style="font-size:12px;color:#378ADD;margin-top:2px">Balance carried from Invoice #'+inv.prevFromInvoice+'</div></div><span style="background:#0C447C;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px">CF</span></div>':'')+
   '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">'+
@@ -3748,7 +3752,7 @@ function buildInvoiceHTML(invId, forDownload){
   '<div><div style="font-family:serif;font-size:20px;color:#27500A;font-weight:700">Pranita Paper Plates</div>'+
   '<div style="font-size:11px;color:#888">A unit of Adhikary Manufacturer\'s and Suppliers</div></div></div>'+
   '<div style="text-align:right;font-size:13px">'+
-  '<div style="font-size:22px;font-weight:700;color:#27500A">Invoice #'+invId+'</div>'+
+  '<div style="font-size:22px;font-weight:700;color:#27500A">Invoice #'+displayInvNo+'</div>'+
   '<div>Date: '+inv.date+'</div><div>Delivery: '+inv.deliveryDate+'</div>'+
   (inv.delivered?'<div style="color:#3B6D11;font-weight:600">Delivered: '+(inv.deliveredDate||'')+'</div>':'')+'</div></div>'+
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">'+
@@ -3782,11 +3786,12 @@ function buildInvoiceHTML(invId, forDownload){
 function showInvoicePreview(invId){
   var inv=state.invoices.find(function(i){return i.id===invId;});
   var due=getInvoiceDue(inv);
-  showModal('Invoice #'+invId,
+  var displayNo=(inv&&inv.billNo)||invId;
+  showModal('Invoice #'+displayNo,
     buildInvoiceHTML(invId,false),
-    (due>0?'<button class="btn btn-primary" onclick="closeModal();showRecordPaymentModal('+invId+')">Record Payment</button>':'')+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF('+invId+')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="downloadInvoice('+invId+')">&#11015; HTML</button>'+
+    (due>0?'<button class="btn btn-primary" onclick="closeModal();showRecordPaymentModal(\''+invId+'\')">Record Payment</button>':'')+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\''+invId+'\')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="downloadInvoice(\''+invId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -4013,7 +4018,7 @@ function renderInvoices(){
 
       return '<tr data-bkey="invoices-'+inv.id+'" style="'+rowBg+'" class="'+(isSelected?'selected-row':'')+'" >'+
         '<td class="cb-col">'+bulkRowCbHtml('invoices',inv.id)+'</td>'+
-        '<td><strong>#'+inv.id+'</strong>'+cfNote+
+        '<td><strong>#'+(inv.billNo||inv.id)+'</strong>'+cfNote+
           (inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+
           (!isCancelled&&isSuperseded&&!inv.cfInvoiceId?'<span class="badge" style="background:#aaa;color:#fff;font-size:9px;margin-left:4px">OLD</span>':'')+
           (isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
@@ -4025,15 +4030,15 @@ function renderInvoices(){
         '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
         '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
         '<td><div class="gap-12">'+
-          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+inv.id+')">View</button>'+
-          (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF('+inv.id+')">&#128196; PDF</button>':'')+
-          (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice('+inv.id+')">&#11015; HTML</button>':'')+
-          (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal('+inv.id+')">Pay</button>':'')+
+          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">View</button>'+
+          (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF(\''+inv.id+'\')">&#128196; PDF</button>':'')+
+          (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice(\''+inv.id+'\')">&#11015; HTML</button>':'')+
+          (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal(\''+inv.id+'\')">Pay</button>':'')+
           (inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
-          (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp('+inv.id+')">&#128362; Share</button>':'')+
-          (!isCancelled&&isLatest?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice('+inv.id+')">Cancel</button>':'')+
+          (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp(\''+inv.id+'\')">&#128362; Share</button>':'')+
+          (!isCancelled&&isLatest?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice(\''+inv.id+'\')">Cancel</button>':'')+
           (isCancelled?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>'+
-            '<button class="btn btn-danger btn-sm" onclick="deleteInvoice('+inv.id+')" style="margin-left:4px">🗑 Delete</button>':'')+
+            '<button class="btn btn-danger btn-sm" onclick="deleteInvoice(\''+inv.id+'\')" style="margin-left:4px">🗑 Delete</button>':'')+
         '</div></td></tr>';
     }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>';
   })()
@@ -4152,7 +4157,7 @@ async function shareInvoiceWhatsApp(invId){
   var due  = getInvoiceDue(inv);
   var phone = (cust.phone||'').replace(/\D/g,'');
 
-  var msg = '🧾 *Invoice #'+inv.id+' — Pranita Paper Plates & Cups*\n\n'+
+  var msg = '🧾 *Invoice #'+(inv.billNo||inv.id)+' — Pranita Paper Plates & Cups*\n\n'+
     '👤 Customer: '+cust.name+'\n'+
     '📅 Date: '+inv.date+'\n'+
     '🚚 Delivery: '+inv.deliveryDate+'\n\n'+
@@ -4176,7 +4181,7 @@ async function shareInvoiceWhatsApp(invId){
       var pdfBlob = await buildInvoicePDFBlob(inv, cust, c2, due);
       if(pdfBlob && navigator.canShare && navigator.canShare({files:[pdfBlob]})){
         await navigator.share({
-          title: 'Invoice #'+inv.id+' — '+cust.name,
+          title: 'Invoice #'+(inv.billNo||inv.id)+' — '+cust.name,
           text: msg,
           files: [pdfBlob]
         });
@@ -4210,7 +4215,7 @@ async function buildInvoicePDFBlob(inv, cust, c2, due){
     if(!jsPDFLib) return null;
     var doc=new jsPDFLib({orientation:'portrait',unit:'mm',format:'a4'});
     doc.setFontSize(16);doc.setFont('helvetica','bold');
-    doc.text('INVOICE #'+inv.id,105,18,{align:'center'});
+    doc.text('INVOICE #'+(inv.billNo||inv.id),105,18,{align:'center'});
     doc.setFontSize(10);doc.setFont('helvetica','normal');
     doc.text('Pranita Paper Plates & Cups',105,25,{align:'center'});
     doc.setFontSize(10);
@@ -4719,7 +4724,7 @@ function showRecordPaymentModal(invId){
     '<div class="form-group full"><label>Reference / Note</label><input type="text" id="rp-note" placeholder="UPI ref, cheque no., etc."></div>'+
     '</div>'+
     '<div id="rp-preview" style="margin-top:14px"></div>',
-    '<button class="btn btn-primary" onclick="savePaymentRecord('+invId+')">Record Payment</button>'+
+    '<button class="btn btn-primary" onclick="savePaymentRecord(\''+invId+'\')">Record Payment</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   setTimeout(function(){updatePaymentPreview(invId);},50);
 }
@@ -4803,8 +4808,8 @@ async function savePaymentRecord(invId){
         '<div style="font-size:12px;color:#0C447C;margin-top:2px">Balance: '+fmt(remaining)+'</div>'+
         '<div style="font-size:11px;color:var(--text3);margin-top:4px">Status: Unpaid</div>'+
         '</div></div>',
-        '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview('+newId+')">&#128065; View New Invoice #'+newId+'</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF('+newId+')">&#128196; PDF</button>'+
+        '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+newId+'\')">&#128065; View New Invoice #'+newId+'</button>'+
+        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\''+newId+'\')">&#128196; PDF</button>'+
         '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
     }
     renderPage();
@@ -4829,14 +4834,14 @@ function renderOrders(){
     var isSelected=bulkGetSet('orders').has(inv.id);
     return '<tr data-bkey="orders-'+inv.id+'" class="'+(isSelected?'selected-row':'')+'" >'+
       '<td class="cb-col">'+bulkRowCbHtml('orders',inv.id)+'</td>'+
-      '<td><strong>#'+inv.id+'</strong></td>'+
+      '<td><strong>#'+(inv.billNo||inv.id)+'</strong></td>'+
       '<td>'+inv.date+'</td>'+
       '<td>'+cust.name+'</td>'+
       '<td class="'+(s.label==='Overdue'?'overdue':s.label==='Due Soon'?'due-soon':'')+'">'+inv.deliveryDate+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
       '<td class="fw600">'+fmt(grandTotal)+'</td>'+
       '<td><div class="gap-12">'+
-        (!inv.delivered?'<button class="btn btn-primary btn-sm" onclick="showDeliveryModal('+inv.id+')">Mark Delivered</button>':'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+inv.id+')">View</button>')+
+        (!inv.delivered?'<button class="btn btn-primary btn-sm" onclick="showDeliveryModal(\''+inv.id+'\')">Mark Delivered</button>':'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">View</button>')+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -4855,7 +4860,7 @@ function showDeliveryModal(invId){
     '<input type="date" id="del-date" value="'+today()+'">'+
     '<div style="font-size:12px;color:var(--text3);margin-top:4px">This date will be shown on the invoice and order list.</div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="confirmDelivery('+invId+')">✓ Confirm Delivery</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="confirmDelivery(\''+invId+'\')">✓ Confirm Delivery</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function confirmDelivery(invId){
   var inv=state.invoices.find(function(i){return i.id===invId;});
@@ -5394,13 +5399,13 @@ function renderAllContacts(){
     var invCell=hasInvoices?
       '<div style="display:flex;flex-direction:column;gap:3px">'+
       activeInvs.slice(0,3).map(function(i){
-        return '<span class="badge '+(i.status==='paid'?'badge-green':i.paid>0?'badge-amber':'badge-red')+'" style="cursor:pointer" onclick="showInvoicePreview('+i.id+')">#'+i.id+'</span>';
+        return '<span class="badge '+(i.status==='paid'?'badge-green':i.paid>0?'badge-amber':'badge-red')+'" style="cursor:pointer" onclick="showInvoicePreview(\''+i.id+'\')">#'+(i.billNo||i.id)+'</span>';
       }).join('')+
       (activeInvs.length>3?'<span style="font-size:10px;color:var(--text3)">+'+(activeInvs.length-3)+' more</span>':'')+
       (cancelledInvs.length>0?'<div style="font-size:10px;color:#e24b4a;margin-top:2px">'+cancelledInvs.length+' cancelled</div>':'')+
       (activeInvs.length===0&&cancelledInvs.length>0?'<div style="font-size:11px;color:var(--text3);font-style:italic">No active invoices</div>':'')+
       '</div>':
-      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">#'+invoicedOrder.invoiceId+'</span>':'—');
+      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">#'+invoicedOrder.invoiceId+'</span>':'—');
 
     var actUnpaidInvs=(state.invoices||[]).filter(function(i){return String(i.custId)===String(c.rawId)&&i.status!=='paid'&&i.status!=='cancelled';});
     var payBtn=c.type==='customer'?(
@@ -5427,7 +5432,7 @@ function renderAllContacts(){
           '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+c.rawId+')">Edit</button>'+
           (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+(contactOrders.find(function(o){return o.status==='pending';})||{id:0}).id+')">&#9998; Invoice</button>':
           (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+c.rawId+',null)">+ Order</button>':
-          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">View Invoice</button>':'')))+
+          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">View Invoice</button>':'')))+
           (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal('+c.rawId+',\"prospect\")">Orders</button>':''):
           '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal('+c.rawId+')">Edit</button>'+
           '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(null,'+c.rawId+')">+ Order</button>'+
@@ -5512,7 +5517,7 @@ function renderCRM(){
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+p.id+')">Edit</button>'+
         (pendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+pendingOrder.id+')">&#9998; Generate Invoice</button>':''+
-        (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">View Invoice #'+invoicedOrder.invoiceId+'</button>':
+        (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">View Invoice #'+invoicedOrder.invoiceId+'</button>':
         '<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal('+p.id+',null)">+ Add Order</button>'))+
         '<button class="btn btn-danger btn-sm" onclick="deleteProspect('+p.id+')">Del</button>'+
       '</div></td></tr>';
@@ -5659,7 +5664,7 @@ function renderCustomerOrders(){
       '<td style="font-size:12px;color:var(--text2)">'+(o.items||[]).map(function(i){var p=getProduct(i.productId);return (p.name||'Item')+' &times;'+i.qty;}).join('<br>')+'</td>'+
       '<td class="fw600">'+fmt(total)+'</td>'+
       '<td><span class="badge '+(o.status==='invoiced'?'badge-green':'badge-amber')+'">'+(o.status==='invoiced'?'&#10003; Invoiced':'Pending')+'</span></td>'+
-      '<td>'+(o.invoiceId?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview('+o.invoiceId+')">#'+o.invoiceId+'</span>':'—')+'</td>'+
+      '<td>'+(o.invoiceId?(function(){var _oi=state.invoices.find(function(i){return i.id===o.invoiceId;});return '<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\''+o.invoiceId+'\')">#'+(_oi&&_oi.billNo?_oi.billNo:o.invoiceId)+'</span>';})():'—')+'</td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showOrderDetailModal('+o.id+')">View</button>'+
         (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-primary btn-sm" onclick="showEditOrderModal('+o.id+')">Edit</button>':'')+
@@ -6090,9 +6095,9 @@ function generateInvoiceFromOrder(orderId){
     '</div>'+
     '</div>'+
     (prev>0?'<div style="margin-top:10px;background:var(--amber-50);border-radius:8px;padding:10px;font-size:12px;color:var(--amber-400)">Previous outstanding '+fmt(prev)+' added to invoice total.</div>':''),
-    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview('+newInvId+')">&#128065; View Invoice</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="closeModal();downloadInvoicePDF('+newInvId+')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="closeModal();downloadInvoice('+newInvId+')">&#11015; HTML</button>'+
+    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+newInvId+'\')">&#128065; View Invoice</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="closeModal();downloadInvoicePDF(\''+newInvId+'\')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="closeModal();downloadInvoice(\''+newInvId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -6281,8 +6286,8 @@ async function saveCustomerPay(custId){
         '<div style="font-size:11px;color:#0C447C;font-weight:700;margin-bottom:4px">New CF Invoice #'+newId+'</div>'+
         '<div style="font-size:12px;color:#0C447C">Balance: '+fmt(remaining)+'</div>'+
         '<div style="font-size:11px;color:var(--text3)">Status: Unpaid</div></div></div>',
-        '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview('+newId+')">&#128065; View #'+newId+'</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF('+newId+')">&#128196; PDF</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\''+newId+'\')">&#128065; View #'+newId+'</button>'+
+        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\''+newId+'\')">&#128196; PDF</button>'+
         '<button class="btn btn-ghost btn-sm" onclick="closeModal()">Close</button>');
     }
     renderPage();
@@ -8231,7 +8236,14 @@ async function loadFromStorage(){
   state.customerOrders = await safeGet('/api/orders');
   state.expenseEntries = await safeGet('/api/expenses');
   state.notes          = await safeGet('/api/notes');
-  console.log('Data loaded — staff:'+state.staff.length+' customers:'+state.customers.length+' products:'+state.products.length);
+  // Derive nextInvoiceId from max billNo stored in Firestore invoices
+  var maxBillNo=1000;
+  state.invoices.forEach(function(inv){
+    var bn=parseInt(inv.billNo||0);
+    if(bn>maxBillNo) maxBillNo=bn;
+  });
+  state.nextInvoiceId=maxBillNo+1;
+  console.log('Data loaded — staff:'+state.staff.length+' customers:'+state.customers.length+' products:'+state.products.length+' nextInvoiceId:'+state.nextInvoiceId);
 }
 
 function _applyFromSaved(saved){
