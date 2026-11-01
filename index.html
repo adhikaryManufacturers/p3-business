@@ -2175,7 +2175,7 @@ function processPayrollForSelected(){
     alert('Please select an employee from the dropdown first.');
     return;
   }
-  showPartPayModal(parseInt(sel.value));
+  showPartPayModal(sel.value);
 }
 
 function showPartPayModal(empId){
@@ -3415,7 +3415,7 @@ function selectProduct(itemId,productId){
     return;
   }
   var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
-  var product=getProduct(parseInt(productId));
+  var product=getProduct(productId);
   if(item&&product&&product.id){
     item.productId=product.id;
     item.desc=product.name+(product.size?' - '+product.size:'');
@@ -3556,7 +3556,7 @@ function updateInvCalc(){
   var afterDisc=sub-disc;
   var gst=gstEnabled?afterDisc*gstRate/100:0;
   var currentBill=afterDisc+gst;
-  var custId=parseInt((document.getElementById('inv-cust')||{}).value)||0;
+  var custId=((document.getElementById('inv-cust')||{}).value)||'';
   var prev=custId?getCustomerTotalDue(custId):0;
   var grand=currentBill+prev+customAmt;
   var calc=document.getElementById('inv-calc');
@@ -3571,7 +3571,7 @@ function updateInvCalc(){
     '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:16px;font-weight:700;color:var(--primary)"><span>Grand Total</span><span>'+fmt(grand)+'</span></div>';
 }
 async function generateInvoice(){
-  var custId=parseInt((document.getElementById('inv-cust')||{}).value)||0;
+  var custId=((document.getElementById('inv-cust')||{}).value)||'';
   var date=(document.getElementById('inv-date')||{}).value;
   var deliveryDate=(document.getElementById('inv-delivery')||{}).value;
   var discount=parseFloat((document.getElementById('inv-discount')||{}).value)||0;
@@ -5001,7 +5001,7 @@ function renderCustomers(){
       '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(c.address)+'</td>'+
       '<td>'+custStatusBadge(st)+'</td>'+
       '<td style="font-size:12px">'+(lastDel?'<span '+(isAlert?'style="color:#e24b4a;font-weight:600"':'\'')+'>'+lastDel+(daysSince!==null?' <span style="font-size:10px;color:var(--text3)">('+daysSince+'d)</span>':'')+'</span>':'<span style="color:var(--text3)">—</span>')+'</td>'+
-      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" data-cid="'+c.id+'" onclick="showCustOrdersModal(parseInt(this.dataset.cid),\'customer\')">&#128203; '+ordCnt+'</button>':'<button class="btn btn-ghost btn-sm" data-cid2="'+c.id+'" onclick="showCreateOrderModal(null,parseInt(this.dataset.cid2))">+ Order</button>')+'</td>'+
+      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" data-cid="'+c.id+'" onclick="showCustOrdersModal(this.dataset.cid,\'customer\')">&#128203; '+ordCnt+'</button>':'<button class="btn btn-ghost btn-sm" data-cid2="'+c.id+'" onclick="showCreateOrderModal(null,this.dataset.cid2)">+ Order</button>')+'</td>'+
       '<td>'+invCnt+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'')+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><div class="gap-12">'+
@@ -5795,7 +5795,7 @@ function coGetBillingQty(item,meta){
 }
 function coSelectProduct(itemId,productId){
   var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
-  var product=getProduct(parseInt(productId));
+  var product=getProduct(productId);
   if(item&&product&&product.id){
     item.productId=product.id;
     item.desc=product.name+(product.size?' - '+product.size:'');
@@ -5877,8 +5877,8 @@ async function saveNewOrder(){
   if(who==='__new_prospect__'){showAddProspectModal();return;}
   if(!who){alert('Please select a customer or prospect');return;}
   var prospectId=null,custId=null;
-  if(who.startsWith('p_')) prospectId=parseInt(who.slice(2));
-  else if(who.startsWith('c_')) custId=parseInt(who.slice(2));
+  if(who.startsWith('p_')) prospectId=who.slice(2);
+  else if(who.startsWith('c_')) custId=who.slice(2);
   var date=document.getElementById('co-date').value;
   var delivery=document.getElementById('co-delivery').value;
   var notes=document.getElementById('co-notes').value;
@@ -5949,14 +5949,14 @@ function showEditOrderModal(orderId){
 async function saveEditOrder(orderId){
   var o=getCustOrder(orderId);
   var who=(document.getElementById('co-who').value||'');
-  if(who.startsWith('p_')){o.prospectId=parseInt(who.slice(2));o.custId=null;}
-  else if(who.startsWith('c_')){o.custId=parseInt(who.slice(2));o.prospectId=null;}
+  if(who.startsWith('p_')){o.prospectId=who.slice(2);o.custId=null;}
+  else if(who.startsWith('c_')){o.custId=who.slice(2);o.prospectId=null;}
   o.date=document.getElementById('co-date').value;
   o.deliveryDate=document.getElementById('co-delivery').value;
   o.notes=document.getElementById('co-notes').value;
   var items=[];var n=window._coItemCount||1;
   for(var i=0;i<n;i++){
-    var pid=parseInt((document.getElementById('coi-prod-'+i)||{}).value)||0;
+    var pid=((document.getElementById('coi-prod-'+i)||{}).value)||'';
     var qty=parseFloat((document.getElementById('coi-qty-'+i)||{}).value)||0;
     var unit=(document.getElementById('coi-unit-'+i)||{}).value||'Pcs';
     var rate=parseFloat((document.getElementById('coi-rate-'+i)||{}).value)||0;
@@ -6215,7 +6215,7 @@ function showCustomerPayModal(custId){
 }
 
 function updateCPPreview(custId){
-  var invId=parseInt((document.getElementById('cp-inv')||{}).value)||0;
+  var invId=((document.getElementById('cp-inv')||{}).value)||'';
   var amount=parseFloat((document.getElementById('cp-amount')||{}).value)||0;
   var inv=state.invoices.find(function(i){return i.id===invId;});
   var el=document.getElementById('cp-preview');
@@ -6237,7 +6237,7 @@ function updateCPPreview(custId){
   }
 }
 async function saveCustomerPay(custId){
-  var invId=parseInt(document.getElementById('cp-inv').value);
+  var invId=document.getElementById('cp-inv').value;
   var amount=parseFloat(document.getElementById('cp-amount').value)||0;
   if(amount<=0){alert('Please enter a valid amount.');return;}
   closeModal();
@@ -6679,7 +6679,7 @@ function addPOItemRow(){
 }
 
 async function savePO(){
-  var vendorId=parseInt((document.getElementById('po-vendor')||{}).value||0);
+  var vendorId=((document.getElementById('po-vendor')||{}).value)||'';
   var date=(document.getElementById('po-date')||{}).value;
   var dueDate=(document.getElementById('po-due')||{}).value;
   var notes=(document.getElementById('po-notes')||{}).value||'';
@@ -6817,7 +6817,7 @@ function showVendorPayModal(vendorId){
     '<button class="btn btn-primary" onclick="saveVendorPay('+vendorId+')">Record</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveVendorPay(vendorId){
-  var poId=parseInt(document.getElementById('vp-po').value);
+  var poId=document.getElementById('vp-po').value;
   var amount=parseFloat(document.getElementById('vp-amount').value)||0;
   var po=state.purchaseOrders.find(function(p){return p.id===poId;});
   po.paid=(po.paid||0)+amount;
@@ -7303,7 +7303,7 @@ function renderAnalytics(){
     custMap[cid].count++;
   });
   var custRows=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
-    var c=getCustomer(parseInt(cid));var d=custMap[cid];
+    var c=getCustomer(cid);var d=custMap[cid];
     return '<tr><td><strong>'+(c.name||'Unknown')+'</strong></td><td>'+d.count+'</td><td class="fw600">'+fmt(d.sales)+'</td><td class="fc-green">'+fmt(d.paid)+'</td><td class="fc-red">'+fmt(d.due)+'</td></tr>';
   }).join('');
   // Product breakdown — use resolveItemBilling for correct qty and revenue
@@ -7330,7 +7330,7 @@ function renderAnalytics(){
   var PAGE=10;
 
   var custAll=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
-    var c=getCustomer(parseInt(cid));var d=custMap[cid];
+    var c=getCustomer(cid);var d=custMap[cid];
     return {name:(c.name||'Unknown'),count:d.count,sales:d.sales,paid:d.paid,due:d.due};
   });
   var custFiltered=custSearch?custAll.filter(function(r){return r.name.toLowerCase().indexOf(custSearch)>=0;}):custAll;
@@ -7474,7 +7474,7 @@ function renderAnTable(type){
       custMap[cid].count++;
     });
     var all=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
-      var c=getCustomer(parseInt(cid));var d=custMap[cid];
+      var c=getCustomer(cid);var d=custMap[cid];
       return {name:(c.name||'Unknown'),count:d.count,sales:d.sales,paid:d.paid,due:d.due};
     });
     filtered=search?all.filter(function(r){return r.name.toLowerCase().indexOf(search)>=0;}):all;
