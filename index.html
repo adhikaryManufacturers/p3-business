@@ -617,7 +617,7 @@ function bulkSelectAllHtml(tableKey,ids){
 function bulkRowCbHtml(tableKey,id){
   var checked=bulkGetSet(tableKey).has(id);
   return '<input type="checkbox" class="row-cb" '+(checked?'checked':'')+
-    ' onchange="bulkToggle(\''+tableKey+'\',\\'"+id+"\\',this.checked)">';
+    ' onchange="bulkToggle(\''+tableKey+'\',\''+id+'\',this.checked)">';
 }
 
 // ===================== UTILS =====================
@@ -1011,7 +1011,7 @@ function renderNotesPage(){
           'box-shadow:2px 4px 12px rgba(0,0,0,0.1);cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;position:relative;" '+
           'onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'2px 8px 20px rgba(0,0,0,0.15)\'" '+
           'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'2px 4px 12px rgba(0,0,0,0.1)\'" '+
-          'onclick="viewNote(\\'"+i+"\\')">'+
+          'onclick="viewNote(\''+i+'\')">'+
           // Icon + type badge
           '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
           '<span style="font-size:28px">'+icon+'</span>'+
@@ -1025,10 +1025,10 @@ function renderNotesPage(){
           '<div style="font-size:11px;color:#999;margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.08)">'+n.date+'</div>'+
           // Action buttons
           '<div style="display:flex;gap:6px;margin-top:10px">'+
-          (n.type==='text'?'<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();editNote(\\'"+i+"\\')">✏️ Edit</button>':''+
-          '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();downloadNote(\\'"+i+"\\')">⬇ Download</button>')+
-          '<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="event.stopPropagation();shareNoteWhatsApp(\\'"+i+"\\')">📲</button>'+
-          '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteNote(\\'"+i+"\\')">🗑️</button>'+
+          (n.type==='text'?'<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();editNote(\''+i+'\')">✏️ Edit</button>':''+
+          '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();downloadNote(\''+i+'\')">⬇ Download</button>')+
+          '<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="event.stopPropagation();shareNoteWhatsApp(\''+i+'\')">📲</button>'+
+          '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteNote(\''+i+'\')">🗑️</button>'+
           '</div>'+
           '</div>';
       }).join('')+
@@ -1898,11 +1898,11 @@ function renderStaffDirectory(){
         '<td><span class="badge '+(s.leaveBalance>2?'badge-green':s.leaveBalance>0?'badge-amber':'badge-red')+'">'+s.leaveBalance+' days</span></td>'+
         '<td>'+(s.advance>0?'<span class="fc-red">'+fmt(s.advance)+'</span>':'—')+'</td>'+
         '<td>'+(pending>0?'<span class="fc-red fw600">'+fmt(pending)+'</span><div style="font-size:11px;color:var(--text3)">Unpaid balance</div>':'<span class="badge badge-green">All Clear</span>')+'</td>'+
-        '<td><button class="btn btn-secondary btn-sm" onclick="showStaffPayHistory(\\'"+s.id+"\\')">Payment History</button></td>'+
+        '<td><button class="btn btn-secondary btn-sm" onclick="showStaffPayHistory(\''+s.id+'\')">Payment History</button></td>'+
         '<td><div class="gap-12">'+
-          '<button class="btn btn-secondary btn-sm" onclick="showEditStaffModal(\\'"+s.id+"\\')">Edit</button>'+
-          '<button class="btn btn-primary btn-sm" onclick="showPartPayModal(\\'"+s.id+"\\')">Pay Salary</button>'+
-          '<button class="btn btn-danger btn-sm" onclick="deleteStaff(\\'"+s.id+"\\')">Remove</button>'+
+          '<button class="btn btn-secondary btn-sm" onclick="showEditStaffModal(\''+s.id+'\')">Edit</button>'+
+          '<button class="btn btn-primary btn-sm" onclick="showPartPayModal(\''+s.id+'\')">Pay Salary</button>'+
+          '<button class="btn btn-danger btn-sm" onclick="deleteStaff(\''+s.id+'\')">Remove</button>'+
         '</div></td></tr>';
     }),
     'staff',
@@ -1956,15 +1956,15 @@ function _renderStaffPayHistoryModal(empId){
   var filterBar=
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding:12px;background:var(--gray-50);border-radius:10px">'+
     '<span style="font-size:12px;font-weight:600;color:var(--text2);margin-right:4px">Filter:</span>'+
-    '<button class="btn btn-sm '+(filter==='all'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'all\';_renderStaffPayHistoryModal(\\'"+empId+"\\')">All Time</button>'+
-    '<button class="btn btn-sm '+(filter==='month'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'month\';_renderStaffPayHistoryModal(\\'"+empId+"\\')">By Month</button>'+
-    '<button class="btn btn-sm '+(filter==='custom'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'custom\';_renderStaffPayHistoryModal(\\'"+empId+"\\')">Custom Range</button>'+
+    '<button class="btn btn-sm '+(filter==='all'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'all\';_renderStaffPayHistoryModal(\''+empId+'\')">All Time</button>'+
+    '<button class="btn btn-sm '+(filter==='month'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'month\';_renderStaffPayHistoryModal(\''+empId+'\')">By Month</button>'+
+    '<button class="btn btn-sm '+(filter==='custom'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'custom\';_renderStaffPayHistoryModal(\''+empId+'\')">Custom Range</button>'+
     (filter==='month'?
-      '<input type="month" value="'+selMonth+'" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphMonth=this.value;_renderStaffPayHistoryModal(\\'"+empId+"\\')">':'')+
+      '<input type="month" value="'+selMonth+'" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphMonth=this.value;_renderStaffPayHistoryModal(\''+empId+'\')">':'')+
     (filter==='custom'?
-      '<input type="date" value="'+fromDate+'" placeholder="From" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphFrom=this.value;_renderStaffPayHistoryModal(\\'"+empId+"\\')">'+
+      '<input type="date" value="'+fromDate+'" placeholder="From" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphFrom=this.value;_renderStaffPayHistoryModal(\''+empId+'\')">'+
       '<span style="font-size:12px;color:var(--text3)">to</span>'+
-      '<input type="date" value="'+toDate+'" placeholder="To" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphTo=this.value;_renderStaffPayHistoryModal(\\'"+empId+"\\')">':'')+
+      '<input type="date" value="'+toDate+'" placeholder="To" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphTo=this.value;_renderStaffPayHistoryModal(\''+empId+'\')">':'')+
     '</div>';
 
   var summaryCards=
@@ -2010,7 +2010,7 @@ function _renderStaffPayHistoryModal(empId){
     return;
   }
   showModal('💰 Payment History — '+s.name+' ('+s.role+')', body,
-    '<button class="btn btn-primary" onclick="showPartPayModal(\\'"+empId+"\\');closeModal()" style="margin-right:8px">+ Pay Salary</button>'+
+    '<button class="btn btn-primary" onclick="showPartPayModal(\''+empId+'\');closeModal()" style="margin-right:8px">+ Pay Salary</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
   // Mark modal so we can detect re-renders
   var mb=document.getElementById('modalBody');
@@ -2052,7 +2052,7 @@ function showEditStaffModal(id){
     '<div class="form-group"><label>Leave Balance</label><input type="number" id="ef-leave" value="'+s.leaveBalance+'" min="0" max="15"></div>'+
     '<div class="form-group"><label>Advance Balance (₹)</label><input type="number" id="ef-advance" value="'+s.advance+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditStaff(\\'"+id+"\\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditStaff(\''+id+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditStaff(id){
   var s=getStaff(id);
@@ -2120,7 +2120,7 @@ function showPartPayModal(empId){
     '</div>'+
     '<div class="divider"></div>'+
     '<div id="pr-summary" style="background:var(--green-50);border-radius:8px;padding:12px;font-size:13px"></div>',
-    '<button class="btn btn-primary" onclick="savePayroll(\\'"+empId+"\\')">Record Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="savePayroll(\''+empId+'\')">Record Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   setTimeout(function(){updatePartPayCalc(empId);},50);
 }
 function updatePartPayCalc(empId){
@@ -2197,7 +2197,7 @@ function renderAttendance(){
   state.staff.map(function(s){
     var key=d+'-'+s.id;
     var status=state.attendance[key]||'P';
-    return '<div class="att-card att-'+status.toLowerCase()+'" onclick="cycleAtt(\''+d+'\',\\'"+s.id+"\\')">'+
+    return '<div class="att-card att-'+status.toLowerCase()+'" onclick="cycleAtt(\''+d+'\',\''+s.id+'\')">'+
       '<div style="font-size:22px">'+(status==='P'?'✓':status==='A'?'✗':'½')+'</div>'+
       '<div class="name">'+s.name.split(' ')[0]+'</div>'+
       '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+s.role+'</div></div>';
@@ -2289,7 +2289,7 @@ function renderPayroll(){
         '<td><span class="badge '+(r.paid>=net?'badge-green':'badge-amber')+'">'+(r.paid>=net?'Full':'Partial')+'</span></td>'+
         '<td style="font-size:12px;color:var(--text3)">'+(r.note||'—')+'</td>'+
         '<td style="color:var(--text3)">'+r.paidDate+'</td>'+
-        '<td><button class="btn btn-secondary btn-sm" onclick="showPayrollHistoryModal(\\'"+r.empId+"\\',\''+r.month+'\')">View</button></td></tr>';
+        '<td><button class="btn btn-secondary btn-sm" onclick="showPayrollHistoryModal(\''+r.empId+'\',\''+r.month+'\')">View</button></td></tr>';
     }),
     'payroll-records',
     '<thead><tr><th>Employee</th><th>Month</th><th>Base</th><th>Leave Ded.</th><th>Advance</th><th>Paid</th><th>Status</th><th>Note</th><th>Date</th><th>Action</th></tr></thead>'
@@ -2420,10 +2420,10 @@ function renderProducts(){
         })()+'</td>'+
       '<td class="fw600">'+fmt(p.price)+(p.stockMeta&&JSON.parse(p.stockMeta||'{}').unitType!=='Pieces'?'/Pkt':'/Pc')+'</td>'+
       '<td><div class="gap-12">'+
-      '<button class="btn btn-ghost btn-sm" onclick="showProductViewModal(\\'"+p.id+"\\')">View</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\\'"+p.id+"\\')">Edit</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\\'"+p.id+"\\')">+ Stock</button>'+
-      '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\\'"+p.id+"\\')">Delete</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="showProductViewModal(\''+p.id+'\')">View</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\''+p.id+'\')">Edit</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\''+p.id+'\')">+ Stock</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\''+p.id+'\')">Delete</button>'+
       '</div></td></tr>';
   }).join('')||
   '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+
@@ -2474,9 +2474,9 @@ function prodSearchFilter(val){
         })()+'</td>'+
       '<td class="fw600">'+fmt(p.price)+(function(){try{var m=JSON.parse(p.stockMeta||'{}');return m.unitType&&m.unitType!=='Pieces'?'/Pkt':'/Pc';}catch(e){return '/Pc';}}())+'</td>'+
       '<td><div class="gap-12">'+
-      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\\'"+p.id+"\\')">Edit</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\\'"+p.id+"\\')">+ Stock</button>'+
-      '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\\'"+p.id+"\\')">Delete</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\''+p.id+'\')">Edit</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\''+p.id+'\')">+ Stock</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\''+p.id+'\')">Delete</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+(val?'No products matching "'+val+'"':'No products found')+'</td></tr>';
 }
@@ -2667,7 +2667,7 @@ function showProductViewModal(id){
     (meta.unitType==='Cartoon'||meta.unitType==='Bora'?meta.count+' '+meta.unitType+' | '+meta.totalPkt+' Pkt | '+p.stock+' Pcs':
      meta.unitType==='Pkt'?meta.count+' Pkt | '+p.stock+' Pcs':p.stock+' Pcs')+'</div></div>':'')+
     '</div>',
-    '<button class="btn btn-secondary" onclick="showEditProductModal(\\'"+id+"\\');closeModal()">Edit</button>'+
+    '<button class="btn btn-secondary" onclick="showEditProductModal(\''+id+'\');closeModal()">Edit</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 function showEditProductModal(id){
@@ -2692,7 +2692,7 @@ function showEditProductModal(id){
     '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
     ['Cartoon','Bora','Pkt','Pieces'].map(function(u){
       return '<label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all 0.15s" '+
-        'onclick="epSelectUnit(\''+u+'\',\\'"+id+"\\')">'+
+        'onclick="epSelectUnit(\''+u+'\',\''+id+'\')">'+
         '<input type="radio" name="ep-unit-radio" value="'+u+'" '+(unitType===u?'checked':'')+' style="accent-color:var(--primary)"> '+u+'</label>';
     }).join('')+
     '</div></div>'+
@@ -2716,7 +2716,7 @@ function showEditProductModal(id){
     '<input type="number" id="ep-price" step="0.25" value="'+p.price+'"></div>'+
     '</div>',
 
-    '<button class="btn btn-primary" onclick="saveEditProduct(\\'"+id+"\\')">Update</button>'+
+    '<button class="btn btn-primary" onclick="saveEditProduct(\''+id+'\')">Update</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   );
 
@@ -2828,7 +2828,7 @@ async function saveEditProduct(id){
 function showStockModal(id){
   var p=getProduct(id);
   showModal('Add Stock — '+p.name,'<div class="form-group"><label>Add Qty (Pcs)</label><input type="number" id="sk-qty" value="0"></div><p style="margin-top:10px;color:var(--text3);font-size:13px">Current: '+p.stock+' pcs</p>',
-    '<button class="btn btn-primary" onclick="addStock(\\'"+id+"\\')">Add</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="addStock(\''+id+'\')">Add</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function addStock(id){
   var p=getProduct(id);
@@ -2868,7 +2868,7 @@ function renderRawMaterials(){
     return '<tr><td><strong>'+m.name+'</strong></td><td>'+m.unit+'</td>'+
       '<td><span class="badge '+(m.stock<50?'badge-red':m.stock<100?'badge-amber':'badge-green')+'">'+m.stock+' '+m.unit+'</span></td>'+
       '<td>'+fmt(m.price)+'</td><td class="fw600 fc-green">'+fmt(m.stock*m.price)+'</td>'+
-      '<td><div class="gap-12"><button class="btn btn-secondary btn-sm" onclick="showEditRMModal(\\'"+m.id+"\\')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteRM(\\'"+m.id+"\\')">Delete</button></div></td></tr>';
+      '<td><div class="gap-12"><button class="btn btn-secondary btn-sm" onclick="showEditRMModal(\''+m.id+'\')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteRM(\''+m.id+'\')">Delete</button></div></td></tr>';
   }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
 }
@@ -2900,7 +2900,7 @@ function showEditRMModal(id){
     '<div class="form-group"><label>Stock</label><input type="number" id="erm-stock" value="'+m.stock+'"></div>'+
     '<div class="form-group"><label>Cost/Unit (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="erm-price" value="'+m.price+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditRM(\\'"+id+"\\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditRM(\''+id+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditRM(id){
   var m=state.rawMaterials.find(function(r){return r.id===id;});
@@ -2984,10 +2984,10 @@ function renderInvItemRow(item){
     '<td style="color:var(--text3);font-size:12px">'+(product.hsn||'—')+'</td>'+
     '<td>'+qtyCell+'</td>'+
     '<td><input type="number" value="'+item.rate+'" step="0.25" '+
-      'onchange="updateInvItem(\\'"+item.id+"\\',\'rate\',this.value);refreshInvRow(\\'"+item.id+"\\')" '+
+      'onchange="updateInvItem(\''+item.id+'\',\'rate\',this.value);refreshInvRow(\''+item.id+'\')" '+
       'style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"></td>'+
     '<td class="fw600" id="inv-amt-'+item.id+'">'+fmt(invItemAmount(item))+'</td>'+
-    '<td><button onclick="removeInvItem(\\'"+item.id+"\\')" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
+    '<td><button onclick="removeInvItem(\''+item.id+'\')" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
 }
 
 // ── Shared two-step product selector (used by invoice + order) ──
@@ -3156,7 +3156,7 @@ function invBuildQtyCell(item, meta){
   var tabsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">'+
     availUnits.map(function(u){
       var active = unitType===u;
-      return '<button onclick="invSetQtyUnit(\\'"+item.id+"\\',\''+u+'\')" '+
+      return '<button onclick="invSetQtyUnit(\''+item.id+'\',\''+u+'\')" '+
         'style="padding:2px 8px;border-radius:10px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
         'background:'+(active?'var(--primary)':'var(--surface)')+';color:'+(active?'#fff':'var(--text2)')+';'+
         'font-size:11px;font-weight:'+(active?'700':'400')+';cursor:pointer">'+u+'</button>';
@@ -3176,8 +3176,8 @@ function invBuildQtyCell(item, meta){
       '<span style="color:var(--text3);font-size:11px">'+unitType+'(s)</span>'+
       '<span></span>'+
       '<span id="inv-breakdown-'+item.id+'" style="display:contents">'+
-      (pktPerUnit?'<span style="color:var(--text3)">×'+pktPerUnit+' Pkt</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:#1565c0">'+totalPkt+' Pkt</span>':'<input type="number" placeholder="Pkt/'+unitType+'" onchange="invSetMetaVal(\\'"+item.id+"\\',\'pktPerUnit\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pkt/'+unitType+'</span><span></span>')+
-      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal(\\'"+item.id+"\\',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
+      (pktPerUnit?'<span style="color:var(--text3)">×'+pktPerUnit+' Pkt</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:#1565c0">'+totalPkt+' Pkt</span>':'<input type="number" placeholder="Pkt/'+unitType+'" onchange="invSetMetaVal(\''+item.id+'\',\'pktPerUnit\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pkt/'+unitType+'</span><span></span>')+
+      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal(\''+item.id+'\',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
       '</span>'+
       '</div>';
   } else if(unitType==='Pkt'){
@@ -3191,13 +3191,13 @@ function invBuildQtyCell(item, meta){
       '<span style="color:var(--text3);font-size:11px">Pkt(s)</span>'+
       '<span></span>'+
       '<span id="inv-breakdown-'+item.id+'" style="display:contents">'+
-      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs2+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal(\\'"+item.id+"\\',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
+      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs2+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal(\''+item.id+'\',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
       '</span>'+
       '</div>';
   } else {
     // Pieces
     inputHtml = '<input type="number" value="'+item.qty+'" min="1" '+
-      'onchange="updateInvItem(\\'"+item.id+"\\',\'qty\',this.value);refreshInvRow(\\'"+item.id+"\\')" '+
+      'onchange="updateInvItem(\''+item.id+'\',\'qty\',this.value);refreshInvRow(\''+item.id+'\')" '+
       'style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px"> <span style="font-size:11px;color:var(--text3)">Pcs</span>';
   }
   return tabsHtml+inputHtml;
@@ -3605,9 +3605,9 @@ function showInvoiceSaveModal(invId){
     '<div style="font-size:22px;margin-bottom:4px">&#11015;</div>'+
     '<div style="font-weight:600;font-size:13px;margin-bottom:4px">Download HTML</div>'+
     '<div style="font-size:11px;color:var(--text3)">Open &amp; print</div></div></div>',
-    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\\'"+invId+"\\')">&#128065; Preview</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\\'"+invId+"\\')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="downloadInvoice(\\'"+invId+"\\')">&#11015; HTML</button>'+
+    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+invId+'\')">&#128065; Preview</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\''+invId+'\')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="downloadInvoice(\''+invId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -3694,9 +3694,9 @@ function showInvoicePreview(invId){
   var due=getInvoiceDue(inv);
   showModal('Invoice #'+invId,
     buildInvoiceHTML(invId,false),
-    (due>0?'<button class="btn btn-primary" onclick="closeModal();showRecordPaymentModal(\\'"+invId+"\\')">Record Payment</button>':'')+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\\'"+invId+"\\')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="downloadInvoice(\\'"+invId+"\\')">&#11015; HTML</button>'+
+    (due>0?'<button class="btn btn-primary" onclick="closeModal();showRecordPaymentModal(\''+invId+'\')">Record Payment</button>':'')+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\''+invId+'\')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="downloadInvoice(\''+invId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -3935,15 +3935,15 @@ function renderInvoices(){
         '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
         '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
         '<td><div class="gap-12">'+
-          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\\'"+inv.id+"\\')">View</button>'+
-          (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF(\\'"+inv.id+"\\')">&#128196; PDF</button>':'')+
-          (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice(\\'"+inv.id+"\\')">&#11015; HTML</button>':'')+
-          (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal(\\'"+inv.id+"\\')">Pay</button>':'')+
+          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">View</button>'+
+          (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF(\''+inv.id+'\')">&#128196; PDF</button>':'')+
+          (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice(\''+inv.id+'\')">&#11015; HTML</button>':'')+
+          (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal(\''+inv.id+'\')">Pay</button>':'')+
           (inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
-          (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp(\\'"+inv.id+"\\')">&#128362; Share</button>':'')+
-          (!isCancelled&&isLatest?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice(\\'"+inv.id+"\\')">Cancel</button>':'')+
+          (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp(\''+inv.id+'\')">&#128362; Share</button>':'')+
+          (!isCancelled&&isLatest?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice(\''+inv.id+'\')">Cancel</button>':'')+
           (isCancelled?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>'+
-            '<button class="btn btn-danger btn-sm" onclick="deleteInvoice(\\'"+inv.id+"\\')" style="margin-left:4px">🗑 Delete</button>':'')+
+            '<button class="btn btn-danger btn-sm" onclick="deleteInvoice(\''+inv.id+'\')" style="margin-left:4px">🗑 Delete</button>':'')+
         '</div></td></tr>';
     }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>';
   })()
@@ -4254,7 +4254,7 @@ function showWhatsAppPickerModal(msg, source){
     ? contacts.map(function(ct,idx){
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s" '+
           'onmouseover="this.style.background=\'var(--primary-light)\'" onmouseout="this.style.background=\'\'" '+
-          'onclick="sendWhatsApp(\''+ct.phone.replace(/\D/g,'').slice(-10)+'\',\\'"+idx+"\\')">'+
+          'onclick="sendWhatsApp(\''+ct.phone.replace(/\D/g,'').slice(-10)+'\',\''+idx+'\')">'+
           '<div>'+
             '<div style="font-size:13px;font-weight:600;color:var(--text)">'+ct.name+'</div>'+
             '<div style="font-size:11px;color:var(--text3)">'+ct.type+' · '+ct.phone+'</div>'+
@@ -4504,7 +4504,7 @@ function showStockWarning(warn, itemId, ctx){
     'onclick="applyMaxStock(this.dataset.iid,this.dataset.ctx,parseInt(this.dataset.max));var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);if(w)w.remove();if(b)b.remove();" '+
     'style="flex:1;padding:8px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">'+
     'Use Max ('+warn.maxCount+' '+warn.unit+')</button>'+
-    '<button data-iid="'+itemId+'" onclick="var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);var iid=this.dataset.iid;if(w)w.remove();if(b)b.remove();resetStockInput(iid,\''+ctx+'\',\\'"+warn.maxCount+"\\');" '+
+    '<button data-iid="'+itemId+'" onclick="var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);var iid=this.dataset.iid;if(w)w.remove();if(b)b.remove();resetStockInput(iid,\''+ctx+'\',\''+warn.maxCount+'\');" '+
     'style="flex:1;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px">'+
     'Change Qty</button>'+
     '</div>';
@@ -4629,7 +4629,7 @@ function showRecordPaymentModal(invId){
     '<div class="form-group full"><label>Reference / Note</label><input type="text" id="rp-note" placeholder="UPI ref, cheque no., etc."></div>'+
     '</div>'+
     '<div id="rp-preview" style="margin-top:14px"></div>',
-    '<button class="btn btn-primary" onclick="savePaymentRecord(\\'"+invId+"\\')">Record Payment</button>'+
+    '<button class="btn btn-primary" onclick="savePaymentRecord(\''+invId+'\')">Record Payment</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   setTimeout(function(){updatePaymentPreview(invId);},50);
 }
@@ -4713,8 +4713,8 @@ async function savePaymentRecord(invId){
         '<div style="font-size:12px;color:#0C447C;margin-top:2px">Balance: '+fmt(remaining)+'</div>'+
         '<div style="font-size:11px;color:var(--text3);margin-top:4px">Status: Unpaid</div>'+
         '</div></div>',
-        '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\\'"+newId+"\\')">&#128065; View New Invoice #'+newId+'</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\\'"+newId+"\\')">&#128196; PDF</button>'+
+        '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+newId+'\')">&#128065; View New Invoice #'+newId+'</button>'+
+        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\''+newId+'\')">&#128196; PDF</button>'+
         '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
     }
     renderPage();
@@ -4746,7 +4746,7 @@ function renderOrders(){
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
       '<td class="fw600">'+fmt(grandTotal)+'</td>'+
       '<td><div class="gap-12">'+
-        (!inv.delivered?'<button class="btn btn-primary btn-sm" onclick="showDeliveryModal(\\'"+inv.id+"\\')">Mark Delivered</button>':'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\\'"+inv.id+"\\')">View</button>')+
+        (!inv.delivered?'<button class="btn btn-primary btn-sm" onclick="showDeliveryModal(\''+inv.id+'\')">Mark Delivered</button>':'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">View</button>')+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -4765,7 +4765,7 @@ function showDeliveryModal(invId){
     '<input type="date" id="del-date" value="'+today()+'">'+
     '<div style="font-size:12px;color:var(--text3);margin-top:4px">This date will be shown on the invoice and order list.</div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="confirmDelivery(\\'"+invId+"\\')">✓ Confirm Delivery</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="confirmDelivery(\''+invId+'\')">✓ Confirm Delivery</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function confirmDelivery(invId){
   var inv=state.invoices.find(function(i){return i.id===invId;});
@@ -4916,9 +4916,9 @@ function renderCustomers(){
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-ghost btn-sm" onclick="navigate(\'crm\');state.crmCustId='+c.id+'">View</button>'+
-        '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal(\\'"+c.id+"\\')">Edit</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal(\''+c.id+'\')">Edit</button>'+
         '<button class="btn btn-primary btn-sm" data-cid="'+c.id+'" onclick="goToCreateInvoice(this.dataset.cid)">+ Invoice</button>'+
-        '<button class="btn btn-danger btn-sm" onclick="deleteCustomer(\\'"+c.id+"\\')">Del</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteCustomer(\''+c.id+'\')">Del</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No customers match this filter</td></tr>')
   +'</tbody></table></div></div>';
@@ -4960,7 +4960,7 @@ function showEditCustomerModal(id){
     '<div class="form-group full"><label style="font-weight:600;color:var(--primary)">Address</label></div>'+
     addrFieldsHtml('ec-addr',c.address)+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditCustomer(\\'"+id+"\\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditCustomer(\''+id+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditCustomer(id){
   var c=getCustomer(id);
@@ -5297,25 +5297,25 @@ function renderAllContacts(){
       contactOrders.map(function(o){
         var s=o.status==='invoiced'?'badge-green':o.status==='cancelled'?'badge-red':'badge-amber';
         var l=o.status==='invoiced'?'&#10003; Placed':o.status==='cancelled'?'Cancelled':'Pending';
-        return '<div style="margin-bottom:3px"><span class="badge '+s+'" style="cursor:pointer" onclick="showOrderDetailModal(\\'"+o.id+"\\')">ORD#'+o.id+' — '+l+'</span></div>';
+        return '<div style="margin-bottom:3px"><span class="badge '+s+'" style="cursor:pointer" onclick="showOrderDetailModal(\''+o.id+'\')">ORD#'+o.id+' — '+l+'</span></div>';
       }).join(''):
       '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+(c.type==='prospect'?c.rawId:'null')+','+(c.type==='customer'?c.rawId:'null')+')">+ Place Order</button>';
 
     var invCell=hasInvoices?
       '<div style="display:flex;flex-direction:column;gap:3px">'+
       activeInvs.slice(0,3).map(function(i){
-        return '<span class="badge '+(i.status==='paid'?'badge-green':i.paid>0?'badge-amber':'badge-red')+'" style="cursor:pointer" onclick="showInvoicePreview(\\'"+i.id+"\\')">#'+i.id+'</span>';
+        return '<span class="badge '+(i.status==='paid'?'badge-green':i.paid>0?'badge-amber':'badge-red')+'" style="cursor:pointer" onclick="showInvoicePreview(\''+i.id+'\')">#'+i.id+'</span>';
       }).join('')+
       (activeInvs.length>3?'<span style="font-size:10px;color:var(--text3)">+'+(activeInvs.length-3)+' more</span>':'')+
       (cancelledInvs.length>0?'<div style="font-size:10px;color:#e24b4a;margin-top:2px">'+cancelledInvs.length+' cancelled</div>':'')+
       (activeInvs.length===0&&cancelledInvs.length>0?'<div style="font-size:11px;color:var(--text3);font-style:italic">No active invoices</div>':'')+
       '</div>':
-      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\\'"+invoicedOrder.invoiceId+"\\')">#'+invoicedOrder.invoiceId+'</span>':'—');
+      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">#'+invoicedOrder.invoiceId+'</span>':'—');
 
     var actUnpaidInvs=(state.invoices||[]).filter(function(i){return String(i.custId)===String(c.rawId)&&i.status!=='paid'&&i.status!=='cancelled';});
     var payBtn=c.type==='customer'?(
       actUnpaidInvs.length>0&&c.totalDue>0?
-        '<button class="btn btn-sm" style="background:var(--red-400);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="showCustomerPayModal(\\'"+c.rawId+"\\')">Pay</button>':
+        '<button class="btn btn-sm" style="background:var(--red-400);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="showCustomerPayModal(\''+c.rawId+'\')">Pay</button>':
       c.totalDue<=0&&contactInvoices.length>0?
         '<span class="badge badge-green" style="font-size:10px">Cleared</span>':
       actUnpaidInvs.length===0&&cancelledInvs.length>0?
@@ -5334,13 +5334,13 @@ function renderAllContacts(){
       '<td>'+(c.totalDue>0?'<span class="fc-red fw600">'+fmt(c.totalDue)+'</span>':(c.type==='customer'?'<span class="badge badge-green">Clear</span>':'—'))+'</td>'+
       '<td><div class="gap-12">'+
         (c.type==='prospect'?
-          '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\\'"+c.rawId+"\\')">Edit</button>'+
+          '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+c.rawId+'\')">Edit</button>'+
           (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+(contactOrders.find(function(o){return o.status==='pending';})||{id:0}).id+')">&#9998; Invoice</button>':
-          (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\\'"+c.rawId+"\\',null)">+ Order</button>':
-          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\\'"+invoicedOrder.invoiceId+"\\')">View Invoice</button>':'')))+
-          (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\\'"+c.rawId+"\\',\"prospect\")">Orders</button>':''):
-          '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal(\\'"+c.rawId+"\\')">Edit</button>'+
-          '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(null,\\'"+c.rawId+"\\')">+ Order</button>'+
+          (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\''+c.rawId+'\',null)">+ Order</button>':
+          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">View Invoice</button>':'')))+
+          (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\''+c.rawId+'\',\"prospect\")">Orders</button>':''):
+          '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal(\''+c.rawId+'\')">Edit</button>'+
+          '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(null,\''+c.rawId+'\')">+ Order</button>'+
           (hasInvoices?'<button class="btn btn-ghost btn-sm" onclick="navigate(\'invoices\')">Invoices</button>':'')+
           payBtn)+
       '</div></td></tr>';
@@ -5395,10 +5395,10 @@ function renderCRM(){
       '<td><span class="badge badge-amber">Reached Out</span></td>'+
       '<td style="font-size:12px;color:var(--text3)">'+p.notes+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\\'"+p.id+"\\')">Edit</button>'+
-        '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\\'"+p.id+"\\',null)">+ Order</button>'+
-        (ordCnt>0?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\\'"+p.id+"\\',\"prospect\")">'+ordCnt+' Orders</button>':'')+
-        '<button class="btn btn-danger btn-sm" onclick="deleteProspect(\\'"+p.id+"\\')">Del</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+p.id+'\')">Edit</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\''+p.id+'\',null)">+ Order</button>'+
+        (ordCnt>0?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\''+p.id+'\',\"prospect\")">'+ordCnt+' Orders</button>':'')+
+        '<button class="btn btn-danger btn-sm" onclick="deleteProspect(\''+p.id+'\')">Del</button>'+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">No reached-out contacts yet</td></tr>')+
   '</tbody></table></div></div>'+
@@ -5417,14 +5417,14 @@ function renderCRM(){
       '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(p.address)+'</td>'+
       '<td>'+p.contactedOn+'</td>'+
       '<td><span class="badge badge-blue">Order Given</span></td>'+
-      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal(\\'"+p.id+"\\',\"prospect\")">&#128203; '+ordCnt+' Orders</button>':'—')+'</td>'+
+      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal(\''+p.id+'\',\"prospect\")">&#128203; '+ordCnt+' Orders</button>':'—')+'</td>'+
       '<td style="font-size:12px;color:var(--text3)">'+p.notes+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\\'"+p.id+"\\')">Edit</button>'+
-        (pendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\\'"+pendingOrder.id+"\\')">&#9998; Generate Invoice</button>':''+
-        (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\\'"+invoicedOrder.invoiceId+"\\')">View Invoice #'+invoicedOrder.invoiceId+'</button>':
-        '<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(\\'"+p.id+"\\',null)">+ Add Order</button>'))+
-        '<button class="btn btn-danger btn-sm" onclick="deleteProspect(\\'"+p.id+"\\')">Del</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+p.id+'\')">Edit</button>'+
+        (pendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\''+pendingOrder.id+'\')">&#9998; Generate Invoice</button>':''+
+        (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">View Invoice #'+invoicedOrder.invoiceId+'</button>':
+        '<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(\''+p.id+'\',null)">+ Add Order</button>'))+
+        '<button class="btn btn-danger btn-sm" onclick="deleteProspect(\''+p.id+'\')">Del</button>'+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">No order-given contacts yet</td></tr>')+
   '</tbody></table></div></div>';
@@ -5476,7 +5476,7 @@ function showEditProspectModal(id){
     '</select></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="ep2-notes" value="'+(p.notes||'')+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditProspect(\\'"+id+"\\')">Update</button>'+
+    '<button class="btn btn-primary" onclick="saveEditProspect(\''+id+'\')">Update</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditProspect(id){
@@ -5569,14 +5569,14 @@ function renderCustomerOrders(){
       '<td style="font-size:12px;color:var(--text2)">'+(o.items||[]).map(function(i){var p=getProduct(i.productId);return (p.name||'Item')+' &times;'+i.qty;}).join('<br>')+'</td>'+
       '<td class="fw600">'+fmt(total)+'</td>'+
       '<td><span class="badge '+(o.status==='invoiced'?'badge-green':'badge-amber')+'">'+(o.status==='invoiced'?'&#10003; Invoiced':'Pending')+'</span></td>'+
-      '<td>'+(o.invoiceId?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\\'"+o.invoiceId+"\\')">#'+o.invoiceId+'</span>':'—')+'</td>'+
+      '<td>'+(o.invoiceId?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\''+o.invoiceId+'\')">#'+o.invoiceId+'</span>':'—')+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showOrderDetailModal(\\'"+o.id+"\\')">View</button>'+
-        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-primary btn-sm" onclick="showEditOrderModal(\\'"+o.id+"\\')">Edit</button>':'')+
-        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder(\\'"+o.id+"\\')">&#9998; Invoice</button>':'')+
-        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder(\\'"+o.id+"\\')">Cancel</button>':'')+
+        '<button class="btn btn-secondary btn-sm" onclick="showOrderDetailModal(\''+o.id+'\')">View</button>'+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-primary btn-sm" onclick="showEditOrderModal(\''+o.id+'\')">Edit</button>':'')+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder(\''+o.id+'\')">&#9998; Invoice</button>':'')+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder(\''+o.id+'\')">Cancel</button>':'')+
         (o.status==='cancelled'?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>':'')+
-        (o.status!=='cancelled'?'<button class="btn btn-ghost btn-sm" onclick="deleteOrder(\\'"+o.id+"\\')">Del</button>':'')+
+        (o.status!=='cancelled'?'<button class="btn btn-ghost btn-sm" onclick="deleteOrder(\''+o.id+'\')">Del</button>':'')+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">No orders found for this filter</td></tr>')+
   '</tbody></table></div></div>';
@@ -5820,7 +5820,7 @@ async function saveNewOrder(){
             '<div style="font-size:16px;font-weight:700;color:var(--primary);margin-bottom:6px">Order ORD#'+saved.id+' saved!</div>'+
             '<div style="font-size:13px;color:var(--text3)">Would you like to generate an invoice for this order now?</div>'+
             '</div>',
-            '<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\\'"+saved.id+"\\')">&#9998; Yes, Generate Invoice Now</button>'+
+            '<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\''+saved.id+'\')">&#9998; Yes, Generate Invoice Now</button>'+
             '<button class="btn btn-ghost" onclick="closeModal()">No, Later</button>');
         },100);
       }
@@ -5834,7 +5834,7 @@ function showEditOrderModal(orderId){
     'No customers yet','Add New Customer');
   var itemRows=(o.items||[]).map(function(item,i){
     return '<div class="form-grid" style="margin-bottom:8px" id="coi-'+i+'">'+
-    '<div class="form-group"><label>Product</label><select id="coi-prod-'+i+'" onchange="onOrderItemSelect(\\'"+i+"\\')" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%">'+
+    '<div class="form-group"><label>Product</label><select id="coi-prod-'+i+'" onchange="onOrderItemSelect(\''+i+'\')" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%">'+
     buildSelectOpts(state.products,function(p){return p.id;},function(p){return p.name;},function(p){return p.id===item.productId?'selected':'';},
     'No products yet','Add New Product')+'</select></div>'+
     '<div class="form-group"><label>Qty<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="coi-qty-'+i+'" value="'+item.qty+'" min="1" oninput="updateOrderTotal()"></div>'+
@@ -5853,7 +5853,7 @@ function showEditOrderModal(orderId){
     '<div id="co-items-wrap">'+itemRows+'</div>'+
     '<button class="btn btn-ghost btn-sm" onclick="addOrderItemRow()" style="margin:6px 0">+ Add Item</button>'+
     '<div style="background:var(--green-50);border-radius:8px;padding:10px;font-size:13px;font-weight:600;color:var(--primary)" id="co-total-display">Est. Total: '+fmt(getOrderTotal(o))+'</div>',
-    '<button class="btn btn-primary" onclick="saveEditOrder(\\'"+orderId+"\\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditOrder(\''+orderId+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   window._coItemCount=o.items.length;
 }
 async function saveEditOrder(orderId){
@@ -5899,8 +5899,8 @@ function showOrderDetailModal(orderId){
     +'</tbody><tfoot><tr><td colspan="5" style="text-align:right;padding:8px 12px;font-weight:700;background:#27500A;color:#fff">Est. Total:</td><td style="padding:8px 12px;font-weight:700;background:#27500A;color:#fff">'+fmt(total)+'</td></tr></tfoot></table>'+
     (o.notes?'<div style="margin-top:10px;font-size:12px;color:var(--text3)">Notes: '+o.notes+'</div>':'')+
     (o.invoiceId?'<div style="margin-top:10px;background:var(--green-50);border-radius:8px;padding:10px;font-size:13px;color:var(--primary);font-weight:600">&#10003; Invoiced — Invoice #'+o.invoiceId+'</div>':''),
-    (o.status!=='invoiced'?'<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\\'"+orderId+"\\')">&#9998; Generate Invoice</button>':'<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\\'"+o.invoiceId+"\\')">View Invoice #'+o.invoiceId+'</button>')+
-    (o.status!=='invoiced'?'<button class="btn btn-ghost" onclick="closeModal();showEditOrderModal(\\'"+orderId+"\\')">Edit</button>':'')+
+    (o.status!=='invoiced'?'<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\''+orderId+'\')">&#9998; Generate Invoice</button>':'<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+o.invoiceId+'\')">View Invoice #'+o.invoiceId+'</button>')+
+    (o.status!=='invoiced'?'<button class="btn btn-ghost" onclick="closeModal();showEditOrderModal(\''+orderId+'\')">Edit</button>':'')+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 async function deleteOrder(id){
@@ -6000,9 +6000,9 @@ function generateInvoiceFromOrder(orderId){
     '</div>'+
     '</div>'+
     (prev>0?'<div style="margin-top:10px;background:var(--amber-50);border-radius:8px;padding:10px;font-size:12px;color:var(--amber-400)">Previous outstanding '+fmt(prev)+' added to invoice total.</div>':''),
-    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\\'"+newInvId+"\\')">&#128065; View Invoice</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="closeModal();downloadInvoicePDF(\\'"+newInvId+"\\')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="closeModal();downloadInvoice(\\'"+newInvId+"\\')">&#11015; HTML</button>'+
+    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+newInvId+'\')">&#128065; View Invoice</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="closeModal();downloadInvoicePDF(\''+newInvId+'\')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="closeModal();downloadInvoice(\''+newInvId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -6033,9 +6033,9 @@ function showCustOrdersModal(id,type){
         '<td>'+(o.invoiceId?'<span class="badge badge-green">Inv #'+o.invoiceId+'</span>':'<span class="badge badge-red">No Invoice</span>')+'</td>'+
         '<td>'+
           (o.status!=='invoiced'?
-            '<button class="btn btn-primary btn-sm" onclick="closeModal();generateInvoiceFromOrder(\\'"+o.id+"\\')">&#9998; Invoice</button>':
-            '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\\'"+o.invoiceId+"\\')">View Inv</button>')+
-          (o.status!=='invoiced'?'<button class="btn btn-ghost btn-sm" onclick="closeModal();showEditOrderModal(\\'"+o.id+"\\')">Edit</button>':'')+
+            '<button class="btn btn-primary btn-sm" onclick="closeModal();generateInvoiceFromOrder(\''+o.id+'\')">&#9998; Invoice</button>':
+            '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\''+o.invoiceId+'\')">View Inv</button>')+
+          (o.status!=='invoiced'?'<button class="btn btn-ghost btn-sm" onclick="closeModal();showEditOrderModal(\''+o.id+'\')">Edit</button>':'')+
         '</td></tr>';
     }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">No orders yet for this customer</td></tr>')+
     '</tbody></table></div>',
@@ -6059,7 +6059,7 @@ function renderCustomerDues(){
     return '<tr><td><strong>'+c.name+'</strong></td><td>'+c.phone+'</td>'+
       '<td>'+invLabels+'</td>'+
       '<td><span class="fc-red fw600" style="font-size:15px">'+fmt(due)+'</span></td>'+
-      '<td><button class="btn btn-primary btn-sm" onclick="showCustomerPayModal(\\'"+c.id+"\\')">Record Payment</button></td></tr>';
+      '<td><button class="btn btn-primary btn-sm" onclick="showCustomerPayModal(\''+c.id+'\')">Record Payment</button></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:24px;font-style:italic">No records found</td></tr>')+'"</tbody></table></div></div>';
 }
 
@@ -6101,7 +6101,7 @@ function showCustomerPayModal(custId){
     '<div style="font-size:12px;color:var(--amber-400);font-weight:600">Total Outstanding: '+fmt(totalDue)+'</div>'+
     '</div>'+
     '<div class="form-group" style="margin-bottom:12px"><label>Apply to Invoice<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-    '<select id="cp-inv" onchange="updateCPPreview(\\'"+custId+"\\')">'+
+    '<select id="cp-inv" onchange="updateCPPreview(\''+custId+'\')">'+
     pendInvs.map(function(i){
       var d=getInvoiceDue(i);
       return '<option value="'+i.id+'">Invoice #'+i.id+(i.isCarryForward?' [CF]':'')+' — Due: '+fmt(d)+'</option>';
@@ -6112,7 +6112,7 @@ function showCustomerPayModal(custId){
     '<div class="form-group"><label>Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="cp-date" value="'+today()+'"></div>'+
     '</div>'+
     '<div id="cp-preview" style="margin-top:12px"></div>',
-    '<button class="btn btn-primary" onclick="saveCustomerPay(\\'"+custId+"\\')">Record Payment</button>'+
+    '<button class="btn btn-primary" onclick="saveCustomerPay(\''+custId+'\')">Record Payment</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   setTimeout(function(){
     // Set default amount to first invoice due
@@ -6191,8 +6191,8 @@ async function saveCustomerPay(custId){
         '<div style="font-size:11px;color:#0C447C;font-weight:700;margin-bottom:4px">New CF Invoice #'+newId+'</div>'+
         '<div style="font-size:12px;color:#0C447C">Balance: '+fmt(remaining)+'</div>'+
         '<div style="font-size:11px;color:var(--text3)">Status: Unpaid</div></div></div>',
-        '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\\'"+newId+"\\')">&#128065; View #'+newId+'</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\\'"+newId+"\\')">&#128196; PDF</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\''+newId+'\')">&#128065; View #'+newId+'</button>'+
+        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\''+newId+'\')">&#128196; PDF</button>'+
         '<button class="btn btn-ghost btn-sm" onclick="closeModal()">Close</button>');
     }
     renderPage();
@@ -6275,7 +6275,7 @@ function renderVendorDashboard(){
       '<td class="fc-green">'+fmt(po.paid||0)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
-      '<td>'+(due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal(\\'"+po.id+"\\')">Pay</button>':'—')+'</td></tr>';
+      '<td>'+(due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal(\''+po.id+'\')">Pay</button>':'—')+'</td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
 }
@@ -6306,10 +6306,10 @@ function renderVendors(){
       '<td class="fw600 fc-green">'+fmt(paid)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-ghost btn-sm" onclick="showVendorViewModal(\\'"+v.id+"\\')">View</button>'+
-        '<button class="btn btn-secondary btn-sm" onclick="showEditVendorModal(\\'"+v.id+"\\')">Edit</button>'+
-        '<button class="btn btn-primary btn-sm" onclick="showAddPOModal(\\'"+v.id+"\\')">+ PO</button>'+
-        '<button class="btn btn-danger btn-sm" onclick="deleteVendor(\\'"+v.id+"\\')">Delete</button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="showVendorViewModal(\''+v.id+'\')">View</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showEditVendorModal(\''+v.id+'\')">Edit</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="showAddPOModal(\''+v.id+'\')">+ PO</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteVendor(\''+v.id+'\')">Delete</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -6359,8 +6359,8 @@ function showVendorViewModal(id){
     '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Balance Due</div><div>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</div></div>'+
     (v.notes?'<div style="grid-column:1/-1"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Notes</div><div>'+v.notes+'</div></div>':'')+
     '</div>',
-    '<button class="btn btn-secondary" onclick="showEditVendorModal(\\'"+id+"\\')">Edit</button>'+
-    '<button class="btn btn-primary" onclick="showAddPOModal(\\'"+id+"\\')">+ PO</button>'+
+    '<button class="btn btn-secondary" onclick="showEditVendorModal(\''+id+'\')">Edit</button>'+
+    '<button class="btn btn-primary" onclick="showAddPOModal(\''+id+'\')">+ PO</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 function showEditVendorModal(id){
@@ -6376,7 +6376,7 @@ function showEditVendorModal(id){
     '<div class="form-group"><label>Materials</label><input type="text" id="ev-materials" value="'+(v.materials||'')+'"></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="ev-notes" value="'+(v.notes||'')+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditVendor(\\'"+id+"\\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditVendor(\''+id+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditVendor(id){
   var v=getVendor(id);
@@ -6439,9 +6439,9 @@ function renderPurchaseOrders(){
       '<td class="'+(dDiff<0&&po.status!=='paid'?'overdue':dDiff<=3&&po.status!=='paid'?'due-soon':'')+'">'+po.dueDate+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showPODetailModal(\\'"+po.id+"\\')">View</button>'+
-        (due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal(\\'"+po.id+"\\')">Pay</button>':'')+
-        '<button class="btn btn-danger btn-sm" onclick="deletePO(\\'"+po.id+"\\')">Del</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showPODetailModal(\''+po.id+'\')">View</button>'+
+        (due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal(\''+po.id+'\')">Pay</button>':'')+
+        '<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')">Del</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -6458,7 +6458,7 @@ function buildPOItemRow(i){
   return '<div class="form-grid" style="margin-bottom:8px;align-items:end" id="poi-'+i+'">'+
     '<div class="form-group">'+
       '<label>Category<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-      '<select id="poi-cat-'+i+'" onchange="onPOCatChange(\\'"+i+"\\')" style="font-size:13px">'+
+      '<select id="poi-cat-'+i+'" onchange="onPOCatChange(\''+i+'\')" style="font-size:13px">'+
         '<option value="">-- Select --</option>'+
         Object.keys(PO_CATEGORIES).map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
       '</select>'+
@@ -6486,7 +6486,7 @@ function buildPOItemRow(i){
       '<label>Amount</label>'+
       '<div id="poi-amt-'+i+'" style="font-weight:600;color:var(--primary);padding:6px 0;font-size:14px">₹0.00</div>'+
     '</div>'+
-    (i>0?'<button class="btn btn-danger btn-sm" onclick="removePOItem(\\'"+i+"\\')" style="margin-bottom:8px">✕</button>':'<span></span>')+
+    (i>0?'<button class="btn btn-danger btn-sm" onclick="removePOItem(\''+i+'\')" style="margin-bottom:8px">✕</button>':'<span></span>')+
   '</div>';
 }
 
@@ -6647,7 +6647,7 @@ function showPODetailModal(poId){
     '<tr style="background:var(--primary)"><td colspan="4" style="text-align:right;padding:8px 12px;color:#fff;font-weight:700">Balance Due:</td><td style="padding:8px 12px;color:#fff;font-weight:700">'+fmt(due)+'</td></tr>'+
     '</tfoot></table>'+
     (po.notes?'<div style="margin-top:12px;font-size:12px;color:var(--text3)">Notes: '+po.notes+'</div>':''),
-    (due>0?'<button class="btn btn-primary" onclick="closeModal();showPOPaymentModal(\\'"+poId+"\\')">Pay Now</button>':'')+
+    (due>0?'<button class="btn btn-primary" onclick="closeModal();showPOPaymentModal(\''+poId+'\')">Pay Now</button>':'')+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 function showPOPaymentModal(poId){
@@ -6664,7 +6664,7 @@ function showPOPaymentModal(poId){
     '<div class="form-group full"><label>Payment Mode</label><select id="pp-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div>'+
     '<div class="form-group full"><label>Reference / Note</label><input type="text" id="pp-note" placeholder="UPI ref, cheque no. etc."></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="savePOPayment(\\'"+poId+"\\')">Record Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="savePOPayment(\''+poId+'\')">Record Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function savePOPayment(poId){
   var po=state.purchaseOrders.find(function(p){return p.id===poId;});
@@ -6704,7 +6704,7 @@ function renderVendorPayments(){
       '<td class="fc-green fw600">'+fmt(paid)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">All Clear</span>')+'</td>'+
       '<td>'+(pendingPOs.length>0?
-        '<button class="btn btn-primary btn-sm" onclick="showVendorPayModal(\\'"+v.id+"\\')">Record Payment</button>':'—')+
+        '<button class="btn btn-primary btn-sm" onclick="showVendorPayModal(\''+v.id+'\')">Record Payment</button>':'—')+
       '</td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>'+
@@ -6724,7 +6724,7 @@ function showVendorPayModal(vendorId){
     '<div class="form-group"><label>Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="vp-date" value="'+today()+'"></div>'+
     '<div class="form-group full"><label>Payment Mode</label><select id="vp-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveVendorPay(\\'"+vendorId+"\\')">Record</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveVendorPay(\''+vendorId+'\')">Record</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveVendorPay(vendorId){
   var poId=parseInt(document.getElementById('vp-po').value);
@@ -6779,7 +6779,7 @@ function paginate(rows, key){
   }
   pages.forEach(function(p){
     if(p==='...'){bar+='<span class="pg-info">…</span>';}
-    else{bar+='<button class="pg-btn '+(p===cur?'active':'')+'" onclick="setPage(\''+key+'\',\\'"+p+"\\')">'+p+'</button>';}
+    else{bar+='<button class="pg-btn '+(p===cur?'active':'')+'" onclick="setPage(\''+key+'\',\''+p+'\')">'+p+'</button>';}
   });
   // Next
   bar+='<button class="pg-btn" onclick="setPage(\''+key+'\','+(cur+1)+')" '+(cur===totalPages?'disabled':'')+'>&#8594;</button>';
@@ -6974,7 +6974,7 @@ function renderExpenditure(){
     (sortDesc(monthEntries,'date').slice(0,8).map(function(e){
       var cats={electricity:'&#9889; Electricity',rent:'&#127968; Rent',loan:'&#127974; Loan/EMI',others:'&#128196; Others'};
       return '<tr><td>'+e.date+'</td><td>'+( cats[e.category]||e.category)+'</td><td style="color:var(--text2)">'+e.description+'</td><td class="fw600 fc-red">'+fmt(e.amount)+'</td>'+
-      '<td><button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry(\\'"+e.id+"\\')">Del</button></td></tr>';
+      '<td><button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry(\''+e.id+'\')">Del</button></td></tr>';
     }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
     +'</tbody></table></div></div>':''+
     '<div class="card"><div class="card-body"><div class="empty-state"><div class="icon">&#128196;</div>'+
@@ -7039,9 +7039,9 @@ function renderExpenses(){
     '<td style="font-size:12px;color:var(--text3)">'+(e.reference||'—')+'</td>'+
     '<td style="font-size:11px;color:var(--text3)">'+(e.addedOn||'—')+'</td>'+
     '<td><div class="gap-12">'+
-      '<button class="btn btn-ghost btn-sm" onclick="showExpenseViewModal(\\'"+e.id+"\\')">View</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="showEditExpenseModal(\\'"+e.id+"\\')">Edit</button>'+
-      '<button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry(\\'"+e.id+"\\')">Del</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="showExpenseViewModal(\''+e.id+'\')">View</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showEditExpenseModal(\''+e.id+'\')">Edit</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry(\''+e.id+'\')">Del</button>'+
     '</div></td></tr>';
   }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">No expense entries yet. Click "+ Add Expense" to start.</td></tr>')+
   '</tbody></table></div></div>';
@@ -7096,7 +7096,7 @@ function showExpenseViewModal(id){
     '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Reference</div><div>'+(e.reference||'—')+'</div></div>'+
     '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Added On</div><div style="font-size:12px;color:var(--text3)">'+(e.addedOn||'—')+'</div></div>'+
     '</div>',
-    '<button class="btn btn-secondary" onclick="showEditExpenseModal(\\'"+id+"\\')">Edit</button>'+
+    '<button class="btn btn-secondary" onclick="showEditExpenseModal(\''+id+'\')">Edit</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 function showEditExpenseModal(id){
@@ -7113,7 +7113,7 @@ function showEditExpenseModal(id){
     '<div class="form-group"><label>Amount (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="ee-amount" value="'+e.amount+'"></div>'+
     '<div class="form-group"><label>Reference</label><input type="text" id="ee-ref" value="'+(e.reference||'')+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditExpense(\\'"+id+"\\')">Update</button>'+
+    '<button class="btn btn-primary" onclick="saveEditExpense(\''+id+'\')">Update</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditExpense(id){
