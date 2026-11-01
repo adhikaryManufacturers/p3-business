@@ -3171,7 +3171,7 @@ function invBuildQtyCell(item, meta){
     inputHtml =
       '<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
       '<input type="number" value="'+cnt+'" min="1" '+
-        'oninput="invUpdateQty('+item.id+',this.value)" '+
+        'oninput="invUpdateQty(\''+item.id+'\',this.value)" '+
         'style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" '+
         'placeholder="'+unitType+'s">'+
       '<span style="color:var(--text3);font-size:11px">'+unitType+'(s)</span>'+
@@ -3187,7 +3187,7 @@ function invBuildQtyCell(item, meta){
     inputHtml =
       '<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
       '<input type="number" value="'+pktCnt+'" min="1" '+
-        'oninput="invUpdateQty('+item.id+',this.value)" '+
+        'oninput="invUpdateQty(\''+item.id+'\',this.value)" '+
         'style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px">'+
       '<span style="color:var(--text3);font-size:11px">Pkt(s)</span>'+
       '<span></span>'+
@@ -3205,7 +3205,7 @@ function invBuildQtyCell(item, meta){
 }
 
 function invSetMetaVal(itemId, field, val){
-  var item=state.invoiceItems.find(function(i){return i.id===itemId;});
+  var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
   if(!item) return;
   if(!item._metaOverride) item._metaOverride={};
   item._metaOverride[field]=parseFloat(val)||0;
@@ -3217,7 +3217,7 @@ function invSetMetaVal(itemId, field, val){
 
 
 function invSetQtyUnit(itemId, unit){
-  var item=state.invoiceItems.find(function(i){return i.id===itemId;});
+  var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
   if(!item) return;
   item.qtyUnit=unit;
   item.qtyCount=1;
@@ -3308,14 +3308,14 @@ function invRecalcQty(item, meta){
   item.unit='Pcs';
 }
 function refreshInvRow(id){
-  var item=state.invoiceItems.find(function(i){return i.id===id;});
+  var item=state.invoiceItems.find(function(i){return String(i.id)===String(id);});
   if(item){var el=document.getElementById('inv-amt-'+id);if(el)el.textContent=fmt(invItemAmount(item));}
   updateInvCalc();
 }
 function addInvItem(){state.invoiceItems.push({id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,unit:'Pcs',rate:0});renderPage();}
-function removeInvItem(id){state.invoiceItems=state.invoiceItems.filter(function(i){return i.id!==id;});renderPage();}
+function removeInvItem(id){state.invoiceItems=state.invoiceItems.filter(function(i){return String(i.id)!==String(id);});renderPage();}
 function updateInvItem(id,field,val){
-  var item=state.invoiceItems.find(function(i){return i.id===id;});
+  var item=state.invoiceItems.find(function(i){return String(i.id)===String(id);});
   if(item) item[field]=(field==='qty'||field==='rate')?parseFloat(val)||0:val;
   updateInvCalc();
 }
