@@ -3153,6 +3153,8 @@ function invBuildQtyCell(item, meta){
     else if(meta.unitType==='Pkt') availUnits = ['Pkt'];
     else availUnits = ['Pkt','Cartoon','Bora']; // no meta — show all
   }
+  // Always ensure the currently active unit is visible in the tabs
+  if(unitType && unitType!=='Pkt' && availUnits.indexOf(unitType)<0) availUnits.push(unitType);
 
   var tabsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">'+
     availUnits.map(function(u){
@@ -5681,6 +5683,8 @@ function buildCoItemRow(item){
     else if(meta.unitType==='Pkt') availUnits=['Pkt'];
     else availUnits=['Pkt','Cartoon','Bora'];
   }
+  // Always ensure the currently selected unit is visible
+  if(unitType && unitType!=='Pkt' && availUnits.indexOf(unitType)<0) availUnits.push(unitType);
   var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
   var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
   var tabsHtml='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px" data-iid="'+iid+'" onclick="coHandleUnitClick(event,this.dataset.iid)">'+
@@ -5895,7 +5899,7 @@ async function saveEditOrder(orderId){
   o.notes=document.getElementById('co-notes').value;
   var items=[];var n=window._coItemCount||1;
   for(var i=0;i<n;i++){
-    var pid=parseInt((document.getElementById('coi-prod-'+i)||{}).value)||0;
+    var pid=((document.getElementById('coi-prod-'+i)||{}).value)||'';
     var qty=parseFloat((document.getElementById('coi-qty-'+i)||{}).value)||0;
     var unit=(document.getElementById('coi-unit-'+i)||{}).value||'Pcs';
     var rate=parseFloat((document.getElementById('coi-rate-'+i)||{}).value)||0;
@@ -5968,7 +5972,7 @@ function generateInvoiceFromOrder(orderId){
   // Build invoice items from order items
   var invItems=(o.items||[]).map(function(item){
     var p=getProduct(item.productId);
-    return {id:Date.now()+Math.random(),productId:item.productId,desc:p.name||'',qty:item.qty,unit:item.unit||'Pcs',rate:item.rate};
+    return {id:Date.now()+Math.random(),productId:item.productId,desc:p.name||'',qty:item.qty,qtyUnit:item.qtyUnit||'Pkt',qtyCount:item.qtyCount||item.qty,unit:item.unit||'Pcs',rate:item.rate};
   });
 
   // Get previous outstanding for this customer
