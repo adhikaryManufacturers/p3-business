@@ -4972,9 +4972,16 @@ async function saveNewCustomer(){
   if(!name){alert('Name required');return;}
   var _ncAddrErr=validateAddr('nc-addr');
   if(_ncAddrErr){alert(_ncAddrErr);return;}
-  var customer={name:name,phone:document.getElementById('nc-phone').value,address:readAddr('nc-addr'),baleBalance:parseInt(document.getElementById('nc-bale').value)||0,status:'new'};
+  // Generate sequential C001-style ID
+  var maxNum=0;
+  state.customers.forEach(function(c){
+    var m=String(c.id).match(/^C(\d+)$/);
+    if(m) maxNum=Math.max(maxNum,parseInt(m[1]));
+  });
+  var newId='C'+String(maxNum+1).padStart(3,'0');
+  var customer={id:newId,name:name,phone:document.getElementById('nc-phone').value,address:readAddr('nc-addr'),baleBalance:parseInt(document.getElementById('nc-bale').value)||0,status:'new'};
   try{
-    var saved=await apiCall('/api/customers','POST',customer);
+    var saved=await apiCall('/api/customers/'+newId,'PUT',customer);
     state.customers.push(saved);
     closeModal();renderPage();
   }catch(e){alert('Failed to save customer: '+e.message);}
