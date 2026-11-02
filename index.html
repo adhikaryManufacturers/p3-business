@@ -3325,8 +3325,26 @@ function refreshInvRow(id){
   if(item){var el=document.getElementById('inv-amt-'+id);if(el)el.textContent=fmt(invItemAmount(item));}
   updateInvCalc();
 }
-function addInvItem(){state.invoiceItems.push({id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,unit:'Pcs',rate:0});renderPage();}
-function removeInvItem(id){state.invoiceItems=state.invoiceItems.filter(function(i){return String(i.id)!==String(id);});renderPage();}
+function addInvItem(){
+  var newItem={id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,unit:'Pcs',rate:0};
+  state.invoiceItems.push(newItem);
+  var tbody=document.getElementById('inv-items-body');
+  if(tbody){
+    // Remove "no records" placeholder if present
+    var ph=tbody.querySelector('tr td[colspan]');
+    if(ph) ph.parentNode.remove();
+    tbody.insertAdjacentHTML('beforeend',renderInvItemRow(newItem));
+  } else {
+    renderPage();
+  }
+  updateInvCalc();
+}
+function removeInvItem(id){
+  state.invoiceItems=state.invoiceItems.filter(function(i){return String(i.id)!==String(id);});
+  var row=document.getElementById('invrow-'+id);
+  if(row) row.remove();
+  updateInvCalc();
+}
 function updateInvItem(id,field,val){
   var item=state.invoiceItems.find(function(i){return String(i.id)===String(id);});
   if(item) item[field]=(field==='qty'||field==='rate')?parseFloat(val)||0:val;
@@ -5836,8 +5854,8 @@ async function saveNewOrder(){
   if(who==='__new_prospect__'){showAddProspectModal();return;}
   if(!who){alert('Please select a customer or prospect');return;}
   var prospectId=null,custId=null;
-  if(who.startsWith('p_')) prospectId=parseInt(who.slice(2));
-  else if(who.startsWith('c_')) custId=parseInt(who.slice(2));
+  if(who.startsWith('p_')) prospectId=who.slice(2);
+  else if(who.startsWith('c_')) custId=who.slice(2);
   var date=document.getElementById('co-date').value;
   var delivery=document.getElementById('co-delivery').value;
   var notes=document.getElementById('co-notes').value;
