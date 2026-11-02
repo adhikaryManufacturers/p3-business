@@ -3495,6 +3495,15 @@ function updateInvCalc(){
     '<div style="font-size:11px;color:var(--text3);padding:4px 0 6px 0;border-bottom:1px solid var(--border)">* Additional charge may include transportation, packaging, loading, previous balance or any other charge.</div>':'')+
     '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:16px;font-weight:700;color:var(--primary)"><span>Grand Total</span><span>'+fmt(grand)+'</span></div>';
 }
+function nextInvId(){
+  // Compute next sequential invoice number from all existing invoices
+  var max=0;
+  state.invoices.forEach(function(i){
+    var n=parseInt(i.billNo||i.id);
+    if(!isNaN(n)&&n>max) max=n;
+  });
+  return max+1;
+}
 async function generateInvoice(){
   var custId=((document.getElementById('inv-cust')||{}).value)||'';
   var date=(document.getElementById('inv-date')||{}).value;
@@ -3534,11 +3543,12 @@ async function generateInvoice(){
   if(customAmt>0||customAmtLabel){
     enrichedItems.push({desc:'__meta__'+JSON.stringify({ca:customAmt,cl:customAmtLabel}),productId:null,qty:0,rate:0,unit:'Pcs'});
   }
-  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null};
+  var newBillNo=nextInvId();
+  var inv={id:newBillNo,billNo:newBillNo,custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null};
   try{
-    var saved=await apiCall('/api/invoices','POST',inv);
+    var saved=await apiCall('/api/invoices/'+newBillNo,'PUT',inv);
     state.invoices.push(saved);
-    var newInvId=saved.id;
+    var newInvId=newBillNo;
 
     state.invoiceItems=[];
     if(state._fromOrderId){
@@ -4714,14 +4724,13 @@ async function savePaymentRecord(invId){
         '<button class="btn btn-primary" onclick="closeModal()">Done</button>');
     } else {
       inv.status='partial';
-      inv.cfInvoiceId=state.nextInvoiceId;
+      var cfBillNo=nextInvId();
+      inv.cfInvoiceId=cfBillNo;
       await apiCall('/api/invoices/'+invId,'PUT',inv);
-      var newInv={custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
-      var savedNewInv=await apiCall('/api/invoices','POST',newInv);
+      var newInv={id:cfBillNo,billNo:cfBillNo,custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
+      var savedNewInv=await apiCall('/api/invoices/'+cfBillNo,'PUT',newInv);
       state.invoices.push(savedNewInv);
-      var newId=savedNewInv.id;
-      inv.cfInvoiceId=newId;
-      await apiCall('/api/invoices/'+invId,'PUT',inv);
+      var newId=cfBillNo;
       closeModal();
       showModal('&#128203; Partial Payment Recorded',
         '<div style="text-align:center;padding:10px 0 16px">'+
@@ -6209,11 +6218,13 @@ async function saveCustomerPay(custId){
         '<button class="btn btn-primary" onclick="closeModal()">Done</button>');
     } else {
       inv.status='partial';
+      var cfBillNo2=nextInvId();
+      inv.cfInvoiceId=cfBillNo2;
       await apiCall('/api/invoices/'+invId,'PUT',inv);
-      var newInv={custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
-      var savedNewInv=await apiCall('/api/invoices','POST',newInv);
+      var newInv={id:cfBillNo2,billNo:cfBillNo2,custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
+      var savedNewInv=await apiCall('/api/invoices/'+cfBillNo2,'PUT',newInv);
       state.invoices.push(savedNewInv);
-      var newId=savedNewInv.id;
+      var newId=cfBillNo2;
       inv.cfInvoiceId=newId;
       await apiCall('/api/invoices/'+invId,'PUT',inv);
       showModal('&#128203; Partial Payment Recorded',
