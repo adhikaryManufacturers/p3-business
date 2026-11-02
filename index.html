@@ -1143,7 +1143,7 @@ async function saveEditNote(i){
   var n=state.notes[i];
   n.title=title.trim();n.content=content;
   try{
-    await apiCall("/api/notes/"+parseInt(n.id),"PUT",n);
+    await apiCall("/api/notes/"+n.id,"PUT",n);
     state.notes=await apiCall("/api/notes","GET")||[];
     closeModal();
     if(state.currentPage==="notes") renderPage();
@@ -1154,7 +1154,7 @@ async function deleteNote(i){
   if(!confirm("Delete this note?"))return;
   var n=state.notes[i];
   try{
-    await apiCall("/api/notes/"+parseInt(n.id),"DELETE");
+    await apiCall("/api/notes/"+n.id,"DELETE");
     state.notes=await apiCall("/api/notes","GET")||[];
     if(state.currentPage==="notes") renderPage();
   }catch(e){alert("Failed to delete note: "+e.message);}
@@ -2064,7 +2064,7 @@ async function saveEditStaff(id){
   s.leaveBalance=parseInt(document.getElementById('ef-leave').value)||0;
   s.advance=parseFloat(document.getElementById('ef-advance').value)||0;
   try{
-    await apiCall('/api/staff/'+parseInt(id),'PUT',s);
+    await apiCall('/api/staff/'+id,'PUT',s);
     state.staff=await apiCall('/api/staff','GET')||[];
     closeModal();renderPage();
   }catch(e){alert('Failed to update staff: '+e.message);}
@@ -2072,7 +2072,7 @@ async function saveEditStaff(id){
 async function deleteStaff(id){
   if(confirm('Remove this employee?')){
     try{
-      await apiCall('/api/staff/'+parseInt(id),'DELETE');
+      await apiCall('/api/staff/'+id,'DELETE');
       state.staff=await apiCall('/api/staff','GET')||[];
       renderPage();
     }catch(e){alert('Failed to delete staff: '+e.message);}
@@ -2820,7 +2820,7 @@ async function saveEditProduct(id){
   p.stockMeta=JSON.stringify(stockMeta);
 
   try{
-    await apiCall('/api/products/'+parseInt(id),'PUT',p);
+    await apiCall('/api/products/'+id,'PUT',p);
     state.products=await apiCall('/api/products','GET')||[];
     window._epTotalPcs=0;
     closeModal();renderPage();
@@ -2836,14 +2836,14 @@ async function addStock(id){
   var qty=parseInt(document.getElementById('sk-qty').value)||0;
   p.stock+=qty;
   try{
-    await apiCall('/api/products/'+parseInt(id),'PUT',p);
+    await apiCall('/api/products/'+id,'PUT',p);
     closeModal();renderPage();
   }catch(e){alert('Failed to update stock: '+e.message);}
 }
 async function deleteProduct(id){
   if(confirm('Delete?')){
     try{
-      await apiCall('/api/products/'+parseInt(id),'DELETE');
+      await apiCall('/api/products/'+id,'DELETE');
       state.products=state.products.filter(function(p){return p.id!==id;});renderPage();
     }catch(e){alert('Failed to delete product: '+e.message);}
   }
@@ -2853,7 +2853,7 @@ async function bulkDeleteProducts(){
   if(!ids.length) return;
   if(!confirm('Delete '+ids.length+' product(s)?')) return;
   for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/products/'+parseInt(ids[i]),'DELETE');}catch(e){}
+    try{await apiCall('/api/products/'+ids[i],'DELETE');}catch(e){}
   }
   state.products=state.products.filter(function(p){return !bulkGetSet('products').has(p.id);});
   bulkSel['products']=new Set();renderPage();
@@ -2908,14 +2908,14 @@ async function saveEditRM(id){
   m.name=document.getElementById('erm-name').value;m.unit=document.getElementById('erm-unit').value;
   m.stock=parseFloat(document.getElementById('erm-stock').value)||0;m.price=parseFloat(document.getElementById('erm-price').value)||0;
   try{
-    await apiCall('/api/raw-materials/'+parseInt(id),'PUT',m);
+    await apiCall('/api/raw-materials/'+id,'PUT',m);
     closeModal();renderPage();
   }catch(e){alert('Failed to update raw material: '+e.message);}
 }
 async function deleteRM(id){
   if(confirm('Delete?')){
     try{
-      await apiCall('/api/raw-materials/'+parseInt(id),'DELETE');
+      await apiCall('/api/raw-materials/'+id,'DELETE');
       state.rawMaterials=state.rawMaterials.filter(function(m){return m.id!==id;});renderPage();
     }catch(e){alert('Failed to delete raw material: '+e.message);}
   }
@@ -3589,7 +3589,7 @@ async function deductInvoiceStock(items){
       }catch(e){}
     }
     try{
-      await apiCall('/api/products/'+parseInt(product.id),'PUT',product);
+      await apiCall('/api/products/'+product.id,'PUT',product);
     }catch(e){console.warn('Stock update failed for product '+product.id);}
   }
   // Reload fresh stock from backend
@@ -3978,7 +3978,7 @@ async function cancelOrder(orderId){
   if(!confirm('Cancel Order ORD#'+orderId+'?\nThis cannot be undone.')) return;
   o.status='cancelled';
   try{
-    await apiCall('/api/orders/'+parseInt(orderId),'PUT',o);
+    await apiCall('/api/orders/'+orderId,'PUT',o);
     state.customerOrders=await safeGet('/api/orders');
     renderPage();
     showToast('Order ORD#'+orderId+' cancelled.','amber');
@@ -4069,7 +4069,7 @@ async function restoreInvoiceStock(items){
         product.stockMeta=JSON.stringify(meta);
       }catch(e){}
     }
-    try{ await apiCall('/api/products/'+parseInt(product.id),'PUT',product); }catch(e){}
+    try{ await apiCall('/api/products/'+product.id,'PUT',product); }catch(e){}
   }
 }
 
@@ -5005,15 +5005,15 @@ async function saveEditCustomer(id){
   if(_ecAddrErr){alert(_ecAddrErr);return;}
   c.address=readAddr('ec-addr');c.baleBalance=parseInt(document.getElementById('ec-bale').value)||0;
   try{
-    await apiCall('/api/customers/'+parseInt(id),'PUT',c);
+    await apiCall('/api/customers/'+id,'PUT',c);
     closeModal();renderPage();
   }catch(e){alert('Failed to update customer: '+e.message);}
 }
 async function deleteCustomer(id){
   if(confirm('Delete this customer?')){
     try{
-      await apiCall('/api/customers/'+parseInt(id),'DELETE');
-      state.customers=state.customers.filter(function(c){return c.id!==id;});renderPage();
+      await apiCall('/api/customers/'+id,'DELETE');
+      state.customers=state.customers.filter(function(c){return String(c.id)!==String(id);});renderPage();
     }catch(e){alert('Failed to delete customer: '+e.message);}
   }
 }
@@ -5022,7 +5022,7 @@ async function bulkDeleteCustomers(){
   if(!ids.length) return;
   if(!confirm('Delete '+ids.length+' customer(s)? This cannot be undone.')) return;
   for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/customers/'+parseInt(ids[i]),'DELETE');}catch(e){}
+    try{await apiCall('/api/customers/'+ids[i],'DELETE');}catch(e){}
   }
   var del=bulkGetSet('customers');
   state.customers=state.customers.filter(function(c){return !del.has(c.id);});
@@ -5526,14 +5526,14 @@ async function saveEditProspect(id){
   p.crmStatus=document.getElementById('ep2-status').value;
   p.notes=document.getElementById('ep2-notes').value;
   try{
-    await apiCall('/api/prospects/'+parseInt(id),'PUT',p);
+    await apiCall('/api/prospects/'+id,'PUT',p);
     closeModal();renderPage();
   }catch(e){alert('Failed to update prospect: '+e.message);}
 }
 async function deleteProspect(id){
   if(confirm('Delete this prospect?')){
     try{
-      await apiCall('/api/prospects/'+parseInt(id),'DELETE');
+      await apiCall('/api/prospects/'+id,'DELETE');
       state.prospects=state.prospects.filter(function(p){return p.id!==id;});
       state.customerOrders=state.customerOrders.filter(function(o){return o.prospectId!==id;});
       renderPage();
@@ -5946,7 +5946,7 @@ function showOrderDetailModal(orderId){
 async function deleteOrder(id){
   if(confirm('Delete this order?')){
     try{
-      await apiCall('/api/orders/'+parseInt(id),'DELETE');
+      await apiCall('/api/orders/'+id,'DELETE');
       state.customerOrders=state.customerOrders.filter(function(o){return o.id!==id;});renderPage();
     }catch(e){alert('Failed to delete order: '+e.message);}
   }
@@ -5958,7 +5958,7 @@ async function bulkDeleteOrders(){
   for(var i=0;i<ids.length;i++){
     try{
       var inv=state.invoices.find(function(x){return String(x.id)===String(ids[i]);});
-      if(inv){inv.status='cancelled';await apiCall('/api/invoices/'+parseInt(ids[i]),'PUT',inv);}
+      if(inv){inv.status='cancelled';await apiCall('/api/invoices/'+ids[i],'PUT',inv);}
     }catch(e){}
   }
   state.invoices=await safeGet('/api/invoices');
@@ -6427,14 +6427,14 @@ async function saveEditVendor(id){
   v.gstin=document.getElementById('ev-gstin').value;v.materials=document.getElementById('ev-materials').value;
   v.notes=document.getElementById('ev-notes').value;
   try{
-    await apiCall('/api/vendors/'+parseInt(id),'PUT',v);
+    await apiCall('/api/vendors/'+id,'PUT',v);
     closeModal();renderPage();
   }catch(e){alert('Failed to update vendor: '+e.message);}
 }
 async function deleteVendor(id){
   if(confirm('Delete this vendor? Their purchase orders will remain.')){
     try{
-      await apiCall('/api/vendors/'+parseInt(id),'DELETE');
+      await apiCall('/api/vendors/'+id,'DELETE');
       state.vendors=state.vendors.filter(function(v){return v.id!==id;});renderPage();
     }catch(e){alert('Failed to delete vendor: '+e.message);}
   }
@@ -6720,7 +6720,7 @@ async function savePOPayment(poId){
 async function deletePO(id){
   if(confirm('Delete this purchase order?')){
     try{
-      await apiCall('/api/purchase-orders/'+parseInt(id),'DELETE');
+      await apiCall('/api/purchase-orders/'+id,'DELETE');
       state.purchaseOrders=state.purchaseOrders.filter(function(p){return p.id!==id;});renderPage();
     }catch(e){alert('Failed to delete purchase order: '+e.message);}
   }
@@ -7165,14 +7165,14 @@ async function saveEditExpense(id){
   e.amount=parseFloat(document.getElementById('ee-amount').value)||0;
   e.reference=document.getElementById('ee-ref').value;
   try{
-    await apiCall('/api/expenses/'+parseInt(id),'PUT',e);
+    await apiCall('/api/expenses/'+id,'PUT',e);
     closeModal();renderPage();
   }catch(e2){alert('Failed to update expense: '+e2.message);}
 }
 async function deleteExpenseEntry(id){
   if(confirm('Delete this expense entry?')){
     try{
-      await apiCall('/api/expenses/'+parseInt(id),'DELETE');
+      await apiCall('/api/expenses/'+id,'DELETE');
       state.expenseEntries=(state.expenseEntries||[]).filter(function(e){return e.id!==id;});
       renderPage();
     }catch(e){alert('Failed to delete expense: '+e.message);}
@@ -7183,7 +7183,7 @@ async function bulkDeleteExpenses(){
   if(!ids.length) return;
   if(!confirm('Delete '+ids.length+' expense(s)?')) return;
   for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/expenses/'+parseInt(ids[i]),'DELETE');}catch(e){}
+    try{await apiCall('/api/expenses/'+ids[i],'DELETE');}catch(e){}
   }
   var del=bulkGetSet('expenses');
   state.expenseEntries=(state.expenseEntries||[]).filter(function(e){return !del.has(e.id);});
@@ -7194,7 +7194,7 @@ async function bulkDeleteVendors(){
   if(!ids.length) return;
   if(!confirm('Delete '+ids.length+' vendor(s)?')) return;
   for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/vendors/'+parseInt(ids[i]),'DELETE');}catch(e){}
+    try{await apiCall('/api/vendors/'+ids[i],'DELETE');}catch(e){}
   }
   var del=bulkGetSet('vendors');
   state.vendors=state.vendors.filter(function(v){return !del.has(v.id);});
@@ -7205,7 +7205,7 @@ async function bulkDeletePOs(){
   if(!ids.length) return;
   if(!confirm('Delete '+ids.length+' purchase order(s)?')) return;
   for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/purchase-orders/'+parseInt(ids[i]),'DELETE');}catch(e){}
+    try{await apiCall('/api/purchase-orders/'+ids[i],'DELETE');}catch(e){}
   }
   var del=bulkGetSet('pos');
   state.purchaseOrders=state.purchaseOrders.filter(function(p){return !del.has(p.id);});
