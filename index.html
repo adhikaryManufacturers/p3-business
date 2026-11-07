@@ -2789,7 +2789,7 @@ function renderCreateInvoice(){
   '</div></div>'+
   '<div class="card"><div class="card-header"><div class="card-title">Bill To (Customer)</div></div><div class="card-body">'+
   '<div class="form-group" style="margin-bottom:12px"><label>Select Customer<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-  '<input type="hidden" id="inv-cust" value="'+(savedCustId||'")>'+
+  '<input type="hidden" id="inv-cust" value="'+(savedCustId||'')+'">'+''+
   (function(){
     var _sc=savedCustId?state.customers.find(function(c){return String(c.id)===String(savedCustId);}):null;
     return '<div style="display:flex;gap:8px;align-items:center">'+
