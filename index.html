@@ -6,122 +6,6 @@
 <title>P3 Business Suite</title>
 
 <!-- Firebase SDK -->
-<script type="module">
-  // ── Firebase initialisation ─────────────────────────────────────────────
-  // PASTE YOUR FIREBASE CONFIG HERE (from Firebase Console → Project Settings → Your apps)
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import {
-    getFirestore, collection, getDocs, addDoc, setDoc, deleteDoc, doc, query, where
-  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey:            "AIzaSyDHw8-syGyRi_sLUn8SlB5Vhtw5_b3-wsM",
-    authDomain:        "pranita-suite-6a85f.firebaseapp.com",
-    projectId:         "pranita-suite-6a85f",
-    storageBucket:     "pranita-suite-6a85f.firebasestorage.app",
-    messagingSenderId: "1081795715682",
-    appId:             "1:1081795715682:web:4dcf112dfbf58a481e673b"
-  };
-
-  const _fbApp = initializeApp(firebaseConfig);
-  const _db    = getFirestore(_fbApp);
-  window._db   = _db;
-
-  // ── Map REST-style endpoints to Firestore collection names ────────────────
-  const _collMap = {
-    '/api/staff':             'staff',
-    '/api/customers':         'customers',
-    '/api/products':          'products',
-    '/api/raw-materials':     'rawMaterials',
-    '/api/invoices':          'invoices',
-    '/api/payroll':           'payroll',
-    '/api/vendors':           'vendors',
-    '/api/purchase-orders':   'purchaseOrders',
-    '/api/prospects':         'prospects',
-    '/api/orders':            'orders',
-    '/api/expenses':          'expenses',
-    '/api/notes':             'notes',
-    '/api/attendance':        'attendance',
-    '/api/customer-payments': 'customerPayments',
-    '/api/vendor-payments':   'vendorPayments',
-    '/api/users':             'users',
-  };
-
-  // Parse  /api/customers/abc123  →  { coll:'customers', id:'abc123' }
-  function _parseEndpoint(endpoint){
-    for(var prefix in _collMap){
-      if(endpoint === prefix) return { coll: _collMap[prefix], id: null };
-      if(endpoint.startsWith(prefix + '/')){
-        return { coll: _collMap[prefix], id: endpoint.slice(prefix.length + 1) };
-      }
-    }
-    return null;
-  }
-
-  // ── Drop-in replacement for the old apiCall(endpoint, method, body) ───────
-  window.apiCall = async function(endpoint, method, body){
-    method = (method || 'GET').toUpperCase();
-    var parsed = _parseEndpoint(endpoint);
-    if(!parsed) throw new Error('Unknown endpoint: ' + endpoint);
-    var coll = parsed.coll, id = parsed.id;
-
-    if(method === 'GET'){
-      if(id){
-        // GET single document
-        var snap = await getDocs(query(collection(_db, coll), where('__id__','==',id)));
-        var d = await doc(_db, coll, id);
-        var ds = await getDoc(d);         // need getDoc
-        if(!ds.exists()) return null;
-        return Object.assign({id: ds.id}, ds.data());
-      } else {
-        // GET all
-        var snap = await getDocs(collection(_db, coll));
-        return snap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
-      }
-    }
-
-    if(method === 'POST'){
-      // CREATE — Firestore auto-generates ID
-      var data = Object.assign({}, body);
-      delete data.id;
-      var ref = await addDoc(collection(_db, coll), data);
-      return Object.assign({id: ref.id}, data);
-    }
-
-    if(method === 'PUT'){
-      // UPDATE — full replace
-      if(!id) throw new Error('PUT requires an id');
-      var data = Object.assign({}, body);
-      delete data.id;
-      await setDoc(doc(_db, coll, id), data);
-      return Object.assign({id: id}, data);
-    }
-
-    if(method === 'DELETE'){
-      if(!id) throw new Error('DELETE requires an id');
-      await deleteDoc(doc(_db, coll, id));
-      return null;
-    }
-
-    throw new Error('Unsupported method: ' + method);
-  };
-
-  // Also expose getDoc individually (needed above)
-  window._fbGetDoc  = async function(coll, id){
-    var { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    var snap = await getDoc(doc(_db, coll, id));
-    if(!snap.exists()) return null;
-    return Object.assign({id: snap.id}, snap.data());
-  };
-
-  // Query by field  (used for login)
-  window._fbQuery = async function(coll, field, value){
-    var snap = await getDocs(query(collection(_db, coll), where(field, '==', value)));
-    return snap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
-  };
-
-  console.log('Firebase initialised — project:', firebaseConfig.projectId);
-</script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -225,15 +109,6 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text
 td{padding:11px 12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text);vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--green-50);}
-.cb-col{width:36px;padding:10px 8px!important;text-align:center;}
-input[type=checkbox].row-cb{width:16px;height:16px;cursor:pointer;accent-color:var(--primary);}
-tr.selected-row td{background:var(--primary-light)!important;}
-.bulk-bar{display:flex;align-items:center;gap:10px;background:var(--primary);color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:12px;flex-wrap:wrap;}
-.bulk-bar span{font-size:13px;font-weight:600;}
-.bulk-bar .btn-bulk-del{background:#e24b4a;color:#fff;border:none;padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;}
-.bulk-bar .btn-bulk-del:hover{background:#c0392b;}
-.bulk-bar .btn-bulk-cancel{background:rgba(255,255,255,0.2);color:#fff;border:none;padding:6px 14px;border-radius:7px;font-size:12px;cursor:pointer;}
-.bulk-bar .btn-bulk-cancel:hover{background:rgba(255,255,255,0.35);}
 .badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;}
 .badge-green{background:var(--green-50);color:var(--green-600);}
 .badge-red{background:var(--red-50);color:var(--red-400);}
@@ -570,72 +445,17 @@ var state = {
   attDate:null, payrollMonth:null, holidays:{}, notesTab:'All',
 };
 
-// ===================== BULK SELECTION =====================
-var bulkSel = {}; // keyed by tableKey: Set of selected ids
-
-function bulkGetSet(tableKey){
-  if(!bulkSel[tableKey]) bulkSel[tableKey]=new Set();
-  return bulkSel[tableKey];
-}
-function bulkToggle(tableKey,id,checked){
-  var s=bulkGetSet(tableKey);
-  if(checked) s.add(id); else s.delete(id);
-  bulkRefreshBar(tableKey);
-  bulkRefreshRow(tableKey,id,checked);
-}
-function bulkToggleAll(tableKey,checked,ids){
-  var s=bulkGetSet(tableKey);
-  s.clear();
-  if(checked) ids.forEach(function(id){s.add(id);});
-  // re-render page to reflect
-  renderPage();
-}
-function bulkClear(tableKey){bulkSel[tableKey]=new Set();renderPage();}
-function bulkCount(tableKey){return bulkGetSet(tableKey).size;}
-function bulkIds(tableKey){return Array.from(bulkGetSet(tableKey));}
-function bulkRefreshBar(tableKey){
-  var bar=document.getElementById('bulk-bar-'+tableKey);
-  if(bar) bar.querySelector('span').textContent=bulkCount(tableKey)+' row(s) selected';
-  if(bar) bar.style.display=bulkCount(tableKey)>0?'flex':'none';
-}
-function bulkRefreshRow(tableKey,id,selected){
-  var row=document.querySelector('tr[data-bkey="'+tableKey+'-'+id+'"]');
-  if(row){row.classList.toggle('selected-row',selected);}
-}
-function bulkBarHtml(tableKey,onDelete){
-  return '<div id="bulk-bar-'+tableKey+'" class="bulk-bar" style="display:'+( bulkCount(tableKey)>0?'flex':'none')+'">'+
-    '<span>'+bulkCount(tableKey)+' row(s) selected</span>'+
-    '<button class="btn-bulk-del" onclick="'+onDelete+'">🗑 Delete Selected</button>'+
-    '<button class="btn-bulk-cancel" onclick="bulkClear(\''+tableKey+'\')">✕ Clear Selection</button>'+
-  '</div>';
-}
-function bulkSelectAllHtml(tableKey,ids){
-  var allSelected=ids.length>0&&ids.every(function(id){return bulkGetSet(tableKey).has(id);});
-  return '<input type="checkbox" class="row-cb" title="Select all" '+
-    (allSelected?'checked':'')+
-    ' onchange="bulkToggleAll(\''+tableKey+'\',this.checked,['+ids.join(',')+'])">';
-}
-function bulkRowCbHtml(tableKey,id){
-  var checked=bulkGetSet(tableKey).has(id);
-  return '<input type="checkbox" class="row-cb" '+(checked?'checked':'')+
-    ' onchange="bulkToggle(\''+tableKey+'\',\''+id+'\',this.checked)">';
-}
-
 // ===================== UTILS =====================
-// ===================== API CONFIG (Firebase) =====================
-// apiCall is defined in the Firebase <script type="module"> block above.
-// This stub ensures calls before Firebase initialises are queued safely.
-var API_BASE = ''; // unused — kept for compatibility
+// ===================== API CONFIG =====================
+var API_BASE = 'https://p3-business-production.up.railway.app';
 
-if(typeof apiCall === 'undefined'){
-  window.apiCall = async function(endpoint, method, body){
-    // Wait up to 5s for Firebase module to register window.apiCall
-    for(var i=0;i<50;i++){
-      await new Promise(function(r){setTimeout(r,100);});
-      if(window._fbReady) break;
-    }
-    throw new Error('Firebase not yet ready for: '+endpoint);
-  };
+async function apiCall(endpoint, method, body){
+  var opts = { method: method||'GET', headers: {'Content-Type':'application/json'} };
+  if(body) opts.body = JSON.stringify(body);
+  var res = await fetch(API_BASE + endpoint, opts);
+  if(!res.ok){ var t=await res.text(); throw new Error(t||'API error '+res.status); }
+  var text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 function fmt(n){return '₹'+parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -756,6 +576,52 @@ function onSelectAddNew(el, navTarget){
 function invCustChange(el){
   if(el.value==='__add_new__'){el.value='';navigate('customers');return;}
   state._invCustId=el.value;onCustChange();
+}
+function showInvCustPicker(){
+  function renderPickerList(q){
+    var filtered=(state.customers||[]).filter(function(c){
+      if(!q) return true;
+      var s=q.toLowerCase();
+      return (c.name||'').toLowerCase().indexOf(s)>=0||(String(c.phone||'')).indexOf(s)>=0;
+    });
+    if(!filtered.length) return '<div style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No customers found</div>';
+    return filtered.map(function(c){
+      var due=getCustomerTotalDue(c.id);
+      var sel=String(state._invCustId)===String(c.id);
+      return '<div onclick="pickInvCust(\''+c.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;cursor:pointer;margin-bottom:8px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--green-50)':'var(--surface)')+';transition:box-shadow .15s" onmouseover="this.style.boxShadow=\'0 2px 8px rgba(0,0,0,.08)\'" onmouseout="this.style.boxShadow=\'none\'">'+
+        '<div style="width:40px;height:40px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0">'+(c.name||'?')[0].toUpperCase()+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-weight:600;font-size:14px;color:var(--text1)">'+c.name+(sel?' <span style="color:var(--primary);font-size:12px">✓ Selected</span>':'')+'</div>'+
+          '<div style="font-size:12px;color:var(--text3)">📞 '+c.phone+(c.address&&(c.address.city||c.address.village)?'  •  📍 '+(c.address.city||c.address.village):'')+'</div>'+
+        '</div>'+
+        (due>0?'<div style="text-align:right;flex-shrink:0"><div style="font-size:11px;color:var(--text3)">Due</div><div style="font-size:13px;font-weight:700;color:#e24b4a">'+fmt(due)+'</div></div>':'')+
+      '</div>';
+    }).join('');
+  }
+  window._invPickerRender=renderPickerList;
+  showModal('Select Customer',
+    '<input id="inv-cust-search" type="text" placeholder="🔍 Search by name or phone…" oninput="document.getElementById(\'icp-list\').innerHTML=window._invPickerRender(this.value)" '+
+    'style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;margin-bottom:12px">'+
+    '<div id="icp-list" style="max-height:400px;overflow-y:auto;padding-right:2px">'+renderPickerList('')+'</div>'+
+    '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'+
+    '<button class="btn btn-ghost btn-sm" onclick="showAddCustomerModal()">+ Add New Customer</button></div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+  setTimeout(function(){var el=document.getElementById('inv-cust-search');if(el)el.focus();},80);
+}
+function pickInvCust(custId){
+  state._invCustId=custId;
+  var inp=document.getElementById('inv-cust');
+  if(inp) inp.value=custId;
+  closeModal();
+  onCustChange();
+  updateInvCalc();
+}
+function invClearCust(){
+  state._invCustId='';
+  var inp=document.getElementById('inv-cust');
+  if(inp) inp.value='';
+  onCustChange();
+  updateInvCalc();
 }
 function coWhoChange(el){
   if(el.value==='__add_new__'){el.value='';if(typeof closeModal==='function')closeModal();navigate('customers');return;}
@@ -1012,7 +878,7 @@ function renderNotesPage(){
           'box-shadow:2px 4px 12px rgba(0,0,0,0.1);cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;position:relative;" '+
           'onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'2px 8px 20px rgba(0,0,0,0.15)\'" '+
           'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'2px 4px 12px rgba(0,0,0,0.1)\'" '+
-          'onclick="viewNote(\''+i+'\')">'+
+          'onclick="viewNote('+i+')">'+
           // Icon + type badge
           '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
           '<span style="font-size:28px">'+icon+'</span>'+
@@ -1026,10 +892,10 @@ function renderNotesPage(){
           '<div style="font-size:11px;color:#999;margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.08)">'+n.date+'</div>'+
           // Action buttons
           '<div style="display:flex;gap:6px;margin-top:10px">'+
-          (n.type==='text'?'<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();editNote(\''+i+'\')">✏️ Edit</button>':''+
-          '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();downloadNote(\''+i+'\')">⬇ Download</button>')+
-          '<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="event.stopPropagation();shareNoteWhatsApp(\''+i+'\')">📲</button>'+
-          '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteNote(\''+i+'\')">🗑️</button>'+
+          (n.type==='text'?'<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();editNote('+i+')">✏️ Edit</button>':''+
+          '<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();downloadNote('+i+')">⬇ Download</button>')+
+          '<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="event.stopPropagation();shareNoteWhatsApp('+i+')">📲</button>'+
+          '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteNote('+i+')">🗑️</button>'+
           '</div>'+
           '</div>';
       }).join('')+
@@ -1143,7 +1009,7 @@ async function saveEditNote(i){
   var n=state.notes[i];
   n.title=title.trim();n.content=content;
   try{
-    await apiCall("/api/notes/"+n.id,"PUT",n);
+    await apiCall("/api/notes/"+parseInt(n.id),"PUT",n);
     state.notes=await apiCall("/api/notes","GET")||[];
     closeModal();
     if(state.currentPage==="notes") renderPage();
@@ -1154,7 +1020,7 @@ async function deleteNote(i){
   if(!confirm("Delete this note?"))return;
   var n=state.notes[i];
   try{
-    await apiCall("/api/notes/"+n.id,"DELETE");
+    await apiCall("/api/notes/"+parseInt(n.id),"DELETE");
     state.notes=await apiCall("/api/notes","GET")||[];
     if(state.currentPage==="notes") renderPage();
   }catch(e){alert("Failed to delete note: "+e.message);}
@@ -1258,8 +1124,8 @@ function closeSettingsPanel(){
 }
 
 function goToCreateInvoice(custId){
+  state._invCustId=custId;
   navigate('create-invoice');
-  setTimeout(function(){var s=document.getElementById('inv-cust');if(s){s.value=custId;onCustChange();}},200);
 }
 
 function goToSettings(){
@@ -1757,7 +1623,7 @@ function renderDashboard(){
   var activeStaff=state.staff.filter(function(s){return s.active;}).length;
   var pendingOrders=state.invoices.filter(function(i){return !i.delivered;}).length;
   var lowStock=state.products.filter(function(p){return p.stock<100;}).length;
-  var recentInv=[].concat(state.invoices).sort(function(a,b){return (b.billNo||0)-(a.billNo||0)||(b.date>a.date?1:b.date<a.date?-1:0);}).slice(0,5);
+  var recentInv=[].concat(state.invoices).sort(function(a,b){return b.id-a.id;}).slice(0,5);
   return '<div class="section-title">Good morning 🌿</div><div class="section-sub">P3 Business Suite — Overview</div>'+
   '<div class="metrics">'+
   '<div class="metric green"><div class="metric-label">Total Revenue</div><div class="metric-value">'+fmt(totalRevenue)+'</div><div class="metric-sub">Collected from invoices</div></div>'+
@@ -1899,11 +1765,11 @@ function renderStaffDirectory(){
         '<td><span class="badge '+(s.leaveBalance>2?'badge-green':s.leaveBalance>0?'badge-amber':'badge-red')+'">'+s.leaveBalance+' days</span></td>'+
         '<td>'+(s.advance>0?'<span class="fc-red">'+fmt(s.advance)+'</span>':'—')+'</td>'+
         '<td>'+(pending>0?'<span class="fc-red fw600">'+fmt(pending)+'</span><div style="font-size:11px;color:var(--text3)">Unpaid balance</div>':'<span class="badge badge-green">All Clear</span>')+'</td>'+
-        '<td><button class="btn btn-secondary btn-sm" onclick="showStaffPayHistory(\''+s.id+'\')">Payment History</button></td>'+
+        '<td><button class="btn btn-secondary btn-sm" onclick="showStaffPayHistory('+s.id+')">Payment History</button></td>'+
         '<td><div class="gap-12">'+
-          '<button class="btn btn-secondary btn-sm" onclick="showEditStaffModal(\''+s.id+'\')">Edit</button>'+
-          '<button class="btn btn-primary btn-sm" onclick="showPartPayModal(\''+s.id+'\')">Pay Salary</button>'+
-          '<button class="btn btn-danger btn-sm" onclick="deleteStaff(\''+s.id+'\')">Remove</button>'+
+          '<button class="btn btn-secondary btn-sm" onclick="showEditStaffModal('+s.id+')">Edit</button>'+
+          '<button class="btn btn-primary btn-sm" onclick="showPartPayModal('+s.id+')">Pay Salary</button>'+
+          '<button class="btn btn-danger btn-sm" onclick="deleteStaff('+s.id+')">Remove</button>'+
         '</div></td></tr>';
     }),
     'staff',
@@ -1957,15 +1823,15 @@ function _renderStaffPayHistoryModal(empId){
   var filterBar=
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding:12px;background:var(--gray-50);border-radius:10px">'+
     '<span style="font-size:12px;font-weight:600;color:var(--text2);margin-right:4px">Filter:</span>'+
-    '<button class="btn btn-sm '+(filter==='all'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'all\';_renderStaffPayHistoryModal(\''+empId+'\')">All Time</button>'+
-    '<button class="btn btn-sm '+(filter==='month'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'month\';_renderStaffPayHistoryModal(\''+empId+'\')">By Month</button>'+
-    '<button class="btn btn-sm '+(filter==='custom'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'custom\';_renderStaffPayHistoryModal(\''+empId+'\')">Custom Range</button>'+
+    '<button class="btn btn-sm '+(filter==='all'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'all\';_renderStaffPayHistoryModal('+empId+')">All Time</button>'+
+    '<button class="btn btn-sm '+(filter==='month'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'month\';_renderStaffPayHistoryModal('+empId+')">By Month</button>'+
+    '<button class="btn btn-sm '+(filter==='custom'?'btn-primary':'btn-secondary')+'" onclick="window._sphFilter=\'custom\';_renderStaffPayHistoryModal('+empId+')">Custom Range</button>'+
     (filter==='month'?
-      '<input type="month" value="'+selMonth+'" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphMonth=this.value;_renderStaffPayHistoryModal(\''+empId+'\')">':'')+
+      '<input type="month" value="'+selMonth+'" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphMonth=this.value;_renderStaffPayHistoryModal('+empId+')">':'')+
     (filter==='custom'?
-      '<input type="date" value="'+fromDate+'" placeholder="From" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphFrom=this.value;_renderStaffPayHistoryModal(\''+empId+'\')">'+
+      '<input type="date" value="'+fromDate+'" placeholder="From" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphFrom=this.value;_renderStaffPayHistoryModal('+empId+')">'+
       '<span style="font-size:12px;color:var(--text3)">to</span>'+
-      '<input type="date" value="'+toDate+'" placeholder="To" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphTo=this.value;_renderStaffPayHistoryModal(\''+empId+'\')">':'')+
+      '<input type="date" value="'+toDate+'" placeholder="To" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" onchange="window._sphTo=this.value;_renderStaffPayHistoryModal('+empId+')">':'')+
     '</div>';
 
   var summaryCards=
@@ -2011,7 +1877,7 @@ function _renderStaffPayHistoryModal(empId){
     return;
   }
   showModal('💰 Payment History — '+s.name+' ('+s.role+')', body,
-    '<button class="btn btn-primary" onclick="showPartPayModal(\''+empId+'\');closeModal()" style="margin-right:8px">+ Pay Salary</button>'+
+    '<button class="btn btn-primary" onclick="showPartPayModal('+empId+');closeModal()" style="margin-right:8px">+ Pay Salary</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
   // Mark modal so we can detect re-renders
   var mb=document.getElementById('modalBody');
@@ -2053,7 +1919,7 @@ function showEditStaffModal(id){
     '<div class="form-group"><label>Leave Balance</label><input type="number" id="ef-leave" value="'+s.leaveBalance+'" min="0" max="15"></div>'+
     '<div class="form-group"><label>Advance Balance (₹)</label><input type="number" id="ef-advance" value="'+s.advance+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditStaff(\''+id+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditStaff('+id+')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditStaff(id){
   var s=getStaff(id);
@@ -2064,7 +1930,7 @@ async function saveEditStaff(id){
   s.leaveBalance=parseInt(document.getElementById('ef-leave').value)||0;
   s.advance=parseFloat(document.getElementById('ef-advance').value)||0;
   try{
-    await apiCall('/api/staff/'+id,'PUT',s);
+    await apiCall('/api/staff/'+parseInt(id),'PUT',s);
     state.staff=await apiCall('/api/staff','GET')||[];
     closeModal();renderPage();
   }catch(e){alert('Failed to update staff: '+e.message);}
@@ -2072,7 +1938,7 @@ async function saveEditStaff(id){
 async function deleteStaff(id){
   if(confirm('Remove this employee?')){
     try{
-      await apiCall('/api/staff/'+id,'DELETE');
+      await apiCall('/api/staff/'+parseInt(id),'DELETE');
       state.staff=await apiCall('/api/staff','GET')||[];
       renderPage();
     }catch(e){alert('Failed to delete staff: '+e.message);}
@@ -2086,7 +1952,7 @@ function processPayrollForSelected(){
     alert('Please select an employee from the dropdown first.');
     return;
   }
-  showPartPayModal(sel.value);
+  showPartPayModal(parseInt(sel.value));
 }
 
 function showPartPayModal(empId){
@@ -2121,7 +1987,7 @@ function showPartPayModal(empId){
     '</div>'+
     '<div class="divider"></div>'+
     '<div id="pr-summary" style="background:var(--green-50);border-radius:8px;padding:12px;font-size:13px"></div>',
-    '<button class="btn btn-primary" onclick="savePayroll(\''+empId+'\')">Record Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="savePayroll('+empId+')">Record Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   setTimeout(function(){updatePartPayCalc(empId);},50);
 }
 function updatePartPayCalc(empId){
@@ -2198,7 +2064,7 @@ function renderAttendance(){
   state.staff.map(function(s){
     var key=d+'-'+s.id;
     var status=state.attendance[key]||'P';
-    return '<div class="att-card att-'+status.toLowerCase()+'" onclick="cycleAtt(\''+d+'\',\''+s.id+'\')">'+
+    return '<div class="att-card att-'+status.toLowerCase()+'" onclick="cycleAtt(\''+d+'\','+s.id+')">'+
       '<div style="font-size:22px">'+(status==='P'?'✓':status==='A'?'✗':'½')+'</div>'+
       '<div class="name">'+s.name.split(' ')[0]+'</div>'+
       '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+s.role+'</div></div>';
@@ -2290,7 +2156,7 @@ function renderPayroll(){
         '<td><span class="badge '+(r.paid>=net?'badge-green':'badge-amber')+'">'+(r.paid>=net?'Full':'Partial')+'</span></td>'+
         '<td style="font-size:12px;color:var(--text3)">'+(r.note||'—')+'</td>'+
         '<td style="color:var(--text3)">'+r.paidDate+'</td>'+
-        '<td><button class="btn btn-secondary btn-sm" onclick="showPayrollHistoryModal(\''+r.empId+'\',\''+r.month+'\')">View</button></td></tr>';
+        '<td><button class="btn btn-secondary btn-sm" onclick="showPayrollHistoryModal('+r.empId+',\''+r.month+'\')">View</button></td></tr>';
     }),
     'payroll-records',
     '<thead><tr><th>Employee</th><th>Month</th><th>Base</th><th>Leave Ded.</th><th>Advance</th><th>Paid</th><th>Status</th><th>Note</th><th>Date</th><th>Action</th></tr></thead>'
@@ -2386,16 +2252,12 @@ function renderProducts(){
   '</div>'+
 
   // Table
-  bulkBarHtml('products','bulkDeleteProducts()')+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th class="cb-col">'+bulkSelectAllHtml('products',[].concat(filtered).map(function(p){return p.id;}))+'</th>'+
   '<th>Product Name</th><th>Type</th><th>Size</th><th>HSN</th><th>Stock</th><th>Price/Pkt</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   ([].concat(filtered).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(p){
     var stockBadge = p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green';
-    var isSelected=bulkGetSet('products').has(p.id);
-    return '<tr data-bkey="products-'+p.id+'" class="'+(isSelected?'selected-row':'')+'" >'+
-      '<td class="cb-col">'+bulkRowCbHtml('products',p.id)+'</td>'+
+    return '<tr>'+
       '<td><strong>'+p.name+'</strong></td>'+
       '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
       '<td>'+(p.size||'—')+'</td>'+
@@ -2421,13 +2283,12 @@ function renderProducts(){
         })()+'</td>'+
       '<td class="fw600">'+fmt(p.price)+(p.stockMeta&&JSON.parse(p.stockMeta||'{}').unitType!=='Pieces'?'/Pkt':'/Pc')+'</td>'+
       '<td><div class="gap-12">'+
-      '<button class="btn btn-ghost btn-sm" onclick="showProductViewModal(\''+p.id+'\')">View</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\''+p.id+'\')">Edit</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\''+p.id+'\')">+ Stock</button>'+
-      '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\''+p.id+'\')">Delete</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteProduct('+p.id+')">Delete</button>'+
       '</div></td></tr>';
   }).join('')||
-  '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+
+  '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+
   (search?'No products matching "'+state.productSearch+'"':'No products found')+'</td></tr>')+
   '</tbody></table></div></div>';
 }
@@ -2475,9 +2336,9 @@ function prodSearchFilter(val){
         })()+'</td>'+
       '<td class="fw600">'+fmt(p.price)+(function(){try{var m=JSON.parse(p.stockMeta||'{}');return m.unitType&&m.unitType!=='Pieces'?'/Pkt':'/Pc';}catch(e){return '/Pc';}}())+'</td>'+
       '<td><div class="gap-12">'+
-      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\''+p.id+'\')">Edit</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\''+p.id+'\')">+ Stock</button>'+
-      '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\''+p.id+'\')">Delete</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal('+p.id+')">Edit</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showStockModal('+p.id+')">+ Stock</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteProduct('+p.id+')">Delete</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+(val?'No products matching "'+val+'"':'No products found')+'</td></tr>';
 }
@@ -2653,24 +2514,6 @@ async function saveNewProduct(){
     closeModal();renderPage();
   }catch(e){alert('Failed to save product: '+e.message);}
 }
-function showProductViewModal(id){
-  var p=getProduct(id);
-  var meta={};try{if(p.stockMeta)meta=JSON.parse(p.stockMeta);}catch(e){}
-  showModal('Product Details — '+p.name,
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:4px 0">'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Name</div><div style="font-weight:600">'+p.name+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Type</div><div><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Size</div><div>'+(p.size||'—')+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">HSN</div><div>'+(p.hsn||'—')+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Price</div><div class="fw600">'+fmt(p.price)+'/Pc</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Stock</div><div style="font-weight:600;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</div></div>'+
-    (meta.unitType?'<div style="grid-column:1/-1"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Stock Detail</div><div style="font-size:13px">'+
-    (meta.unitType==='Cartoon'||meta.unitType==='Bora'?meta.count+' '+meta.unitType+' | '+meta.totalPkt+' Pkt | '+p.stock+' Pcs':
-     meta.unitType==='Pkt'?meta.count+' Pkt | '+p.stock+' Pcs':p.stock+' Pcs')+'</div></div>':'')+
-    '</div>',
-    '<button class="btn btn-secondary" onclick="showEditProductModal(\''+id+'\');closeModal()">Edit</button>'+
-    '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
-}
 function showEditProductModal(id){
   var p = getProduct(id);
   // Parse existing stockMeta to pre-fill fields
@@ -2693,7 +2536,7 @@ function showEditProductModal(id){
     '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
     ['Cartoon','Bora','Pkt','Pieces'].map(function(u){
       return '<label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all 0.15s" '+
-        'onclick="epSelectUnit(\''+u+'\',\''+id+'\')">'+
+        'onclick="epSelectUnit(\''+u+'\','+id+')">'+
         '<input type="radio" name="ep-unit-radio" value="'+u+'" '+(unitType===u?'checked':'')+' style="accent-color:var(--primary)"> '+u+'</label>';
     }).join('')+
     '</div></div>'+
@@ -2717,7 +2560,7 @@ function showEditProductModal(id){
     '<input type="number" id="ep-price" step="0.25" value="'+p.price+'"></div>'+
     '</div>',
 
-    '<button class="btn btn-primary" onclick="saveEditProduct(\''+id+'\')">Update</button>'+
+    '<button class="btn btn-primary" onclick="saveEditProduct('+id+')">Update</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   );
 
@@ -2820,7 +2663,7 @@ async function saveEditProduct(id){
   p.stockMeta=JSON.stringify(stockMeta);
 
   try{
-    await apiCall('/api/products/'+id,'PUT',p);
+    await apiCall('/api/products/'+parseInt(id),'PUT',p);
     state.products=await apiCall('/api/products','GET')||[];
     window._epTotalPcs=0;
     closeModal();renderPage();
@@ -2829,34 +2672,24 @@ async function saveEditProduct(id){
 function showStockModal(id){
   var p=getProduct(id);
   showModal('Add Stock — '+p.name,'<div class="form-group"><label>Add Qty (Pcs)</label><input type="number" id="sk-qty" value="0"></div><p style="margin-top:10px;color:var(--text3);font-size:13px">Current: '+p.stock+' pcs</p>',
-    '<button class="btn btn-primary" onclick="addStock(\''+id+'\')">Add</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="addStock('+id+')">Add</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function addStock(id){
   var p=getProduct(id);
   var qty=parseInt(document.getElementById('sk-qty').value)||0;
   p.stock+=qty;
   try{
-    await apiCall('/api/products/'+id,'PUT',p);
+    await apiCall('/api/products/'+parseInt(id),'PUT',p);
     closeModal();renderPage();
   }catch(e){alert('Failed to update stock: '+e.message);}
 }
 async function deleteProduct(id){
   if(confirm('Delete?')){
     try{
-      await apiCall('/api/products/'+id,'DELETE');
+      await apiCall('/api/products/'+parseInt(id),'DELETE');
       state.products=state.products.filter(function(p){return p.id!==id;});renderPage();
     }catch(e){alert('Failed to delete product: '+e.message);}
   }
-}
-async function bulkDeleteProducts(){
-  var ids=bulkIds('products');
-  if(!ids.length) return;
-  if(!confirm('Delete '+ids.length+' product(s)?')) return;
-  for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/products/'+ids[i],'DELETE');}catch(e){}
-  }
-  state.products=state.products.filter(function(p){return !bulkGetSet('products').has(p.id);});
-  bulkSel['products']=new Set();renderPage();
 }
 
 // ===================== RAW MATERIALS =====================
@@ -2869,7 +2702,7 @@ function renderRawMaterials(){
     return '<tr><td><strong>'+m.name+'</strong></td><td>'+m.unit+'</td>'+
       '<td><span class="badge '+(m.stock<50?'badge-red':m.stock<100?'badge-amber':'badge-green')+'">'+m.stock+' '+m.unit+'</span></td>'+
       '<td>'+fmt(m.price)+'</td><td class="fw600 fc-green">'+fmt(m.stock*m.price)+'</td>'+
-      '<td><div class="gap-12"><button class="btn btn-secondary btn-sm" onclick="showEditRMModal(\''+m.id+'\')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteRM(\''+m.id+'\')">Delete</button></div></td></tr>';
+      '<td><div class="gap-12"><button class="btn btn-secondary btn-sm" onclick="showEditRMModal('+m.id+')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteRM('+m.id+')">Delete</button></div></td></tr>';
   }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
 }
@@ -2901,21 +2734,21 @@ function showEditRMModal(id){
     '<div class="form-group"><label>Stock</label><input type="number" id="erm-stock" value="'+m.stock+'"></div>'+
     '<div class="form-group"><label>Cost/Unit (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="erm-price" value="'+m.price+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditRM(\''+id+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditRM('+id+')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditRM(id){
   var m=state.rawMaterials.find(function(r){return r.id===id;});
   m.name=document.getElementById('erm-name').value;m.unit=document.getElementById('erm-unit').value;
   m.stock=parseFloat(document.getElementById('erm-stock').value)||0;m.price=parseFloat(document.getElementById('erm-price').value)||0;
   try{
-    await apiCall('/api/raw-materials/'+id,'PUT',m);
+    await apiCall('/api/raw-materials/'+parseInt(id),'PUT',m);
     closeModal();renderPage();
   }catch(e){alert('Failed to update raw material: '+e.message);}
 }
 async function deleteRM(id){
   if(confirm('Delete?')){
     try{
-      await apiCall('/api/raw-materials/'+id,'DELETE');
+      await apiCall('/api/raw-materials/'+parseInt(id),'DELETE');
       state.rawMaterials=state.rawMaterials.filter(function(m){return m.id!==id;});renderPage();
     }catch(e){alert('Failed to delete raw material: '+e.message);}
   }
@@ -2956,13 +2789,19 @@ function renderCreateInvoice(){
   '</div></div>'+
   '<div class="card"><div class="card-header"><div class="card-title">Bill To (Customer)</div></div><div class="card-body">'+
   '<div class="form-group" style="margin-bottom:12px"><label>Select Customer<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-  '<select id="inv-cust" onchange="invCustChange(this)">'+
-  '<option value="">— Select —</option>'+
-  buildSelectOpts(state.customers,function(cu){return cu.id;},function(cu){return cu.name+' — '+cu.phone;},function(cu){return String(cu.id)===String(savedCustId)?'selected':'';},
-  'No customers yet','Add New Customer')+
-  '<option value="new">+ Add New Customer</option>'+
-  '</select></div>'+
-  '<div id="cust-details" style="font-size:13px;color:var(--text2)"></div>'+
+  '<input type="hidden" id="inv-cust" value="'+(savedCustId||'")>'+
+  (function(){
+    var _sc=savedCustId?state.customers.find(function(c){return String(c.id)===String(savedCustId);}):null;
+    return '<div style="display:flex;gap:8px;align-items:center">'+
+      '<button type="button" id="inv-cust-btn" onclick="showInvCustPicker()" style="flex:1;padding:10px 14px;border:1.5px '+(savedCustId?'solid var(--primary)':'dashed var(--border)')+';border-radius:8px;background:var(--surface);cursor:pointer;font-family:inherit;font-size:13px;text-align:left;color:'+(savedCustId?'var(--text1)':'var(--text3)')+'">'+
+      (_sc?'✓ '+_sc.name+' — '+_sc.phone:'👤 Choose Customer…')+
+      '</button>'+
+      (savedCustId?'<button type="button" onclick="invClearCust()" title="Clear" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:20px;line-height:1;padding:4px 6px">×</button>':'')+
+    '</div>'+
+    '<button type="button" onclick="showAddCustomerModal()" style="margin-top:6px;background:none;border:none;cursor:pointer;color:var(--primary);font-size:12px;padding:0;text-decoration:underline">+ Add New Customer</button>';
+  })()+
+  '</div>'+
+  '<div id="cust-details" style="font-size:13px;color:var(--text2);margin-top:8px"></div>'+
   '<div id="prev-due-note" style="margin-top:10px"></div>'+
   '</div></div></div>'+
   '<div class="card" style="margin-bottom:16px"><div class="card-header"><div class="card-title">Line Items</div><button class="btn btn-secondary btn-sm" onclick="addInvItem()">+ Add Row</button></div>'+
@@ -2985,10 +2824,10 @@ function renderInvItemRow(item){
     '<td style="color:var(--text3);font-size:12px">'+(product.hsn||'—')+'</td>'+
     '<td>'+qtyCell+'</td>'+
     '<td><input type="number" value="'+item.rate+'" step="0.25" '+
-      'onchange="updateInvItem(\''+item.id+'\',\'rate\',this.value);refreshInvRow(\''+item.id+'\')" '+
+      'onchange="updateInvItem('+item.id+',\'rate\',this.value);refreshInvRow('+item.id+')" '+
       'style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"></td>'+
     '<td class="fw600" id="inv-amt-'+item.id+'">'+fmt(invItemAmount(item))+'</td>'+
-    '<td><button onclick="removeInvItem(\''+item.id+'\')" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
+    '<td><button onclick="removeInvItem('+item.id+')" style="background:none;border:none;cursor:pointer;color:var(--red-400);font-size:18px">×</button></td></tr>';
 }
 
 // ── Shared two-step product selector (used by invoice + order) ──
@@ -3153,13 +2992,11 @@ function invBuildQtyCell(item, meta){
     else if(meta.unitType==='Pkt') availUnits = ['Pkt'];
     else availUnits = ['Pkt','Cartoon','Bora']; // no meta — show all
   }
-  // Always ensure the currently active unit is visible in the tabs
-  if(unitType && unitType!=='Pkt' && availUnits.indexOf(unitType)<0) availUnits.push(unitType);
 
   var tabsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">'+
     availUnits.map(function(u){
       var active = unitType===u;
-      return '<button onclick="invSetQtyUnit(\''+item.id+'\',\''+u+'\')" '+
+      return '<button onclick="invSetQtyUnit('+item.id+',\''+u+'\')" '+
         'style="padding:2px 8px;border-radius:10px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
         'background:'+(active?'var(--primary)':'var(--surface)')+';color:'+(active?'#fff':'var(--text2)')+';'+
         'font-size:11px;font-weight:'+(active?'700':'400')+';cursor:pointer">'+u+'</button>';
@@ -3173,14 +3010,14 @@ function invBuildQtyCell(item, meta){
     inputHtml =
       '<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
       '<input type="number" value="'+cnt+'" min="1" '+
-        'oninput="invUpdateQty(\''+item.id+'\',this.value)" '+
+        'oninput="invUpdateQty('+item.id+',this.value)" '+
         'style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" '+
         'placeholder="'+unitType+'s">'+
       '<span style="color:var(--text3);font-size:11px">'+unitType+'(s)</span>'+
       '<span></span>'+
       '<span id="inv-breakdown-'+item.id+'" style="display:contents">'+
-      (pktPerUnit?'<span style="color:var(--text3)">×'+pktPerUnit+' Pkt</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:#1565c0">'+totalPkt+' Pkt</span>':'<input type="number" placeholder="Pkt/'+unitType+'" onchange="invSetMetaVal(\''+item.id+'\',\'pktPerUnit\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pkt/'+unitType+'</span><span></span>')+
-      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal(\''+item.id+'\',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
+      (pktPerUnit?'<span style="color:var(--text3)">×'+pktPerUnit+' Pkt</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:#1565c0">'+totalPkt+' Pkt</span>':'<input type="number" placeholder="Pkt/'+unitType+'" onchange="invSetMetaVal('+item.id+',\'pktPerUnit\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pkt/'+unitType+'</span><span></span>')+
+      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal('+item.id+',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
       '</span>'+
       '</div>';
   } else if(unitType==='Pkt'){
@@ -3189,25 +3026,25 @@ function invBuildQtyCell(item, meta){
     inputHtml =
       '<div style="display:grid;grid-template-columns:auto auto auto;gap:4px;align-items:center;font-size:12px">'+
       '<input type="number" value="'+pktCnt+'" min="1" '+
-        'oninput="invUpdateQty(\''+item.id+'\',this.value)" '+
+        'oninput="invUpdateQty('+item.id+',this.value)" '+
         'style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px">'+
       '<span style="color:var(--text3);font-size:11px">Pkt(s)</span>'+
       '<span></span>'+
       '<span id="inv-breakdown-'+item.id+'" style="display:contents">'+
-      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs2+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal(\''+item.id+'\',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
+      (pcsPerPkt?'<span style="color:var(--text3)">×'+pcsPerPkt+' Pcs</span><span style="color:var(--text3)">=</span><span style="font-weight:600;color:var(--primary)">'+totalPcs2+' Pcs</span>':'<input type="number" placeholder="Pcs/Pkt" onchange="invSetMetaVal('+item.id+',\'pcsPerPkt\',this.value)" style="width:55px;padding:4px 6px;border:1px solid var(--border);border-radius:6px"> <span style="font-size:11px;color:var(--text3)">Pcs/Pkt</span><span></span>')+
       '</span>'+
       '</div>';
   } else {
     // Pieces
     inputHtml = '<input type="number" value="'+item.qty+'" min="1" '+
-      'onchange="updateInvItem(\''+item.id+'\',\'qty\',this.value);refreshInvRow(\''+item.id+'\')" '+
+      'onchange="updateInvItem('+item.id+',\'qty\',this.value);refreshInvRow('+item.id+')" '+
       'style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px"> <span style="font-size:11px;color:var(--text3)">Pcs</span>';
   }
   return tabsHtml+inputHtml;
 }
 
 function invSetMetaVal(itemId, field, val){
-  var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
+  var item=state.invoiceItems.find(function(i){return i.id===itemId;});
   if(!item) return;
   if(!item._metaOverride) item._metaOverride={};
   item._metaOverride[field]=parseFloat(val)||0;
@@ -3219,33 +3056,22 @@ function invSetMetaVal(itemId, field, val){
 
 
 function invSetQtyUnit(itemId, unit){
-  var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
-  if(!item){console.warn('invSetQtyUnit: item not found',itemId);return;}
+  var item=state.invoiceItems.find(function(i){return i.id===itemId;});
+  if(!item) return;
   item.qtyUnit=unit;
   item.qtyCount=1;
   invRecalcQtyFull(item);
-  // Update qty cell in-place to avoid losing other field values
-  var product=getProduct(item.productId);
-  var meta={};try{if(product&&product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
-  if(item._metaOverride) Object.assign(meta,item._metaOverride);
-  var newCell=invBuildQtyCell(item,meta);
-  // Try to update just the qty cell in-place
-  var tbody=document.getElementById('inv-items-body');
-  if(tbody){
-    var rows=tbody.querySelectorAll('tr');
-    for(var r=0;r<rows.length;r++){
-      if(rows[r].id==='invrow-'+itemId){
-        var tds=rows[r].querySelectorAll('td');
-        if(tds[2]) tds[2].innerHTML=newCell;
-        var amtEl=document.getElementById('inv-amt-'+itemId);
-        if(amtEl) amtEl.textContent=fmt(invItemAmount(item));
-        updateInvCalc();
-        return;
-      }
-    }
-  }
-  // Fallback: full re-render
-  renderPage();
+  // Update in-place
+  var row=document.getElementById('invrow-'+itemId);
+  if(row){
+    var product=getProduct(item.productId);
+    var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+    if(item._metaOverride) Object.assign(meta,item._metaOverride);
+    var td=row.querySelector('td:nth-child(3)');
+    if(td) td.innerHTML=invBuildQtyCell(item,meta);
+    var amtEl=document.getElementById('inv-amt-'+itemId);
+    if(amtEl) amtEl.textContent=fmt(invItemAmount(item));
+  } else { renderPage(); }
   updateInvCalc();
 }
 
@@ -3321,32 +3147,14 @@ function invRecalcQty(item, meta){
   item.unit='Pcs';
 }
 function refreshInvRow(id){
-  var item=state.invoiceItems.find(function(i){return String(i.id)===String(id);});
+  var item=state.invoiceItems.find(function(i){return i.id===id;});
   if(item){var el=document.getElementById('inv-amt-'+id);if(el)el.textContent=fmt(invItemAmount(item));}
   updateInvCalc();
 }
-function addInvItem(){
-  var newItem={id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,unit:'Pcs',rate:0};
-  state.invoiceItems.push(newItem);
-  var tbody=document.getElementById('inv-items-body');
-  if(tbody){
-    // Remove "no records" placeholder if present
-    var ph=tbody.querySelector('tr td[colspan]');
-    if(ph) ph.parentNode.remove();
-    tbody.insertAdjacentHTML('beforeend',renderInvItemRow(newItem));
-  } else {
-    renderPage();
-  }
-  updateInvCalc();
-}
-function removeInvItem(id){
-  state.invoiceItems=state.invoiceItems.filter(function(i){return String(i.id)!==String(id);});
-  var row=document.getElementById('invrow-'+id);
-  if(row) row.remove();
-  updateInvCalc();
-}
+function addInvItem(){state.invoiceItems.push({id:Date.now(),productId:'',desc:'',qty:1,qtyUnit:'Pkt',qtyCount:1,unit:'Pcs',rate:0});renderPage();}
+function removeInvItem(id){state.invoiceItems=state.invoiceItems.filter(function(i){return i.id!==id;});renderPage();}
 function updateInvItem(id,field,val){
-  var item=state.invoiceItems.find(function(i){return String(i.id)===String(id);});
+  var item=state.invoiceItems.find(function(i){return i.id===id;});
   if(item) item[field]=(field==='qty'||field==='rate')?parseFloat(val)||0:val;
   updateInvCalc();
 }
@@ -3357,7 +3165,7 @@ function selectProduct(itemId,productId){
     return;
   }
   var item=state.invoiceItems.find(function(i){return String(i.id)===String(itemId);});
-  var product=getProduct(productId);
+  var product=getProduct(parseInt(productId));
   if(item&&product&&product.id){
     item.productId=product.id;
     item.desc=product.name+(product.size?' - '+product.size:'');
@@ -3373,10 +3181,9 @@ function selectProduct(itemId,productId){
     if(row){
       var meta={};
       try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
-      // Default unit to match product's primary stockMeta type
-      if(meta.unitType==='Bora') item.qtyUnit='Bora';
-      else if(meta.unitType==='Cartoon') item.qtyUnit='Cartoon';
-      else item.qtyUnit='Pkt';
+      // Reset unit to match product's stockMeta type
+      if(meta.unitType==='Pkt') item.qtyUnit='Pkt';
+      else item.qtyUnit='Pkt'; // default to Pkt, user can switch to Cartoon/Bora
       item.qtyCount=1;
       invRecalcQty(item,meta);
       // Update product cell
@@ -3452,12 +3259,21 @@ async function saveProductFromInvoice(){
   }catch(e){alert('Failed to save product: '+e.message);}
 }
 function onCustChange(){
-  var custId=document.getElementById('inv-cust').value;
-  if(custId==='new'){
-    showAddCustomerModal();
-    return;
+  var custId=((document.getElementById('inv-cust')||{}).value)||'';
+  var cust=custId?getCustomer(custId):null;
+  // Update picker button appearance
+  var btn=document.getElementById('inv-cust-btn');
+  if(btn){
+    if(cust&&cust.id){
+      btn.textContent='✓ '+cust.name+' — '+cust.phone;
+      btn.style.color='var(--text1)';
+      btn.style.border='1.5px solid var(--primary)';
+    } else {
+      btn.textContent='👤 Choose Customer…';
+      btn.style.color='var(--text3)';
+      btn.style.border='1.5px dashed var(--border)';
+    }
   }
-  var cust=getCustomer(custId);
   var detDiv=document.getElementById('cust-details');
   var dueDiv=document.getElementById('prev-due-note');
   if(detDiv){
@@ -3513,15 +3329,6 @@ function updateInvCalc(){
     '<div style="font-size:11px;color:var(--text3);padding:4px 0 6px 0;border-bottom:1px solid var(--border)">* Additional charge may include transportation, packaging, loading, previous balance or any other charge.</div>':'')+
     '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:16px;font-weight:700;color:var(--primary)"><span>Grand Total</span><span>'+fmt(grand)+'</span></div>';
 }
-function nextInvId(){
-  // Compute next sequential invoice number from all existing invoices
-  var max=0;
-  state.invoices.forEach(function(i){
-    var n=parseInt(i.billNo||i.id);
-    if(!isNaN(n)&&n>max) max=n;
-  });
-  return String(max+1);
-}
 async function generateInvoice(){
   var custId=((document.getElementById('inv-cust')||{}).value)||'';
   var date=(document.getElementById('inv-date')||{}).value;
@@ -3561,12 +3368,11 @@ async function generateInvoice(){
   if(customAmt>0||customAmtLabel){
     enrichedItems.push({desc:'__meta__'+JSON.stringify({ca:customAmt,cl:customAmtLabel}),productId:null,qty:0,rate:0,unit:'Pcs'});
   }
-  var newBillNo=nextInvId();
-  var inv={id:newBillNo,billNo:newBillNo,custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null};
+  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,status:'unpaid',delivered:false,deliveredDate:null};
   try{
-    var saved=await apiCall('/api/invoices/'+newBillNo,'PUT',inv);
+    var saved=await apiCall('/api/invoices','POST',inv);
     state.invoices.push(saved);
-    var newInvId=newBillNo;
+    var newInvId=saved.id;
 
     state.invoiceItems=[];
     if(state._fromOrderId){
@@ -3617,7 +3423,7 @@ async function deductInvoiceStock(items){
       }catch(e){}
     }
     try{
-      await apiCall('/api/products/'+product.id,'PUT',product);
+      await apiCall('/api/products/'+parseInt(product.id),'PUT',product);
     }catch(e){console.warn('Stock update failed for product '+product.id);}
   }
   // Reload fresh stock from backend
@@ -3626,10 +3432,10 @@ async function deductInvoiceStock(items){
 
 // ===================== INVOICE SAVE/DOWNLOAD MODAL =====================
 function showInvoiceSaveModal(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
-  showModal('Invoice #'+(inv&&inv.billNo||invId)+' Generated',
+  showModal('Invoice #'+invId+' Generated',
     '<div style="text-align:center;padding:10px 0 16px">'+
     '<div style="font-size:36px;margin-bottom:8px">&#127881;</div>'+
     '<div style="font-size:18px;font-weight:700;color:var(--primary);margin-bottom:4px">Invoice #'+invId+' Created!</div>'+
@@ -3648,30 +3454,27 @@ function showInvoiceSaveModal(invId){
     '<div style="font-size:22px;margin-bottom:4px">&#11015;</div>'+
     '<div style="font-weight:600;font-size:13px;margin-bottom:4px">Download HTML</div>'+
     '<div style="font-size:11px;color:var(--text3)">Open &amp; print</div></div></div>',
-    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+invId+'\')">&#128065; Preview</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\''+invId+'\')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="downloadInvoice(\''+invId+'\')">&#11015; HTML</button>'+
+    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview('+invId+')">&#128065; Preview</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF('+invId+')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="downloadInvoice('+invId+')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
 // ===================== INVOICE PREVIEW =====================
 function buildInvoiceHTML(invId, forDownload){
-  var inv=decodeInvoice(state.invoices.find(function(i){return String(i.id)===String(invId);}));
+  var inv=decodeInvoice(state.invoices.find(function(i){return i.id===invId;}));
   if(!inv) return '';
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var isCF=inv.isCarryForward||false;
-  var sourceInv=isCF&&inv.prevFromInvoice?state.invoices.find(function(i){return String(i.id)===String(inv.prevFromInvoice);}):null;
+  var sourceInv=isCF&&inv.prevFromInvoice?state.invoices.find(function(i){return i.id===inv.prevFromInvoice;}):null;
   var styles=forDownload?'<style>body{font-family:Arial,sans-serif;padding:20px;max-width:760px;margin:0 auto;}table{width:100%;border-collapse:collapse;}th{background:#27500A;color:#fff;padding:8px 10px;text-align:left;font-size:12px;}td{padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;}.parties{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}.party{background:#f5f5f0;padding:12px;border-radius:6px;}.party-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#27500A;font-weight:700;margin-bottom:4px;}.words{font-size:11px;color:#888;font-style:italic;text-align:center;margin:12px 0;}.sigs{display:flex;justify-content:space-between;margin-top:24px;}.sig-line{width:120px;border-bottom:1px solid #333;margin-bottom:4px;}.cgen{text-align:center;font-size:10px;color:#aaa;font-style:italic;margin-top:8px;}</style>':'';
   var itemsHTML='';
   if(isCF&&sourceInv&&sourceInv.items){
-    var decodedSourceInv=decodeInvoice(sourceInv);
-    itemsHTML=decodedSourceInv.items.map(function(item,i){
+    itemsHTML=sourceInv.items.map(function(item,i){
       var p2=getProduct(item.productId);
-      var _rbCF=resolveItemBilling(item);
-      var bqCF=_rbCF.qty; var blCF=_rbCF.label; var baCF=_rbCF.amt;
-      var cleanDesc=item.desc||p2.name||'Items from Inv #'+sourceInv.id;
-      return '<tr style="opacity:0.65"><td>'+(i+1)+'</td><td><em>'+cleanDesc+'</em> (ref)</td><td>'+(p2.hsn||'—')+'</td><td>'+bqCF+'</td><td>'+blCF+'</td><td>'+fmt(_rbCF.rate)+'/'+blCF+'</td><td style="font-weight:600">'+fmt(baCF)+'</td></tr>';
+      var bqCF=item.billingQty!=null?item.billingQty:(item.qtyCount||item.qty||1);var blCF=item.billingLabel||(item.qtyUnit||'Pcs');
+      return '<tr style="opacity:0.65"><td>'+(i+1)+'</td><td><em>'+(item.desc||p2.name||'Items from Inv #'+sourceInv.id)+'</em> (ref)</td><td>'+(p2.hsn||'—')+'</td><td>'+bqCF+'</td><td>'+blCF+'</td><td>'+fmt(item.rate)+'</td><td style="font-weight:600">'+fmt(bqCF*item.rate)+'</td></tr>';
     }).join('');
   } else {
     itemsHTML=(inv.items||[]).map(function(item,i){
@@ -3701,7 +3504,7 @@ function buildInvoiceHTML(invId, forDownload){
   '<div><div style="font-family:serif;font-size:20px;color:#27500A;font-weight:700">Pranita Paper Plates</div>'+
   '<div style="font-size:11px;color:#888">A unit of Adhikary Manufacturer\'s and Suppliers</div></div></div>'+
   '<div style="text-align:right;font-size:13px">'+
-  '<div style="font-size:22px;font-weight:700;color:#27500A">Invoice #'+(inv.billNo||invId)+'</div>'+
+  '<div style="font-size:22px;font-weight:700;color:#27500A">Invoice #'+invId+'</div>'+
   '<div>Date: '+inv.date+'</div><div>Delivery: '+inv.deliveryDate+'</div>'+
   (inv.delivered?'<div style="color:#3B6D11;font-weight:600">Delivered: '+(inv.deliveredDate||'')+'</div>':'')+'</div></div>'+
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">'+
@@ -3733,13 +3536,13 @@ function buildInvoiceHTML(invId, forDownload){
   (forDownload?'</body></html>':'');
 }
 function showInvoicePreview(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   var due=getInvoiceDue(inv);
   showModal('Invoice #'+invId,
     buildInvoiceHTML(invId,false),
-    (due>0?'<button class="btn btn-primary" onclick="closeModal();showRecordPaymentModal(\''+invId+'\')">Record Payment</button>':'')+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\''+invId+'\')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="downloadInvoice(\''+invId+'\')">&#11015; HTML</button>'+
+    (due>0?'<button class="btn btn-primary" onclick="closeModal();showRecordPaymentModal('+invId+')">Record Payment</button>':'')+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF('+invId+')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="downloadInvoice('+invId+')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -3917,9 +3720,7 @@ function renderInvoices(){
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
   '<div><div class="section-title">All Invoices</div><div class="section-sub">Complete invoice history with carry-forward tracking</div></div>'+
   '<button class="btn btn-primary" onclick="navigate(\'create-invoice\')">+ New Invoice</button></div>'+
-  bulkBarHtml('invoices','bulkDeleteInvoices()')+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th class="cb-col">'+bulkSelectAllHtml('invoices',state.invoices.filter(function(i){return i.status==='cancelled';}).map(function(i){return i.id;}))+'</th>'+
   '<th>Bill #</th><th>Customer</th><th>Date</th><th>Delivery</th><th>Current Bill</th><th>Prev Outstanding</th><th>Grand Total</th><th>Paid</th><th>Amount Due</th><th>Status</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (function(){
@@ -3933,7 +3734,7 @@ function renderInvoices(){
       }
     });
 
-    return [].concat(state.invoices).sort(function(a,b){return (b.billNo||0)-(a.billNo||0)||(b.date>a.date?1:b.date<a.date?-1:0);}).map(function(inv){
+    return sortDesc(state.invoices,'id').map(function(inv){
       var _sub=getInvoiceSubTotal(inv);
       var _grand=getInvoiceGrand(inv);
       var due=getInvoiceDue(inv);
@@ -3947,30 +3748,24 @@ function renderInvoices(){
       // Superseded = has a newer invoice (cfInvoiceId) OR not the latest
       var isSuperseded=!!inv.cfInvoiceId||!isLatest;
 
-      // Carry-forward notes — resolve billNo for linked invoices
-      function invDisplayNo(idOrBillNo){
-        var linked=state.invoices.find(function(x){return String(x.id)===String(idOrBillNo)||String(x.billNo)===String(idOrBillNo);});
-        return linked?(linked.billNo||linked.id):idOrBillNo;
-      }
+      // Carry-forward notes
       var cfNote='';
       if(inv.cfInvoiceId){
-        cfNote='<div style="font-size:10px;color:var(--blue-400)">&#8594; Carry forward to #'+invDisplayNo(inv.cfInvoiceId)+'</div>';
+        cfNote='<div style="font-size:10px;color:var(--blue-400)">&#8594; Carry forward to #'+inv.cfInvoiceId+'</div>';
       }
       if(inv.isCarryForward&&inv.prevFromInvoice){
-        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; CF from #'+invDisplayNo(inv.prevFromInvoice)+'</div>';
+        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; CF from #'+inv.prevFromInvoice+'</div>';
       } else if(!inv.isCarryForward&&prevAmt>0&&inv.prevFromInvoice){
-        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; Carry forward from #'+invDisplayNo(inv.prevFromInvoice)+'</div>';
+        cfNote='<div style="font-size:10px;color:var(--amber-400)">&#8592; Carry forward from #'+inv.prevFromInvoice+'</div>';
       }
       if(inv.fromOrderId){
         cfNote+='<div style="font-size:10px;color:var(--primary)">&#128203; ORD#'+inv.fromOrderId+'</div>';
       }
 
       var rowBg=isCancelled?'background:#fff5f5;opacity:0.75;':inv.isCarryForward?'background:var(--blue-50);':isSuperseded&&!isCancelled?'background:#fafaf7;opacity:0.85;':'';
-      var isSelected=bulkGetSet('invoices').has(inv.id);
 
-      return '<tr data-bkey="invoices-'+inv.id+'" style="'+rowBg+'" class="'+(isSelected?'selected-row':'')+'" >'+
-        '<td class="cb-col">'+bulkRowCbHtml('invoices',inv.id)+'</td>'+
-        '<td><strong>#'+(inv.billNo||inv.id)+'</strong>'+cfNote+
+      return '<tr style="'+rowBg+'">'+
+        '<td><strong>#'+inv.id+'</strong>'+cfNote+
           (inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+
           (!isCancelled&&isSuperseded&&!inv.cfInvoiceId?'<span class="badge" style="background:#aaa;color:#fff;font-size:9px;margin-left:4px">OLD</span>':'')+
           (isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
@@ -3981,16 +3776,16 @@ function renderInvoices(){
         '<td class="fc-green">'+fmt(inv.paid||0)+'</td>'+
         '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
         '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
-        '<td><div class="gap-12">'+
-          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">View</button>'+
+        '<td><div class="gap-12" style="flex-wrap:wrap">'+
+          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">👁 View</button>'+
           (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF(\''+inv.id+'\')">&#128196; PDF</button>':'')+
           (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice(\''+inv.id+'\')">&#11015; HTML</button>':'')+
-          (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal(\''+inv.id+'\')">Pay</button>':'')+
+          (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal(\''+inv.id+'\')">💰 Pay</button>':'')+
           (inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
           (!isCancelled?'<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="shareInvoiceWhatsApp(\''+inv.id+'\')">&#128362; Share</button>':'')+
           (!isCancelled&&isLatest?'<button class="btn btn-danger btn-sm" onclick="cancelInvoice(\''+inv.id+'\')">Cancel</button>':'')+
-          (isCancelled?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>'+
-            '<button class="btn btn-danger btn-sm" onclick="deleteInvoice(\''+inv.id+'\')" style="margin-left:4px">🗑 Delete</button>':'')+
+          (isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:10px">Cancelled</span>':'')+
+          '<button class="btn btn-sm" style="background:#7f1d1d;color:#fff" onclick="deleteInvoice(\''+inv.id+'\')" title="Delete invoice">🗑 Del</button>'+
         '</div></td></tr>';
     }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>';
   })()
@@ -4006,59 +3801,49 @@ async function cancelOrder(orderId){
   if(!confirm('Cancel Order ORD#'+orderId+'?\nThis cannot be undone.')) return;
   o.status='cancelled';
   try{
-    await apiCall('/api/orders/'+orderId,'PUT',o);
+    await apiCall('/api/orders/'+parseInt(orderId),'PUT',o);
     state.customerOrders=await safeGet('/api/orders');
     renderPage();
     showToast('Order ORD#'+orderId+' cancelled.','amber');
   }catch(e){alert('Failed to cancel: '+e.message);}
 }
-window.deleteInvoice=async function deleteInvoice(invId){
-  invId=String(invId).trim();
-  var inv=state.invoices.find(function(i){return String(i.id)===invId;});
+async function deleteInvoice(invId){
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
-  if(inv.status!=='cancelled'){alert('Only cancelled invoices can be deleted.');return;}
-  var displayNo=inv.billNo||invId;
-  if(!confirm('Permanently delete Invoice #'+displayNo+'? This cannot be undone.')) return;
+  var confirmMsg='Permanently delete Invoice #'+invId+' for '+((getCustomer(inv.custId)||{}).name||'customer')+'?\n\nThis cannot be undone.'+
+    (inv.prevFromInvoice?'\n\nThe previous invoice #'+inv.prevFromInvoice+' will become active again.':'');
+  if(!confirm(confirmMsg)) return;
   try{
-    // Import Firestore deleteDoc directly for reliability
-    var fb=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    var docRef=fb.doc(window._db,'invoices',invId);
-    await fb.deleteDoc(docRef);
-    // Remove from local state
-    state.invoices=state.invoices.filter(function(i){return String(i.id)!==invId;});
+    // If this invoice was carry-forwarded FROM a previous one, re-activate that one
+    if(inv.prevFromInvoice){
+      var prevInv=state.invoices.find(function(i){return String(i.id)===String(inv.prevFromInvoice);});
+      if(prevInv){
+        delete prevInv.cfInvoiceId;
+        if(prevInv.status==='partial') prevInv.status='unpaid';
+        await apiCall('/api/invoices/'+prevInv.id,'PUT',prevInv);
+      }
+    }
+    // If another invoice points to this one as carry-forward source, unlink it
+    state.invoices.forEach(function(i){
+      if(String(i.prevFromInvoice)===String(invId)){
+        delete i.prevFromInvoice;
+        apiCall('/api/invoices/'+i.id,'PUT',i).catch(function(){});
+      }
+    });
+    await apiCall('/api/invoices/'+invId,'DELETE');
+    state.invoices=await safeGet('/api/invoices');
     renderPage();
-    showToast('Invoice #'+displayNo+' deleted.','amber');
-  }catch(e){
-    console.error('Delete invoice failed:',e);
-    alert('Failed to delete: '+e.message);
-  }
+    showToast('Invoice #'+invId+' deleted.','amber');
+  }catch(e){alert('Failed to delete: '+e.message);}
 }
+window.deleteInvoice=deleteInvoice;
 
-window.bulkDeleteInvoices=async function bulkDeleteInvoices(){
-  var ids=bulkIds('invoices');
-  if(!ids.length) return;
-  var cancelledOnly=ids.filter(function(id){
-    var inv=state.invoices.find(function(i){return String(i.id)===String(id);});
-    return inv&&inv.status==='cancelled';
-  });
-  if(cancelledOnly.length!==ids.length){
-    alert('Only cancelled invoices can be deleted. Please select only cancelled invoices.');return;
-  }
-  if(!confirm('Permanently delete '+ids.length+' invoice(s)?')) return;
-  for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/invoices/'+ids[i],'DELETE');}catch(e){}
-  }
-  state.invoices=state.invoices.filter(function(inv){return ids.indexOf(String(inv.id))===-1;});
-  bulkSel['invoices']=new Set();renderPage();
-}
-
-window.cancelInvoice=async function cancelInvoice(invId){
+async function cancelInvoice(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found');return;}
   if(inv.status==='cancelled'){alert('Already cancelled');return;}
   var wasDelivered=inv.delivered;
-  var displayNo=inv.billNo||invId;
-  var confirmMsg='Cancel Invoice #'+displayNo+'?\n\nThis will:\n• Mark invoice as Cancelled'+(wasDelivered?'\n• Restore stock back to inventory':'')+'\n• Cannot be undone';
+  var confirmMsg='Cancel Invoice #'+invId+'?\n\nThis will:\n• Mark invoice as Cancelled'+(wasDelivered?'\n• Restore stock back to inventory':'')+'\n• Cannot be undone';
   if(!confirm(confirmMsg)) return;
   inv.status='cancelled';
   try{
@@ -4068,9 +3853,10 @@ window.cancelInvoice=async function cancelInvoice(invId){
     state.invoices=await safeGet('/api/invoices');
     state.products=await safeGet('/api/products');
     renderPage();
-    showToast('Invoice #'+displayNo+' cancelled'+(wasDelivered?' and stock restored.':'.'),'amber');
+    showToast('Invoice #'+invId+' cancelled'+(wasDelivered?' and stock restored.':'.'),'amber');
   }catch(e){alert('Failed to cancel: '+e.message);}
 }
+window.cancelInvoice=cancelInvoice;
 
 async function restoreInvoiceStock(items){
   for(var i=0;i<items.length;i++){
@@ -4097,7 +3883,7 @@ async function restoreInvoiceStock(items){
         product.stockMeta=JSON.stringify(meta);
       }catch(e){}
     }
-    try{ await apiCall('/api/products/'+product.id,'PUT',product); }catch(e){}
+    try{ await apiCall('/api/products/'+parseInt(product.id),'PUT',product); }catch(e){}
   }
 }
 
@@ -4119,7 +3905,7 @@ async function shareInvoiceWhatsApp(invId){
   var due  = getInvoiceDue(inv);
   var phone = (cust.phone||'').replace(/\D/g,'');
 
-  var msg = '🧾 *Invoice #'+(inv.billNo||inv.id)+' — Pranita Paper Plates & Cups*\n\n'+
+  var msg = '🧾 *Invoice #'+inv.id+' — Pranita Paper Plates & Cups*\n\n'+
     '👤 Customer: '+cust.name+'\n'+
     '📅 Date: '+inv.date+'\n'+
     '🚚 Delivery: '+inv.deliveryDate+'\n\n'+
@@ -4143,7 +3929,7 @@ async function shareInvoiceWhatsApp(invId){
       var pdfBlob = await buildInvoicePDFBlob(inv, cust, c2, due);
       if(pdfBlob && navigator.canShare && navigator.canShare({files:[pdfBlob]})){
         await navigator.share({
-          title: 'Invoice #'+(inv.billNo||inv.id)+' — '+cust.name,
+          title: 'Invoice #'+inv.id+' — '+cust.name,
           text: msg,
           files: [pdfBlob]
         });
@@ -4311,7 +4097,7 @@ function showWhatsAppPickerModal(msg, source){
     ? contacts.map(function(ct,idx){
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s" '+
           'onmouseover="this.style.background=\'var(--primary-light)\'" onmouseout="this.style.background=\'\'" '+
-          'onclick="sendWhatsApp(\''+ct.phone.replace(/\D/g,'').slice(-10)+'\',\''+idx+'\')">'+
+          'onclick="sendWhatsApp(\''+ct.phone.replace(/\D/g,'').slice(-10)+'\','+idx+')">'+
           '<div>'+
             '<div style="font-size:13px;font-weight:600;color:var(--text)">'+ct.name+'</div>'+
             '<div style="font-size:11px;color:var(--text3)">'+ct.type+' · '+ct.phone+'</div>'+
@@ -4471,19 +4257,15 @@ function resolveItemBilling(item){
   // pktPerUnit: saved on item > stockMeta.pktPerUnit > 1
   var ppu = parseFloat(item.pktPerUnit)||parseFloat(m.pktPerUnit)||1;
 
-  // Always display in Pkt; rate is always per-Pkt
+  // Always display in Pkt regardless of selected unit (Bora/Cartoon/Pkt)
+  // pktQty = totalPcs / pcsPerPkt,  rate = base per-Pkt rate
   var totalPcs = parseFloat(item.qty)||0;
   var baseRate = parseFloat(item.rate)||0;
-  var qc = parseFloat(item.qtyCount)||1;
   var pktQty;
-
-  if(unit==='Pcs'){
-    // User entered qty in Pcs, rate is per-Pkt → convert Pcs → Pkt
-    var pcCount = totalPcs>0 ? totalPcs : qc;  // prefer item.qty; fallback to qtyCount
-    pktQty = pcs>0 ? pcCount/pcs : pcCount;
-  } else if(totalPcs>0 && pcs>0){
+  if(totalPcs>0 && pcs>0){
     pktQty = totalPcs/pcs;
   } else {
+    var qc = parseFloat(item.qtyCount)||1;
     pktQty = (unit==='Bora'||unit==='Cartoon') ? qc*ppu : qc;
   }
   pktQty = Math.round(pktQty*1000)/1000;
@@ -4561,7 +4343,7 @@ function showStockWarning(warn, itemId, ctx){
     'onclick="applyMaxStock(this.dataset.iid,this.dataset.ctx,parseInt(this.dataset.max));var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);if(w)w.remove();if(b)b.remove();" '+
     'style="flex:1;padding:8px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">'+
     'Use Max ('+warn.maxCount+' '+warn.unit+')</button>'+
-    '<button data-iid="'+itemId+'" onclick="var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);var iid=this.dataset.iid;if(w)w.remove();if(b)b.remove();resetStockInput(iid,\''+ctx+'\',\''+warn.maxCount+'\');" '+
+    '<button data-iid="'+itemId+'" onclick="var w=document.getElementById(\'stock-warn-\'+this.dataset.iid);var b=document.getElementById(\'stock-warn-backdrop-\'+this.dataset.iid);var iid=this.dataset.iid;if(w)w.remove();if(b)b.remove();resetStockInput(iid,\''+ctx+'\','+warn.maxCount+');" '+
     'style="flex:1;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px">'+
     'Change Qty</button>'+
     '</div>';
@@ -4670,7 +4452,7 @@ function applyMaxStock(itemId,ctx,maxCount){
 
 // ===================== RECORD PAYMENT =====================
 function showRecordPaymentModal(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var due=getInvoiceDue(inv);
@@ -4686,13 +4468,13 @@ function showRecordPaymentModal(invId){
     '<div class="form-group full"><label>Reference / Note</label><input type="text" id="rp-note" placeholder="UPI ref, cheque no., etc."></div>'+
     '</div>'+
     '<div id="rp-preview" style="margin-top:14px"></div>',
-    '<button class="btn btn-primary" onclick="savePaymentRecord(\''+invId+'\')">Record Payment</button>'+
+    '<button class="btn btn-primary" onclick="savePaymentRecord('+invId+')">Record Payment</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   setTimeout(function(){updatePaymentPreview(invId);},50);
 }
 
 function updatePaymentPreview(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var due=getInvoiceDue(inv);
   var amount=parseFloat((document.getElementById('rp-amount')||{}).value)||0;
@@ -4722,7 +4504,7 @@ function updatePaymentPreview(invId){
 }
 
 async function savePaymentRecord(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   var amount=parseFloat(document.getElementById('rp-amount').value)||0;
   if(amount<=0){alert('Please enter a valid payment amount.');return;}
   var due=getInvoiceDue(inv);
@@ -4742,13 +4524,14 @@ async function savePaymentRecord(invId){
         '<button class="btn btn-primary" onclick="closeModal()">Done</button>');
     } else {
       inv.status='partial';
-      var cfBillNo=nextInvId();
-      inv.cfInvoiceId=cfBillNo;
+      inv.cfInvoiceId=state.nextInvoiceId;
       await apiCall('/api/invoices/'+invId,'PUT',inv);
-      var newInv={id:cfBillNo,billNo:cfBillNo,custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
-      var savedNewInv=await apiCall('/api/invoices/'+cfBillNo,'PUT',newInv);
+      var newInv={custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
+      var savedNewInv=await apiCall('/api/invoices','POST',newInv);
       state.invoices.push(savedNewInv);
-      var newId=cfBillNo;
+      var newId=savedNewInv.id;
+      inv.cfInvoiceId=newId;
+      await apiCall('/api/invoices/'+invId,'PUT',inv);
       closeModal();
       showModal('&#128203; Partial Payment Recorded',
         '<div style="text-align:center;padding:10px 0 16px">'+
@@ -4769,8 +4552,8 @@ async function savePaymentRecord(invId){
         '<div style="font-size:12px;color:#0C447C;margin-top:2px">Balance: '+fmt(remaining)+'</div>'+
         '<div style="font-size:11px;color:var(--text3);margin-top:4px">Status: Unpaid</div>'+
         '</div></div>',
-        '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+newId+'\')">&#128065; View New Invoice #'+newId+'</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\''+newId+'\')">&#128196; PDF</button>'+
+        '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview('+newId+')">&#128065; View New Invoice #'+newId+'</button>'+
+        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF('+newId+')">&#128196; PDF</button>'+
         '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
     }
     renderPage();
@@ -4780,9 +4563,7 @@ async function savePaymentRecord(invId){
 // ===================== ORDERS =====================
 function renderOrders(){
   return '<div style="margin-bottom:20px"><div class="section-title">Order List</div><div class="section-sub">Track and confirm deliveries</div></div>'+
-  bulkBarHtml('orders','bulkDeleteOrders()')+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th class="cb-col">'+bulkSelectAllHtml('orders',state.invoices.filter(function(i){return i.status!=='cancelled';}).map(function(i){return i.id;}))+'</th>'+
   '<th>Invoice #</th><th>Date</th><th>Customer</th><th>Delivery Due</th><th>Delivery Status</th><th>Total</th><th>Action</th>'+
   '</tr></thead><tbody>'+
   (sortDesc(state.invoices.filter(function(i){return i.status!=='cancelled';}), 'id').map(function(inv){
@@ -4792,9 +4573,7 @@ function renderOrders(){
     var grandTotal=pdfSub+(di.prevOutstanding||0)+(di.customAmt||0);
     var cust=getCustomer(inv.custId);
     var s=orderStatus(inv);
-    var isSelected=bulkGetSet('orders').has(inv.id);
-    return '<tr data-bkey="orders-'+inv.id+'" class="'+(isSelected?'selected-row':'')+'" >'+
-      '<td class="cb-col">'+bulkRowCbHtml('orders',inv.id)+'</td>'+
+    return '<tr>'+
       '<td><strong>#'+inv.id+'</strong></td>'+
       '<td>'+inv.date+'</td>'+
       '<td>'+cust.name+'</td>'+
@@ -4802,14 +4581,14 @@ function renderOrders(){
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
       '<td class="fw600">'+fmt(grandTotal)+'</td>'+
       '<td><div class="gap-12">'+
-        (!inv.delivered?'<button class="btn btn-primary btn-sm" onclick="showDeliveryModal(\''+inv.id+'\')">Mark Delivered</button>':'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">View</button>')+
+        (!inv.delivered?'<button class="btn btn-primary btn-sm" onclick="showDeliveryModal('+inv.id+')">Mark Delivered</button>':'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+inv.id+')">View</button>')+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
 }
 
 function showDeliveryModal(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   var cust=getCustomer(inv.custId);
   showModal('Confirm Delivery — Invoice #'+invId,
     '<div style="background:var(--green-50);border-radius:8px;padding:12px;margin-bottom:16px">'+
@@ -4821,10 +4600,10 @@ function showDeliveryModal(invId){
     '<input type="date" id="del-date" value="'+today()+'">'+
     '<div style="font-size:12px;color:var(--text3);margin-top:4px">This date will be shown on the invoice and order list.</div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="confirmDelivery(\''+invId+'\')">✓ Confirm Delivery</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="confirmDelivery('+invId+')">✓ Confirm Delivery</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function confirmDelivery(invId){
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   var date=document.getElementById('del-date').value;
   if(!date){alert('Please select a delivery date');return;}
   inv.delivered=true;inv.deliveredDate=date;
@@ -4943,9 +4722,7 @@ function renderCustomers(){
     '<span style="font-size:13px;color:#c0392b"><strong>'+alertCusts.length+' alert customer'+(alertCusts.length>1?'s':'')+' — </strong>'+alertCusts.map(function(d){return d.c.name;}).join(', ')+' inactive 15+ days.</span>'+
     '<button class="btn btn-sm" style="margin-left:auto;background:#e24b4a;color:#fff" onclick="setCustFilter(\'alert\')">View</button>'+
     '</div>':'')+
-  bulkBarHtml('customers','bulkDeleteCustomers()')+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th class="cb-col">'+bulkSelectAllHtml('customers',displayed.map(function(d){return d.c.id;}))+'</th>'+
   '<th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Status</th><th>Last Delivery</th><th>Orders</th><th>Invoices</th><th>Total Due</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (sortDesc(displayed.map(function(d){return d.c;}),'id').map(function(c){
@@ -4958,9 +4735,7 @@ function renderCustomers(){
     var ordCnt=custOrderCount(c.id);
     var lastDel=getCustLastDeliveryDate(c.id);
     var daysSince=lastDel?Math.floor((new Date(today())-new Date(lastDel))/(1000*60*60*24)):null;
-    var isSelected=bulkGetSet('customers').has(c.id);
-    return '<tr data-bkey="customers-'+c.id+'" style="'+(isAlert?'background:#fff5f5;':'')+'" class="'+(isSelected?'selected-row':'')+'" >'+
-      '<td class="cb-col">'+bulkRowCbHtml('customers',c.id)+'</td>'+
+    return '<tr style="'+(isAlert?'background:#fff5f5;':'')+'">'+
       '<td><span class="badge badge-blue">C'+String(c.id).padStart(3,'0')+'</span>'+(isAlert?'<span style="color:#e24b4a;margin-left:4px" title="Inactive 15+ days">&#9888;</span>':'')+'</td>'+
       '<td><strong>'+c.name+'</strong></td>'+
       '<td>'+c.phone+'</td>'+
@@ -4968,13 +4743,12 @@ function renderCustomers(){
       '<td>'+custStatusBadge(st)+'</td>'+
       '<td style="font-size:12px">'+(lastDel?'<span '+(isAlert?'style="color:#e24b4a;font-weight:600"':'\'')+'>'+lastDel+(daysSince!==null?' <span style="font-size:10px;color:var(--text3)">('+daysSince+'d)</span>':'')+'</span>':'<span style="color:var(--text3)">—</span>')+'</td>'+
       '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" data-cid="'+c.id+'" onclick="showCustOrdersModal(this.dataset.cid,\'customer\')">&#128203; '+ordCnt+'</button>':'<button class="btn btn-ghost btn-sm" data-cid2="'+c.id+'" onclick="showCreateOrderModal(null,this.dataset.cid2)">+ Order</button>')+'</td>'+
-      '<td>'+invCnt+(cancelledCnt>0?' <span style="font-size:10px;color:#e24b4a">('+cancelledCnt+' cancelled)</span>':'')+'</td>'+
+      '<td>'+(invCnt>0?'<button class="btn btn-ghost btn-sm" onclick="navigate(\'invoices\')" title="View all invoices" style="font-size:12px">&#128196; '+invCnt+(cancelledCnt>0?' <span style="color:#e24b4a">('+cancelledCnt+'✕)</span>':'')+'</button>':'<span style="color:var(--text3)">—</span>')+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-ghost btn-sm" onclick="navigate(\'crm\');state.crmCustId=\''+c.id+'\'">View</button>'+
-        '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal(\''+c.id+'\')">Edit</button>'+
+        '<button class="btn btn-secondary btn-sm" data-eid="'+c.id+'" onclick="showEditCustomerModal(this.dataset.eid)">Edit</button>'+
         '<button class="btn btn-primary btn-sm" data-cid="'+c.id+'" onclick="goToCreateInvoice(this.dataset.cid)">+ Invoice</button>'+
-        '<button class="btn btn-danger btn-sm" onclick="deleteCustomer(\''+c.id+'\')">Del</button>'+
+        '<button class="btn btn-danger btn-sm" data-did="'+c.id+'" onclick="deleteCustomer(this.dataset.did)">Del</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No customers match this filter</td></tr>')
   +'</tbody></table></div></div>';
@@ -4999,16 +4773,9 @@ async function saveNewCustomer(){
   if(!name){alert('Name required');return;}
   var _ncAddrErr=validateAddr('nc-addr');
   if(_ncAddrErr){alert(_ncAddrErr);return;}
-  // Generate sequential C001-style ID
-  var maxNum=0;
-  state.customers.forEach(function(c){
-    var m=String(c.id).match(/^C(\d+)$/);
-    if(m) maxNum=Math.max(maxNum,parseInt(m[1]));
-  });
-  var newId='C'+String(maxNum+1).padStart(3,'0');
-  var customer={id:newId,name:name,phone:document.getElementById('nc-phone').value,address:readAddr('nc-addr'),baleBalance:parseInt(document.getElementById('nc-bale').value)||0,status:'new'};
+  var customer={name:name,phone:document.getElementById('nc-phone').value,address:readAddr('nc-addr'),baleBalance:parseInt(document.getElementById('nc-bale').value)||0,status:'new'};
   try{
-    var saved=await apiCall('/api/customers/'+newId,'PUT',customer);
+    var saved=await apiCall('/api/customers','POST',customer);
     state.customers.push(saved);
     closeModal();renderPage();
   }catch(e){alert('Failed to save customer: '+e.message);}
@@ -5023,7 +4790,7 @@ function showEditCustomerModal(id){
     '<div class="form-group full"><label style="font-weight:600;color:var(--primary)">Address</label></div>'+
     addrFieldsHtml('ec-addr',c.address)+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditCustomer(\''+id+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditCustomer('+id+')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditCustomer(id){
   var c=getCustomer(id);
@@ -5032,28 +4799,17 @@ async function saveEditCustomer(id){
   if(_ecAddrErr){alert(_ecAddrErr);return;}
   c.address=readAddr('ec-addr');c.baleBalance=parseInt(document.getElementById('ec-bale').value)||0;
   try{
-    await apiCall('/api/customers/'+id,'PUT',c);
+    await apiCall('/api/customers/'+parseInt(id),'PUT',c);
     closeModal();renderPage();
   }catch(e){alert('Failed to update customer: '+e.message);}
 }
 async function deleteCustomer(id){
   if(confirm('Delete this customer?')){
     try{
-      await apiCall('/api/customers/'+id,'DELETE');
-      state.customers=state.customers.filter(function(c){return String(c.id)!==String(id);});renderPage();
+      await apiCall('/api/customers/'+parseInt(id),'DELETE');
+      state.customers=state.customers.filter(function(c){return c.id!==id;});renderPage();
     }catch(e){alert('Failed to delete customer: '+e.message);}
   }
-}
-async function bulkDeleteCustomers(){
-  var ids=bulkIds('customers');
-  if(!ids.length) return;
-  if(!confirm('Delete '+ids.length+' customer(s)? This cannot be undone.')) return;
-  for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/customers/'+ids[i],'DELETE');}catch(e){}
-  }
-  var del=bulkGetSet('customers');
-  state.customers=state.customers.filter(function(c){return !del.has(c.id);});
-  bulkSel['customers']=new Set();renderPage();
 }
 
 // ===================== SALES CRM DASHBOARD =====================
@@ -5360,25 +5116,25 @@ function renderAllContacts(){
       contactOrders.map(function(o){
         var s=o.status==='invoiced'?'badge-green':o.status==='cancelled'?'badge-red':'badge-amber';
         var l=o.status==='invoiced'?'&#10003; Placed':o.status==='cancelled'?'Cancelled':'Pending';
-        return '<div style="margin-bottom:3px"><span class="badge '+s+'" style="cursor:pointer" onclick="showOrderDetailModal(\''+o.id+'\')">ORD#'+o.id+' — '+l+'</span></div>';
+        return '<div style="margin-bottom:3px"><span class="badge '+s+'" style="cursor:pointer" onclick="showOrderDetailModal('+o.id+')">ORD#'+o.id+' — '+l+'</span></div>';
       }).join(''):
-      '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+(c.type==='prospect'?'\''+c.rawId+'\'':'null')+','+(c.type==='customer'?'\''+c.rawId+'\'':'null')+')">+ Place Order</button>';
+      '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+(c.type==='prospect'?c.rawId:'null')+','+(c.type==='customer'?c.rawId:'null')+')">+ Place Order</button>';
 
     var invCell=hasInvoices?
       '<div style="display:flex;flex-direction:column;gap:3px">'+
       activeInvs.slice(0,3).map(function(i){
-        return '<span class="badge '+(i.status==='paid'?'badge-green':i.paid>0?'badge-amber':'badge-red')+'" style="cursor:pointer" onclick="showInvoicePreview(\''+i.id+'\')">#'+i.id+'</span>';
+        return '<span class="badge '+(i.status==='paid'?'badge-green':i.paid>0?'badge-amber':'badge-red')+'" style="cursor:pointer" onclick="showInvoicePreview('+i.id+')">#'+i.id+'</span>';
       }).join('')+
       (activeInvs.length>3?'<span style="font-size:10px;color:var(--text3)">+'+(activeInvs.length-3)+' more</span>':'')+
       (cancelledInvs.length>0?'<div style="font-size:10px;color:#e24b4a;margin-top:2px">'+cancelledInvs.length+' cancelled</div>':'')+
       (activeInvs.length===0&&cancelledInvs.length>0?'<div style="font-size:11px;color:var(--text3);font-style:italic">No active invoices</div>':'')+
       '</div>':
-      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">#'+invoicedOrder.invoiceId+'</span>':'—');
+      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">#'+invoicedOrder.invoiceId+'</span>':'—');
 
     var actUnpaidInvs=(state.invoices||[]).filter(function(i){return String(i.custId)===String(c.rawId)&&i.status!=='paid'&&i.status!=='cancelled';});
     var payBtn=c.type==='customer'?(
       actUnpaidInvs.length>0&&c.totalDue>0?
-        '<button class="btn btn-sm" style="background:var(--red-400);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="showCustomerPayModal(\''+c.rawId+'\')">Pay</button>':
+        '<button class="btn btn-sm" style="background:var(--red-400);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="showCustomerPayModal('+c.rawId+')">Pay</button>':
       c.totalDue<=0&&contactInvoices.length>0?
         '<span class="badge badge-green" style="font-size:10px">Cleared</span>':
       actUnpaidInvs.length===0&&cancelledInvs.length>0?
@@ -5397,13 +5153,13 @@ function renderAllContacts(){
       '<td>'+(c.totalDue>0?'<span class="fc-red fw600">'+fmt(c.totalDue)+'</span>':(c.type==='customer'?'<span class="badge badge-green">Clear</span>':'—'))+'</td>'+
       '<td><div class="gap-12">'+
         (c.type==='prospect'?
-          '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+c.rawId+'\')">Edit</button>'+
-          (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\''+(contactOrders.find(function(o){return o.status==='pending';})||{id:''}).id+'\')">&#9998; Invoice</button>':
-          (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\''+c.rawId+'\',null)">+ Order</button>':
-          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">View Invoice</button>':'')))+
-          (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\''+c.rawId+'\',\"prospect\")">Orders</button>':''):
-          '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal(\''+c.rawId+'\')">Edit</button>'+
-          '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(null,\''+c.rawId+'\')">+ Order</button>'+
+          '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+c.rawId+')">Edit</button>'+
+          (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+(contactOrders.find(function(o){return o.status==='pending';})||{id:0}).id+')">&#9998; Invoice</button>':
+          (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+c.rawId+',null)">+ Order</button>':
+          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">View Invoice</button>':'')))+
+          (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal('+c.rawId+',\"prospect\")">Orders</button>':''):
+          '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal('+c.rawId+')">Edit</button>'+
+          '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(null,'+c.rawId+')">+ Order</button>'+
           (hasInvoices?'<button class="btn btn-ghost btn-sm" onclick="navigate(\'invoices\')">Invoices</button>':'')+
           payBtn)+
       '</div></td></tr>';
@@ -5458,10 +5214,10 @@ function renderCRM(){
       '<td><span class="badge badge-amber">Reached Out</span></td>'+
       '<td style="font-size:12px;color:var(--text3)">'+p.notes+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+p.id+'\')">Edit</button>'+
-        '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\''+p.id+'\',null)">+ Order</button>'+
-        (ordCnt>0?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\''+p.id+'\',\"prospect\")">'+ordCnt+' Orders</button>':'')+
-        '<button class="btn btn-danger btn-sm" onclick="deleteProspect(\''+p.id+'\')">Del</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+p.id+')">Edit</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal('+p.id+',null)">+ Order</button>'+
+        (ordCnt>0?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal('+p.id+',\"prospect\")">'+ordCnt+' Orders</button>':'')+
+        '<button class="btn btn-danger btn-sm" onclick="deleteProspect('+p.id+')">Del</button>'+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">No reached-out contacts yet</td></tr>')+
   '</tbody></table></div></div>'+
@@ -5480,14 +5236,14 @@ function renderCRM(){
       '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(p.address)+'</td>'+
       '<td>'+p.contactedOn+'</td>'+
       '<td><span class="badge badge-blue">Order Given</span></td>'+
-      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal(\''+p.id+'\',\"prospect\")">&#128203; '+ordCnt+' Orders</button>':'—')+'</td>'+
+      '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal('+p.id+',\"prospect\")">&#128203; '+ordCnt+' Orders</button>':'—')+'</td>'+
       '<td style="font-size:12px;color:var(--text3)">'+p.notes+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+p.id+'\')">Edit</button>'+
-        (pendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\''+pendingOrder.id+'\')">&#9998; Generate Invoice</button>':''+
-        (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+invoicedOrder.invoiceId+'\')">View Invoice #'+invoicedOrder.invoiceId+'</button>':
-        '<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(\''+p.id+'\',null)">+ Add Order</button>'))+
-        '<button class="btn btn-danger btn-sm" onclick="deleteProspect(\''+p.id+'\')">Del</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal('+p.id+')">Edit</button>'+
+        (pendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+pendingOrder.id+')">&#9998; Generate Invoice</button>':''+
+        (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview('+invoicedOrder.invoiceId+')">View Invoice #'+invoicedOrder.invoiceId+'</button>':
+        '<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal('+p.id+',null)">+ Add Order</button>'))+
+        '<button class="btn btn-danger btn-sm" onclick="deleteProspect('+p.id+')">Del</button>'+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">No order-given contacts yet</td></tr>')+
   '</tbody></table></div></div>';
@@ -5539,7 +5295,7 @@ function showEditProspectModal(id){
     '</select></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="ep2-notes" value="'+(p.notes||'')+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditProspect(\''+id+'\')">Update</button>'+
+    '<button class="btn btn-primary" onclick="saveEditProspect('+id+')">Update</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditProspect(id){
@@ -5553,14 +5309,14 @@ async function saveEditProspect(id){
   p.crmStatus=document.getElementById('ep2-status').value;
   p.notes=document.getElementById('ep2-notes').value;
   try{
-    await apiCall('/api/prospects/'+id,'PUT',p);
+    await apiCall('/api/prospects/'+parseInt(id),'PUT',p);
     closeModal();renderPage();
   }catch(e){alert('Failed to update prospect: '+e.message);}
 }
 async function deleteProspect(id){
   if(confirm('Delete this prospect?')){
     try{
-      await apiCall('/api/prospects/'+id,'DELETE');
+      await apiCall('/api/prospects/'+parseInt(id),'DELETE');
       state.prospects=state.prospects.filter(function(p){return p.id!==id;});
       state.customerOrders=state.customerOrders.filter(function(o){return o.prospectId!==id;});
       renderPage();
@@ -5632,14 +5388,14 @@ function renderCustomerOrders(){
       '<td style="font-size:12px;color:var(--text2)">'+(o.items||[]).map(function(i){var p=getProduct(i.productId);return (p.name||'Item')+' &times;'+i.qty;}).join('<br>')+'</td>'+
       '<td class="fw600">'+fmt(total)+'</td>'+
       '<td><span class="badge '+(o.status==='invoiced'?'badge-green':'badge-amber')+'">'+(o.status==='invoiced'?'&#10003; Invoiced':'Pending')+'</span></td>'+
-      '<td>'+(o.invoiceId?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\''+o.invoiceId+'\')">#'+o.invoiceId+'</span>':'—')+'</td>'+
+      '<td>'+(o.invoiceId?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview('+o.invoiceId+')">#'+o.invoiceId+'</span>':'—')+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showOrderDetailModal(\''+o.id+'\')">View</button>'+
-        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-primary btn-sm" onclick="showEditOrderModal(\''+o.id+'\')">Edit</button>':'')+
-        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder(\''+o.id+'\')">&#9998; Invoice</button>':'')+
-        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder(\''+o.id+'\')">Cancel</button>':'')+
+        '<button class="btn btn-secondary btn-sm" onclick="showOrderDetailModal('+o.id+')">View</button>'+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-primary btn-sm" onclick="showEditOrderModal('+o.id+')">Edit</button>':'')+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder('+o.id+')">&#9998; Invoice</button>':'')+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder('+o.id+')">Cancel</button>':'')+
         (o.status==='cancelled'?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>':'')+
-        (o.status!=='cancelled'?'<button class="btn btn-ghost btn-sm" onclick="deleteOrder(\''+o.id+'\')">Del</button>':'')+
+        (o.status!=='cancelled'?'<button class="btn btn-ghost btn-sm" onclick="deleteOrder('+o.id+')">Del</button>':'')+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">No orders found for this filter</td></tr>')+
   '</tbody></table></div></div>';
@@ -5717,8 +5473,6 @@ function buildCoItemRow(item){
     else if(meta.unitType==='Pkt') availUnits=['Pkt'];
     else availUnits=['Pkt','Cartoon','Bora'];
   }
-  // Always ensure the currently selected unit is visible
-  if(unitType && unitType!=='Pkt' && availUnits.indexOf(unitType)<0) availUnits.push(unitType);
   var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
   var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
   var tabsHtml='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px" data-iid="'+iid+'" onclick="coHandleUnitClick(event,this.dataset.iid)">'+
@@ -5770,14 +5524,12 @@ function coGetBillingQty(item,meta){
 }
 function coSelectProduct(itemId,productId){
   var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
-  var product=getProduct(productId);
+  var product=getProduct(parseInt(productId));
   if(item&&product&&product.id){
     item.productId=product.id;
     item.desc=product.name+(product.size?' - '+product.size:'');
     item.rate=product.price;
-    var coMeta={};try{if(product.stockMeta)coMeta=JSON.parse(product.stockMeta);}catch(e){}
-    item.qtyUnit=(coMeta.unitType==='Bora'?'Bora':coMeta.unitType==='Cartoon'?'Cartoon':'Pkt');
-    item.qtyCount=1;item.qty=1;item.unit='Pkt';
+    item.qtyUnit='Pkt';item.qtyCount=1;item.qty=1;item.unit='Pkt';
     item._typeFilter=item._typeFilter||product.type;
   } else if(item){
     item.productId='';item.desc='';item.rate=0;
@@ -5854,8 +5606,8 @@ async function saveNewOrder(){
   if(who==='__new_prospect__'){showAddProspectModal();return;}
   if(!who){alert('Please select a customer or prospect');return;}
   var prospectId=null,custId=null;
-  if(who.startsWith('p_')) prospectId=who.slice(2);
-  else if(who.startsWith('c_')) custId=who.slice(2);
+  if(who.startsWith('p_')) prospectId=parseInt(who.slice(2));
+  else if(who.startsWith('c_')) custId=parseInt(who.slice(2));
   var date=document.getElementById('co-date').value;
   var delivery=document.getElementById('co-delivery').value;
   var notes=document.getElementById('co-notes').value;
@@ -5887,7 +5639,7 @@ async function saveNewOrder(){
             '<div style="font-size:16px;font-weight:700;color:var(--primary);margin-bottom:6px">Order ORD#'+saved.id+' saved!</div>'+
             '<div style="font-size:13px;color:var(--text3)">Would you like to generate an invoice for this order now?</div>'+
             '</div>',
-            '<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\''+saved.id+'\')">&#9998; Yes, Generate Invoice Now</button>'+
+            '<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder('+saved.id+')">&#9998; Yes, Generate Invoice Now</button>'+
             '<button class="btn btn-ghost" onclick="closeModal()">No, Later</button>');
         },100);
       }
@@ -5901,7 +5653,7 @@ function showEditOrderModal(orderId){
     'No customers yet','Add New Customer');
   var itemRows=(o.items||[]).map(function(item,i){
     return '<div class="form-grid" style="margin-bottom:8px" id="coi-'+i+'">'+
-    '<div class="form-group"><label>Product</label><select id="coi-prod-'+i+'" onchange="onOrderItemSelect(\''+i+'\')" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%">'+
+    '<div class="form-group"><label>Product</label><select id="coi-prod-'+i+'" onchange="onOrderItemSelect('+i+')" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%">'+
     buildSelectOpts(state.products,function(p){return p.id;},function(p){return p.name;},function(p){return p.id===item.productId?'selected':'';},
     'No products yet','Add New Product')+'</select></div>'+
     '<div class="form-group"><label>Qty<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="coi-qty-'+i+'" value="'+item.qty+'" min="1" oninput="updateOrderTotal()"></div>'+
@@ -5920,20 +5672,20 @@ function showEditOrderModal(orderId){
     '<div id="co-items-wrap">'+itemRows+'</div>'+
     '<button class="btn btn-ghost btn-sm" onclick="addOrderItemRow()" style="margin:6px 0">+ Add Item</button>'+
     '<div style="background:var(--green-50);border-radius:8px;padding:10px;font-size:13px;font-weight:600;color:var(--primary)" id="co-total-display">Est. Total: '+fmt(getOrderTotal(o))+'</div>',
-    '<button class="btn btn-primary" onclick="saveEditOrder(\''+orderId+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditOrder('+orderId+')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   window._coItemCount=o.items.length;
 }
 async function saveEditOrder(orderId){
   var o=getCustOrder(orderId);
   var who=(document.getElementById('co-who').value||'');
-  if(who.startsWith('p_')){o.prospectId=who.slice(2);o.custId=null;}
-  else if(who.startsWith('c_')){o.custId=who.slice(2);o.prospectId=null;}
+  if(who.startsWith('p_')){o.prospectId=parseInt(who.slice(2));o.custId=null;}
+  else if(who.startsWith('c_')){o.custId=parseInt(who.slice(2));o.prospectId=null;}
   o.date=document.getElementById('co-date').value;
   o.deliveryDate=document.getElementById('co-delivery').value;
   o.notes=document.getElementById('co-notes').value;
   var items=[];var n=window._coItemCount||1;
   for(var i=0;i<n;i++){
-    var pid=((document.getElementById('coi-prod-'+i)||{}).value)||'';
+    var pid=parseInt((document.getElementById('coi-prod-'+i)||{}).value)||0;
     var qty=parseFloat((document.getElementById('coi-qty-'+i)||{}).value)||0;
     var unit=(document.getElementById('coi-unit-'+i)||{}).value||'Pcs';
     var rate=parseFloat((document.getElementById('coi-rate-'+i)||{}).value)||0;
@@ -5966,30 +5718,17 @@ function showOrderDetailModal(orderId){
     +'</tbody><tfoot><tr><td colspan="5" style="text-align:right;padding:8px 12px;font-weight:700;background:#27500A;color:#fff">Est. Total:</td><td style="padding:8px 12px;font-weight:700;background:#27500A;color:#fff">'+fmt(total)+'</td></tr></tfoot></table>'+
     (o.notes?'<div style="margin-top:10px;font-size:12px;color:var(--text3)">Notes: '+o.notes+'</div>':'')+
     (o.invoiceId?'<div style="margin-top:10px;background:var(--green-50);border-radius:8px;padding:10px;font-size:13px;color:var(--primary);font-weight:600">&#10003; Invoiced — Invoice #'+o.invoiceId+'</div>':''),
-    (o.status!=='invoiced'?'<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\''+orderId+'\')">&#9998; Generate Invoice</button>':'<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+o.invoiceId+'\')">View Invoice #'+o.invoiceId+'</button>')+
-    (o.status!=='invoiced'?'<button class="btn btn-ghost" onclick="closeModal();showEditOrderModal(\''+orderId+'\')">Edit</button>':'')+
+    (o.status!=='invoiced'?'<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder('+orderId+')">&#9998; Generate Invoice</button>':'<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview('+o.invoiceId+')">View Invoice #'+o.invoiceId+'</button>')+
+    (o.status!=='invoiced'?'<button class="btn btn-ghost" onclick="closeModal();showEditOrderModal('+orderId+')">Edit</button>':'')+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 async function deleteOrder(id){
   if(confirm('Delete this order?')){
     try{
-      await apiCall('/api/orders/'+id,'DELETE');
+      await apiCall('/api/orders/'+parseInt(id),'DELETE');
       state.customerOrders=state.customerOrders.filter(function(o){return o.id!==id;});renderPage();
     }catch(e){alert('Failed to delete order: '+e.message);}
   }
-}
-async function bulkDeleteOrders(){
-  var ids=bulkIds('orders');
-  if(!ids.length) return;
-  if(!confirm('Cancel/delete '+ids.length+' order(s)?')) return;
-  for(var i=0;i<ids.length;i++){
-    try{
-      var inv=state.invoices.find(function(x){return String(x.id)===String(ids[i]);});
-      if(inv){inv.status='cancelled';await apiCall('/api/invoices/'+ids[i],'PUT',inv);}
-    }catch(e){}
-  }
-  state.invoices=await safeGet('/api/invoices');
-  bulkSel['orders']=new Set();renderPage();
 }
 function generateInvoiceFromOrder(orderId){
   var o=getCustOrder(orderId);
@@ -6006,7 +5745,7 @@ function generateInvoiceFromOrder(orderId){
   // Build invoice items from order items
   var invItems=(o.items||[]).map(function(item){
     var p=getProduct(item.productId);
-    return {id:Date.now()+Math.random(),productId:item.productId,desc:p.name||'',qty:item.qty,qtyUnit:item.qtyUnit||'Pkt',qtyCount:item.qtyCount||item.qty,unit:item.unit||'Pcs',rate:item.rate};
+    return {id:Date.now()+Math.random(),productId:item.productId,desc:p.name||'',qty:item.qty,unit:item.unit||'Pcs',rate:item.rate};
   });
 
   // Get previous outstanding for this customer
@@ -6014,7 +5753,7 @@ function generateInvoiceFromOrder(orderId){
 
   // Create invoice directly — no navigation to create-invoice page needed
   var newInv={
-    id:state.nextInvoiceId,billNo:state.nextInvoiceId,
+    id:state.nextInvoiceId,
     custId:o.custId,
     date:today(),
     deliveryDate:o.deliveryDate,
@@ -6067,9 +5806,9 @@ function generateInvoiceFromOrder(orderId){
     '</div>'+
     '</div>'+
     (prev>0?'<div style="margin-top:10px;background:var(--amber-50);border-radius:8px;padding:10px;font-size:12px;color:var(--amber-400)">Previous outstanding '+fmt(prev)+' added to invoice total.</div>':''),
-    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+newInvId+'\')">&#128065; View Invoice</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="closeModal();downloadInvoicePDF(\''+newInvId+'\')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="closeModal();downloadInvoice(\''+newInvId+'\')">&#11015; HTML</button>'+
+    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview('+newInvId+')">&#128065; View Invoice</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="closeModal();downloadInvoicePDF('+newInvId+')">&#128196; PDF</button>'+
+    '<button class="btn btn-download" onclick="closeModal();downloadInvoice('+newInvId+')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -6100,13 +5839,13 @@ function showCustOrdersModal(id,type){
         '<td>'+(o.invoiceId?'<span class="badge badge-green">Inv #'+o.invoiceId+'</span>':'<span class="badge badge-red">No Invoice</span>')+'</td>'+
         '<td>'+
           (o.status!=='invoiced'?
-            '<button class="btn btn-primary btn-sm" onclick="closeModal();generateInvoiceFromOrder(\''+o.id+'\')">&#9998; Invoice</button>':
-            '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\''+o.invoiceId+'\')">View Inv</button>')+
-          (o.status!=='invoiced'?'<button class="btn btn-ghost btn-sm" onclick="closeModal();showEditOrderModal(\''+o.id+'\')">Edit</button>':'')+
+            '<button class="btn btn-primary btn-sm" onclick="closeModal();generateInvoiceFromOrder('+o.id+')">&#9998; Invoice</button>':
+            '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview('+o.invoiceId+')">View Inv</button>')+
+          (o.status!=='invoiced'?'<button class="btn btn-ghost btn-sm" onclick="closeModal();showEditOrderModal('+o.id+')">Edit</button>':'')+
         '</td></tr>';
     }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">No orders yet for this customer</td></tr>')+
     '</tbody></table></div>',
-    '<button class="btn btn-primary" onclick="closeModal();showCreateOrderModal('+(isProspect?'\''+id+'\'':'null')+','+(isProspect?'null':'\''+id+'\'')+')">+ New Order</button>'+
+    '<button class="btn btn-primary" onclick="closeModal();showCreateOrderModal('+(isProspect?id:'null')+','+(isProspect?'null':id)+')">+ New Order</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 
@@ -6126,7 +5865,7 @@ function renderCustomerDues(){
     return '<tr><td><strong>'+c.name+'</strong></td><td>'+c.phone+'</td>'+
       '<td>'+invLabels+'</td>'+
       '<td><span class="fc-red fw600" style="font-size:15px">'+fmt(due)+'</span></td>'+
-      '<td><button class="btn btn-primary btn-sm" onclick="showCustomerPayModal(\''+c.id+'\')">Record Payment</button></td></tr>';
+      '<td><button class="btn btn-primary btn-sm" onclick="showCustomerPayModal('+c.id+')">Record Payment</button></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:24px;font-style:italic">No records found</td></tr>')+'"</tbody></table></div></div>';
 }
 
@@ -6168,7 +5907,7 @@ function showCustomerPayModal(custId){
     '<div style="font-size:12px;color:var(--amber-400);font-weight:600">Total Outstanding: '+fmt(totalDue)+'</div>'+
     '</div>'+
     '<div class="form-group" style="margin-bottom:12px"><label>Apply to Invoice<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-    '<select id="cp-inv" onchange="updateCPPreview(\''+custId+'\')">'+
+    '<select id="cp-inv" onchange="updateCPPreview('+custId+')">'+
     pendInvs.map(function(i){
       var d=getInvoiceDue(i);
       return '<option value="'+i.id+'">Invoice #'+i.id+(i.isCarryForward?' [CF]':'')+' — Due: '+fmt(d)+'</option>';
@@ -6179,7 +5918,7 @@ function showCustomerPayModal(custId){
     '<div class="form-group"><label>Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="cp-date" value="'+today()+'"></div>'+
     '</div>'+
     '<div id="cp-preview" style="margin-top:12px"></div>',
-    '<button class="btn btn-primary" onclick="saveCustomerPay(\''+custId+'\')">Record Payment</button>'+
+    '<button class="btn btn-primary" onclick="saveCustomerPay('+custId+')">Record Payment</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
   setTimeout(function(){
     // Set default amount to first invoice due
@@ -6194,7 +5933,7 @@ function showCustomerPayModal(custId){
 function updateCPPreview(custId){
   var invId=parseInt((document.getElementById('cp-inv')||{}).value)||0;
   var amount=parseFloat((document.getElementById('cp-amount')||{}).value)||0;
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   var el=document.getElementById('cp-preview');
   if(!el||!inv) return;
   var due=getInvoiceDue(inv);
@@ -6218,7 +5957,7 @@ async function saveCustomerPay(custId){
   var amount=parseFloat(document.getElementById('cp-amount').value)||0;
   if(amount<=0){alert('Please enter a valid amount.');return;}
   closeModal();
-  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var inv=state.invoices.find(function(i){return i.id===invId;});
   if(!inv){alert('Invoice not found.');return;}
   var due=getInvoiceDue(inv);
   var remaining=Math.max(0,due-amount);
@@ -6236,13 +5975,11 @@ async function saveCustomerPay(custId){
         '<button class="btn btn-primary" onclick="closeModal()">Done</button>');
     } else {
       inv.status='partial';
-      var cfBillNo2=nextInvId();
-      inv.cfInvoiceId=cfBillNo2;
       await apiCall('/api/invoices/'+invId,'PUT',inv);
-      var newInv={id:cfBillNo2,billNo:cfBillNo2,custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
-      var savedNewInv=await apiCall('/api/invoices/'+cfBillNo2,'PUT',newInv);
+      var newInv={custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
+      var savedNewInv=await apiCall('/api/invoices','POST',newInv);
       state.invoices.push(savedNewInv);
-      var newId=cfBillNo2;
+      var newId=savedNewInv.id;
       inv.cfInvoiceId=newId;
       await apiCall('/api/invoices/'+invId,'PUT',inv);
       showModal('&#128203; Partial Payment Recorded',
@@ -6260,8 +5997,8 @@ async function saveCustomerPay(custId){
         '<div style="font-size:11px;color:#0C447C;font-weight:700;margin-bottom:4px">New CF Invoice #'+newId+'</div>'+
         '<div style="font-size:12px;color:#0C447C">Balance: '+fmt(remaining)+'</div>'+
         '<div style="font-size:11px;color:var(--text3)">Status: Unpaid</div></div></div>',
-        '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\''+newId+'\')">&#128065; View #'+newId+'</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\''+newId+'\')">&#128196; PDF</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview('+newId+')">&#128065; View #'+newId+'</button>'+
+        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF('+newId+')">&#128196; PDF</button>'+
         '<button class="btn btn-ghost btn-sm" onclick="closeModal()">Close</button>');
     }
     renderPage();
@@ -6344,7 +6081,7 @@ function renderVendorDashboard(){
       '<td class="fc-green">'+fmt(po.paid||0)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
-      '<td>'+(due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal(\''+po.id+'\')">Pay</button>':'—')+'</td></tr>';
+      '<td>'+(due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal('+po.id+')">Pay</button>':'—')+'</td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
 }
@@ -6354,18 +6091,14 @@ function renderVendors(){
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
   '<div><div class="section-title">Vendor Directory</div><div class="section-sub">All raw material suppliers</div></div>'+
   '<button class="btn btn-primary" onclick="showAddVendorModal()">+ Add Vendor</button></div>'+
-  bulkBarHtml('vendors','bulkDeleteVendors()')+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th class="cb-col">'+bulkSelectAllHtml('vendors',state.vendors.map(function(v){return v.id;}))+'</th>'+
   '<th>Vendor</th><th>Phone</th><th>Address</th><th>GSTIN</th><th>Materials</th><th>Orders</th><th>Paid</th><th>Due</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (sortDesc(state.vendors,'id').map(function(v){
     var due=getVendorTotalDue(v.id);
     var paid=getVendorTotalPaid(v.id);
     var orders=state.purchaseOrders.filter(function(p){return p.vendorId===v.id;}).length;
-    var isSelected=bulkGetSet('vendors').has(v.id);
-    return '<tr data-bkey="vendors-'+v.id+'" class="'+(isSelected?'selected-row':'')+'" >'+
-      '<td class="cb-col">'+bulkRowCbHtml('vendors',v.id)+'</td>'+
+    return '<tr>'+
       '<td><div style="font-weight:600">'+v.name+'</div><div style="font-size:11px;color:var(--text3)">'+v.contact+'</div></td>'+
       '<td>'+v.phone+'</td>'+
       '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(v.address)+'</td>'+
@@ -6375,12 +6108,11 @@ function renderVendors(){
       '<td class="fw600 fc-green">'+fmt(paid)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-ghost btn-sm" onclick="showVendorViewModal(\''+v.id+'\')">View</button>'+
-        '<button class="btn btn-secondary btn-sm" onclick="showEditVendorModal(\''+v.id+'\')">Edit</button>'+
-        '<button class="btn btn-primary btn-sm" onclick="showAddPOModal(\''+v.id+'\')">+ PO</button>'+
-        '<button class="btn btn-danger btn-sm" onclick="deleteVendor(\''+v.id+'\')">Delete</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showEditVendorModal('+v.id+')">Edit</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="showAddPOModal('+v.id+')">+ PO</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteVendor('+v.id+')">Delete</button>'+
       '</div></td></tr>';
-  }).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No records found</td></tr>')
+  }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
 }
 
@@ -6410,28 +6142,6 @@ async function saveNewVendor(){
     closeModal();renderPage();
   }catch(e){alert('Failed to save vendor: '+e.message);}
 }
-function showVendorViewModal(id){
-  var v=getVendor(id);
-  var due=getVendorTotalDue(v.id);
-  var paid=getVendorTotalPaid(v.id);
-  var orders=state.purchaseOrders.filter(function(p){return p.vendorId===v.id;}).length;
-  showModal('Vendor Details — '+v.name,
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:4px 0">'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Company</div><div class="fw600">'+v.name+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Contact</div><div>'+(v.contact||'—')+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Phone</div><div>'+v.phone+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">GSTIN</div><div style="font-family:monospace;font-size:11px">'+(v.gstin||'—')+'</div></div>'+
-    '<div style="grid-column:1/-1"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Address</div><div>'+fmtAddr(v.address)+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Materials</div><div>'+(v.materials||'—')+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Total POs</div><div>'+orders+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Total Paid</div><div class="fw600 fc-green">'+fmt(paid)+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Balance Due</div><div>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</div></div>'+
-    (v.notes?'<div style="grid-column:1/-1"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Notes</div><div>'+v.notes+'</div></div>':'')+
-    '</div>',
-    '<button class="btn btn-secondary" onclick="showEditVendorModal(\''+id+'\')">Edit</button>'+
-    '<button class="btn btn-primary" onclick="showAddPOModal(\''+id+'\')">+ PO</button>'+
-    '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
-}
 function showEditVendorModal(id){
   var v=getVendor(id);
   showModal('Edit Vendor',
@@ -6445,7 +6155,7 @@ function showEditVendorModal(id){
     '<div class="form-group"><label>Materials</label><input type="text" id="ev-materials" value="'+(v.materials||'')+'"></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="ev-notes" value="'+(v.notes||'')+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditVendor(\''+id+'\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveEditVendor('+id+')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditVendor(id){
   var v=getVendor(id);
@@ -6456,14 +6166,14 @@ async function saveEditVendor(id){
   v.gstin=document.getElementById('ev-gstin').value;v.materials=document.getElementById('ev-materials').value;
   v.notes=document.getElementById('ev-notes').value;
   try{
-    await apiCall('/api/vendors/'+id,'PUT',v);
+    await apiCall('/api/vendors/'+parseInt(id),'PUT',v);
     closeModal();renderPage();
   }catch(e){alert('Failed to update vendor: '+e.message);}
 }
 async function deleteVendor(id){
   if(confirm('Delete this vendor? Their purchase orders will remain.')){
     try{
-      await apiCall('/api/vendors/'+id,'DELETE');
+      await apiCall('/api/vendors/'+parseInt(id),'DELETE');
       state.vendors=state.vendors.filter(function(v){return v.id!==id;});renderPage();
     }catch(e){alert('Failed to delete vendor: '+e.message);}
   }
@@ -6487,17 +6197,13 @@ function renderPurchaseOrders(){
     var labels={all:'All',unpaid:'Unpaid',partial:'Partial',paid:'Paid',overdue:'Overdue'};
     return '<div class="period-tab '+(filter===f?'active':'')+'" onclick="state.poFilter=\''+f+'\';renderPage()">'+labels[f]+'</div>';
   }).join('')+'</div>'+
-  bulkBarHtml('pos','bulkDeletePOs()')+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th class="cb-col">'+bulkSelectAllHtml('pos',sortDesc(filtered,'id').map(function(po){return po.id;}))+'</th>'+
   '<th>PO#</th><th>Vendor</th><th>Date</th><th>Items</th><th>Total</th><th>Paid</th><th>Balance</th><th>Due Date</th><th>Status</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (sortDesc(filtered,'id').map(function(po){
     var v=getVendor(po.vendorId);var s=poStatus(po);var due=getPODue(po);
     var dDiff=(new Date(po.dueDate)-new Date())/(1000*60*60*24);
-    var isSelected=bulkGetSet('pos').has(po.id);
-    return '<tr data-bkey="pos-'+po.id+'" class="'+(isSelected?'selected-row':'')+'" >'+
-      '<td class="cb-col">'+bulkRowCbHtml('pos',po.id)+'</td>'+
+    return '<tr>'+
       '<td><strong>PO#'+po.id+'</strong></td>'+
       '<td>'+(v.name||'Unknown')+'<div style="font-size:11px;color:var(--text3)">'+(v.contact||'')+'</div></td>'+
       '<td>'+po.date+'</td>'+
@@ -6508,9 +6214,9 @@ function renderPurchaseOrders(){
       '<td class="'+(dDiff<0&&po.status!=='paid'?'overdue':dDiff<=3&&po.status!=='paid'?'due-soon':'')+'">'+po.dueDate+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
       '<td><div class="gap-12">'+
-        '<button class="btn btn-secondary btn-sm" onclick="showPODetailModal(\''+po.id+'\')">View</button>'+
-        (due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal(\''+po.id+'\')">Pay</button>':'')+
-        '<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')">Del</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="showPODetailModal('+po.id+')">View</button>'+
+        (due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal('+po.id+')">Pay</button>':'')+
+        '<button class="btn btn-danger btn-sm" onclick="deletePO('+po.id+')">Del</button>'+
       '</div></td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -6527,7 +6233,7 @@ function buildPOItemRow(i){
   return '<div class="form-grid" style="margin-bottom:8px;align-items:end" id="poi-'+i+'">'+
     '<div class="form-group">'+
       '<label>Category<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
-      '<select id="poi-cat-'+i+'" onchange="onPOCatChange(\''+i+'\')" style="font-size:13px">'+
+      '<select id="poi-cat-'+i+'" onchange="onPOCatChange('+i+')" style="font-size:13px">'+
         '<option value="">-- Select --</option>'+
         Object.keys(PO_CATEGORIES).map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
       '</select>'+
@@ -6555,7 +6261,7 @@ function buildPOItemRow(i){
       '<label>Amount</label>'+
       '<div id="poi-amt-'+i+'" style="font-weight:600;color:var(--primary);padding:6px 0;font-size:14px">₹0.00</div>'+
     '</div>'+
-    (i>0?'<button class="btn btn-danger btn-sm" onclick="removePOItem(\''+i+'\')" style="margin-bottom:8px">✕</button>':'<span></span>')+
+    (i>0?'<button class="btn btn-danger btn-sm" onclick="removePOItem('+i+')" style="margin-bottom:8px">✕</button>':'<span></span>')+
   '</div>';
 }
 
@@ -6716,7 +6422,7 @@ function showPODetailModal(poId){
     '<tr style="background:var(--primary)"><td colspan="4" style="text-align:right;padding:8px 12px;color:#fff;font-weight:700">Balance Due:</td><td style="padding:8px 12px;color:#fff;font-weight:700">'+fmt(due)+'</td></tr>'+
     '</tfoot></table>'+
     (po.notes?'<div style="margin-top:12px;font-size:12px;color:var(--text3)">Notes: '+po.notes+'</div>':''),
-    (due>0?'<button class="btn btn-primary" onclick="closeModal();showPOPaymentModal(\''+poId+'\')">Pay Now</button>':'')+
+    (due>0?'<button class="btn btn-primary" onclick="closeModal();showPOPaymentModal('+poId+')">Pay Now</button>':'')+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
 function showPOPaymentModal(poId){
@@ -6733,7 +6439,7 @@ function showPOPaymentModal(poId){
     '<div class="form-group full"><label>Payment Mode</label><select id="pp-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div>'+
     '<div class="form-group full"><label>Reference / Note</label><input type="text" id="pp-note" placeholder="UPI ref, cheque no. etc."></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="savePOPayment(\''+poId+'\')">Record Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="savePOPayment('+poId+')">Record Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function savePOPayment(poId){
   var po=state.purchaseOrders.find(function(p){return p.id===poId;});
@@ -6749,7 +6455,7 @@ async function savePOPayment(poId){
 async function deletePO(id){
   if(confirm('Delete this purchase order?')){
     try{
-      await apiCall('/api/purchase-orders/'+id,'DELETE');
+      await apiCall('/api/purchase-orders/'+parseInt(id),'DELETE');
       state.purchaseOrders=state.purchaseOrders.filter(function(p){return p.id!==id;});renderPage();
     }catch(e){alert('Failed to delete purchase order: '+e.message);}
   }
@@ -6773,7 +6479,7 @@ function renderVendorPayments(){
       '<td class="fc-green fw600">'+fmt(paid)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">All Clear</span>')+'</td>'+
       '<td>'+(pendingPOs.length>0?
-        '<button class="btn btn-primary btn-sm" onclick="showVendorPayModal(\''+v.id+'\')">Record Payment</button>':'—')+
+        '<button class="btn btn-primary btn-sm" onclick="showVendorPayModal('+v.id+')">Record Payment</button>':'—')+
       '</td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>'+
@@ -6793,7 +6499,7 @@ function showVendorPayModal(vendorId){
     '<div class="form-group"><label>Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="vp-date" value="'+today()+'"></div>'+
     '<div class="form-group full"><label>Payment Mode</label><select id="vp-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveVendorPay(\''+vendorId+'\')">Record</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+    '<button class="btn btn-primary" onclick="saveVendorPay('+vendorId+')">Record</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveVendorPay(vendorId){
   var poId=parseInt(document.getElementById('vp-po').value);
@@ -6848,7 +6554,7 @@ function paginate(rows, key){
   }
   pages.forEach(function(p){
     if(p==='...'){bar+='<span class="pg-info">…</span>';}
-    else{bar+='<button class="pg-btn '+(p===cur?'active':'')+'" onclick="setPage(\''+key+'\',\''+p+'\')">'+p+'</button>';}
+    else{bar+='<button class="pg-btn '+(p===cur?'active':'')+'" onclick="setPage(\''+key+'\','+p+')">'+p+'</button>';}
   });
   // Next
   bar+='<button class="pg-btn" onclick="setPage(\''+key+'\','+(cur+1)+')" '+(cur===totalPages?'disabled':'')+'>&#8594;</button>';
@@ -7043,7 +6749,7 @@ function renderExpenditure(){
     (sortDesc(monthEntries,'date').slice(0,8).map(function(e){
       var cats={electricity:'&#9889; Electricity',rent:'&#127968; Rent',loan:'&#127974; Loan/EMI',others:'&#128196; Others'};
       return '<tr><td>'+e.date+'</td><td>'+( cats[e.category]||e.category)+'</td><td style="color:var(--text2)">'+e.description+'</td><td class="fw600 fc-red">'+fmt(e.amount)+'</td>'+
-      '<td><button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry(\''+e.id+'\')">Del</button></td></tr>';
+      '<td><button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry('+e.id+')">Del</button></td></tr>';
     }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
     +'</tbody></table></div></div>':''+
     '<div class="card"><div class="card-body"><div class="empty-state"><div class="icon">&#128196;</div>'+
@@ -7091,16 +6797,12 @@ function renderExpenses(){
   (filterMonth?'<button class="btn btn-ghost btn-sm" onclick="state.expFilterMonth=\'\';renderPage()">Clear</button>':'')+
   '</div>'+
 
-  bulkBarHtml('expenses','bulkDeleteExpenses()')+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th class="cb-col">'+bulkSelectAllHtml('expenses',entries.map(function(e){return e.id;}))+'</th>'+
   '<th>Date</th><th>Category</th><th>Description</th><th>Amount (₹)</th><th>Reference</th><th>Added</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (entries.length?entries.map(function(e){
     var cats={electricity:'&#9889; Electricity',rent:'&#127968; Rent',loan:'&#127974; Loan/EMI',others:'&#128196; Others'};
-    var isSelected=bulkGetSet('expenses').has(e.id);
-    return '<tr data-bkey="expenses-'+e.id+'" class="'+(isSelected?'selected-row':'')+'" >'+
-    '<td class="cb-col">'+bulkRowCbHtml('expenses',e.id)+'</td>'+
+    return '<tr>'+
     '<td>'+e.date+'</td>'+
     '<td><span class="badge '+(e.category==='electricity'?'badge-blue':e.category==='rent'?'badge-green':e.category==='loan'?'badge-amber':'badge-blue')+'">'+(cats[e.category]||e.category)+'</span></td>'+
     '<td>'+e.description+'</td>'+
@@ -7108,11 +6810,10 @@ function renderExpenses(){
     '<td style="font-size:12px;color:var(--text3)">'+(e.reference||'—')+'</td>'+
     '<td style="font-size:11px;color:var(--text3)">'+(e.addedOn||'—')+'</td>'+
     '<td><div class="gap-12">'+
-      '<button class="btn btn-ghost btn-sm" onclick="showExpenseViewModal(\''+e.id+'\')">View</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="showEditExpenseModal(\''+e.id+'\')">Edit</button>'+
-      '<button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry(\''+e.id+'\')">Del</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="showEditExpenseModal('+e.id+')">Edit</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry('+e.id+')">Del</button>'+
     '</div></td></tr>';
-  }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">No expense entries yet. Click "+ Add Expense" to start.</td></tr>')+
+  }).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">No expense entries yet. Click "+ Add Expense" to start.</td></tr>')+
   '</tbody></table></div></div>';
 }
 
@@ -7152,22 +6853,6 @@ async function saveExpenseEntry(){
     closeModal();renderPage();
   }catch(e){alert('Failed to save expense: '+e.message);}
 }
-function showExpenseViewModal(id){
-  var e=(state.expenseEntries||[]).find(function(x){return x.id===id;});
-  if(!e) return;
-  var cats={electricity:'⚡ Electricity',rent:'🏘 Rent',loan:'🏦 Loan/EMI',others:'📄 Others'};
-  showModal('Expense Details',
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:4px 0">'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Date</div><div class="fw600">'+e.date+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Category</div><div>'+( cats[e.category]||e.category)+'</div></div>'+
-    '<div style="grid-column:1/-1"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Description</div><div>'+e.description+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Amount</div><div class="fw600 fc-red" style="font-size:16px">'+fmt(e.amount)+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Reference</div><div>'+(e.reference||'—')+'</div></div>'+
-    '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Added On</div><div style="font-size:12px;color:var(--text3)">'+(e.addedOn||'—')+'</div></div>'+
-    '</div>',
-    '<button class="btn btn-secondary" onclick="showEditExpenseModal(\''+id+'\')">Edit</button>'+
-    '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
-}
 function showEditExpenseModal(id){
   var e=(state.expenseEntries||[]).find(function(x){return x.id===id;});
   if(!e) return;
@@ -7182,7 +6867,7 @@ function showEditExpenseModal(id){
     '<div class="form-group"><label>Amount (₹)<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="ee-amount" value="'+e.amount+'"></div>'+
     '<div class="form-group"><label>Reference</label><input type="text" id="ee-ref" value="'+(e.reference||'')+'"></div>'+
     '</div>',
-    '<button class="btn btn-primary" onclick="saveEditExpense(\''+id+'\')">Update</button>'+
+    '<button class="btn btn-primary" onclick="saveEditExpense('+id+')">Update</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function saveEditExpense(id){
@@ -7194,51 +6879,18 @@ async function saveEditExpense(id){
   e.amount=parseFloat(document.getElementById('ee-amount').value)||0;
   e.reference=document.getElementById('ee-ref').value;
   try{
-    await apiCall('/api/expenses/'+id,'PUT',e);
+    await apiCall('/api/expenses/'+parseInt(id),'PUT',e);
     closeModal();renderPage();
   }catch(e2){alert('Failed to update expense: '+e2.message);}
 }
 async function deleteExpenseEntry(id){
   if(confirm('Delete this expense entry?')){
     try{
-      await apiCall('/api/expenses/'+id,'DELETE');
+      await apiCall('/api/expenses/'+parseInt(id),'DELETE');
       state.expenseEntries=(state.expenseEntries||[]).filter(function(e){return e.id!==id;});
       renderPage();
     }catch(e){alert('Failed to delete expense: '+e.message);}
   }
-}
-async function bulkDeleteExpenses(){
-  var ids=bulkIds('expenses');
-  if(!ids.length) return;
-  if(!confirm('Delete '+ids.length+' expense(s)?')) return;
-  for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/expenses/'+ids[i],'DELETE');}catch(e){}
-  }
-  var del=bulkGetSet('expenses');
-  state.expenseEntries=(state.expenseEntries||[]).filter(function(e){return !del.has(e.id);});
-  bulkSel['expenses']=new Set();renderPage();
-}
-async function bulkDeleteVendors(){
-  var ids=bulkIds('vendors');
-  if(!ids.length) return;
-  if(!confirm('Delete '+ids.length+' vendor(s)?')) return;
-  for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/vendors/'+ids[i],'DELETE');}catch(e){}
-  }
-  var del=bulkGetSet('vendors');
-  state.vendors=state.vendors.filter(function(v){return !del.has(v.id);});
-  bulkSel['vendors']=new Set();renderPage();
-}
-async function bulkDeletePOs(){
-  var ids=bulkIds('pos');
-  if(!ids.length) return;
-  if(!confirm('Delete '+ids.length+' purchase order(s)?')) return;
-  for(var i=0;i<ids.length;i++){
-    try{await apiCall('/api/purchase-orders/'+ids[i],'DELETE');}catch(e){}
-  }
-  var del=bulkGetSet('pos');
-  state.purchaseOrders=state.purchaseOrders.filter(function(p){return !del.has(p.id);});
-  bulkSel['pos']=new Set();renderPage();
 }
 // Legacy stubs — keep to avoid errors if called anywhere
 function saveExpenditure(){showAddExpenseModal();}
@@ -7282,7 +6934,7 @@ function renderAnalytics(){
     custMap[cid].count++;
   });
   var custRows=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
-    var c=getCustomer(cid);var d=custMap[cid];
+    var c=getCustomer(parseInt(cid));var d=custMap[cid];
     return '<tr><td><strong>'+(c.name||'Unknown')+'</strong></td><td>'+d.count+'</td><td class="fw600">'+fmt(d.sales)+'</td><td class="fc-green">'+fmt(d.paid)+'</td><td class="fc-red">'+fmt(d.due)+'</td></tr>';
   }).join('');
   // Product breakdown — use resolveItemBilling for correct qty and revenue
@@ -7309,7 +6961,7 @@ function renderAnalytics(){
   var PAGE=10;
 
   var custAll=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
-    var c=getCustomer(cid);var d=custMap[cid];
+    var c=getCustomer(parseInt(cid));var d=custMap[cid];
     return {name:(c.name||'Unknown'),count:d.count,sales:d.sales,paid:d.paid,due:d.due};
   });
   var custFiltered=custSearch?custAll.filter(function(r){return r.name.toLowerCase().indexOf(custSearch)>=0;}):custAll;
@@ -7453,7 +7105,7 @@ function renderAnTable(type){
       custMap[cid].count++;
     });
     var all=Object.keys(custMap).sort(function(a,b){return custMap[b].sales-custMap[a].sales;}).map(function(cid){
-      var c=getCustomer(cid);var d=custMap[cid];
+      var c=getCustomer(parseInt(cid));var d=custMap[cid];
       return {name:(c.name||'Unknown'),count:d.count,sales:d.sales,paid:d.paid,due:d.due};
     });
     filtered=search?all.filter(function(r){return r.name.toLowerCase().indexOf(search)>=0;}):all;
@@ -7886,28 +7538,37 @@ async function verifyRegOTP(){
   var data = authState.regData;
 
   try {
-    // Check duplicate email in Firestore
-    var existing = await window._fbQuery('users', 'email', data.email.toLowerCase());
-    if(existing.length > 0){
-      showAuthMsg('Email already registered.');
-      return;
+    const res = await fetch((API_BASE || '') + '/api/signup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        password: data.pass
+      })
+    });
+
+    const text = await res.text();
+
+    if(!res.ok){
+      throw new Error(text || 'Registration failed');
     }
 
-    var newUser = {
-      name:     data.name,
-      email:    data.email.toLowerCase(),
-      phone:    data.phone,
-      password: data.pass,
-      role:     'CUSTOMER'
-    };
+    const result = text ? JSON.parse(text) : {};
 
-    var saved = await apiCall('/api/users', 'POST', newUser);
-    console.log("User registered:", saved);
+    console.log("User registered:", result);
 
     showAuthMsg('Registration successful! Please login.', 'success');
+
+    // 👉 move to login screen
     authState.authMode = 'login';
-    authState.regStep = 1;
+    authState.regStep = 1; // reset step
     renderAuth();
+
+    // optional: refresh users
     loadUsers();
 
   } catch (err) {
@@ -7979,24 +7640,33 @@ window.doLogin = async function(){
   }
 
   try {
-    // Query Firestore users collection by email
-    var users = await window._fbQuery('users', 'email', id);
-    var matched = users.find(function(u){ return u.password === pass; });
+    const res = await fetch((API_BASE || '') + "/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email: id,
+        password: pass
+      })
+    });
 
-    if(matched){
-      var data = Object.assign({success:true, message:'Login successful'}, matched);
+    const data = await res.json();
+
+    if(res.ok && data.success){
       var _sd=JSON.stringify({user:data,expiry:Date.now()+(24*60*60*1000)});
       sessionStorage.setItem('pranita_session',_sd);
       localStorage.setItem('pranita_session',_sd);
       authState.currentUser=data;
       await bootApp(true);
+
     } else {
-      showAuthMsg(users.length ? 'Incorrect password.' : 'No account found with that email.');
+      showAuthMsg(data.message || 'Invalid credentials.');
     }
 
   } catch(e){
     console.error(e);
-    showAuthMsg('Login error: ' + e.message);
+    showAuthMsg('Server error. Please try again.');
   }
 };
 
@@ -8233,8 +7903,10 @@ async function checkAutoLogin(){
 }
 async function loadUsers(){
   try{
-    authState.users = await apiCall('/api/users','GET') || [];
-    console.log('Users loaded:', authState.users.length);
+    var res=await fetch((API_BASE||'')+'/api/users');
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    authState.users=await res.json();
+    console.log('Users loaded:',authState.users.length);
   }catch(err){
     console.warn('loadUsers skipped:',err.message);
     authState.users=[];
@@ -8284,6 +7956,9 @@ window.selectProduct = selectProduct;
 window.updateInvItem = updateInvItem;
 window.refreshInvRow = refreshInvRow;
 window.onCustChange = onCustChange;
+window.showInvCustPicker = showInvCustPicker;
+window.pickInvCust = pickInvCust;
+window.invClearCust = invClearCust;
 window.updateInvCalc = updateInvCalc;
 window.saveNewCustomer = saveNewCustomer;
 window.generateInvoice = generateInvoice;
@@ -8552,6 +8227,9 @@ window.checkStockExceeded=checkStockExceeded;
 window.showStockWarning=showStockWarning;
 window.cancelInvoice=cancelInvoice;
 window.cancelOrder=cancelOrder;
+window.showInvCustPicker=showInvCustPicker;
+window.pickInvCust=pickInvCust;
+window.invClearCust=invClearCust;
 window.getCustomerCancelledCount=getCustomerCancelledCount;
 window.getProspectCancelledCount=getProspectCancelledCount;
 window.restoreInvoiceStock=restoreInvoiceStock;
@@ -8573,81 +8251,6 @@ window.readAddr=readAddr;
 window.validateAddr=validateAddr;
 window.fmtAddr=fmtAddr;
 window.addrFieldsHtml=addrFieldsHtml;
-
-window.invCustChange=invCustChange;
-window.coWhoChange=coWhoChange;
-window.coWhoEditChange=coWhoEditChange;
-window.anSearchCust=anSearchCust;
-window.anSearchProd=anSearchProd;
-window.bulkClear=bulkClear;
-window.bulkToggle=bulkToggle;
-window.bulkToggleAll=bulkToggleAll;
-window.onPOCatChange=onPOCatChange;
-window.payrollEmpChange=payrollEmpChange;
-window.poVendorChange=poVendorChange;
-window.removePOItem=removePOItem;
-window.showExpenseViewModal=showExpenseViewModal;
-window.showProductViewModal=showProductViewModal;
-window.showVendorViewModal=showVendorViewModal;
-window.updatePOItemTotal=updatePOItemTotal;
-window.showEditCustomerModal=showEditCustomerModal;
-window.deleteCustomer=deleteCustomer;
-window.saveEditCustomer=saveEditCustomer;
-window.showCreateOrderModal=showCreateOrderModal;
-window.showEditProspectModal=showEditProspectModal;
-window.deleteProspect=deleteProspect;
-window.saveEditProspect=saveEditProspect;
-window.showEditStaffModal=showEditStaffModal;
-window.deleteStaff=deleteStaff;
-window.showPartPayModal=showPartPayModal;
-window.showStaffPayHistory=showStaffPayHistory;
-window.saveEditStaff=saveEditStaff;
-window.savePayroll=savePayroll;
-window.showEditProductModal=showEditProductModal;
-window.deleteProduct=deleteProduct;
-window.showStockModal=showStockModal;
-window.addStock=addStock;
-window.saveEditProduct=saveEditProduct;
-window.showEditRMModal=showEditRMModal;
-window.deleteRM=deleteRM;
-window.saveEditRM=saveEditRM;
-window.showEditVendorModal=showEditVendorModal;
-window.deleteVendor=deleteVendor;
-window.showAddPOModal=showAddPOModal;
-window.saveEditVendor=saveEditVendor;
-window.showPODetailModal=showPODetailModal;
-window.deletePO=deletePO;
-window.showEditExpenseModal=showEditExpenseModal;
-window.deleteExpenseEntry=deleteExpenseEntry;
-window.saveEditExpense=saveEditExpense;
-window.removeInvItem=removeInvItem;
-window.deleteNote=deleteNote;
-window.editNote=editNote;
-window.downloadNote=downloadNote;
-window.shareNoteWhatsApp=shareNoteWhatsApp;
-window.viewNote=viewNote;
-window.showPOPaymentModal=showPOPaymentModal;
-window.savePOPayment=savePOPayment;
-window.showVendorPayModal=showVendorPayModal;
-window.saveVendorPay=saveVendorPay;
-window.showOrderDetailModal=showOrderDetailModal;
-window.showEditOrderModal=showEditOrderModal;
-window.deleteOrder=deleteOrder;
-window.saveEditOrder=saveEditOrder;
-window.generateInvoiceFromOrder=generateInvoiceFromOrder;
-window.showCustOrdersModal=showCustOrdersModal;
-window.showRecordPaymentModal=showRecordPaymentModal;
-window.savePaymentRecord=savePaymentRecord;
-window.showCustomerPayModal=showCustomerPayModal;
-window.saveCustomerPay=saveCustomerPay;
-window.updateCPPreview=updateCPPreview;
-window.shareInvoiceWhatsApp=shareInvoiceWhatsApp;
-window.showInvoicePreview=showInvoicePreview;
-window.downloadInvoicePDF=downloadInvoicePDF;
-window.downloadInvoice=downloadInvoice;
-window.confirmDelivery=confirmDelivery;
-window.showInvoiceSaveModal=showInvoiceSaveModal;
-window.onOrderItemSelect=onOrderItemSelect;
 </script>
 </body>
 </html>
