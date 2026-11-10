@@ -6,6 +6,110 @@
 <title>P3 Business Suite</title>
 
 <!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+var _firebaseConfig = {
+  apiKey: "AIzaSyDHw8-syGyRi_sLUn8SlB5Vhtw5_b3-wsM",
+  authDomain: "pranita-suite-6a85f.firebaseapp.com",
+  projectId: "pranita-suite-6a85f",
+  storageBucket: "pranita-suite-6a85f.firebasestorage.app",
+  messagingSenderId: "1081795715682",
+  appId: "1:1081795715682:web:4dcf112dfbf58a481e673b",
+  measurementId: "G-XHP75KNEY6"
+};
+// ══════════════════════════════════════════════════════════
+firebase.initializeApp(_firebaseConfig);
+var _db = firebase.firestore();
+
+// Collection name map: REST path segment → Firestore collection name
+var _collMap = {
+  'staff':           'staff',
+  'customers':       'customers',
+  'products':        'products',
+  'raw-materials':   'rawMaterials',
+  'invoices':        'invoices',
+  'payroll':         'payroll',
+  'vendors':         'vendors',
+  'purchase-orders': 'purchaseOrders',
+  'prospects':       'prospects',
+  'orders':          'orders',
+  'expenses':        'expenses',
+  'notes':           'notes',
+  'attendance':      'attendance',
+  'users':           'users'
+};
+
+// Parse /api/collection or /api/collection/id
+function _parseEndpoint(endpoint){
+  // strip leading /api/
+  var path = endpoint.replace(/^\/api\//, '');
+  var slash = path.indexOf('/');
+  if(slash === -1){
+    return { coll: _collMap[path] || path, id: null };
+  } else {
+    var seg = path.substring(0, slash);
+    return { coll: _collMap[seg] || seg, id: path.substring(slash+1) };
+  }
+}
+
+// Firestore-based apiCall — same interface as the old Railway version
+async function apiCall(endpoint, method, body){
+  method = method || 'GET';
+
+  var p = _parseEndpoint(endpoint);
+  if(!p.coll){
+    console.warn('apiCall: unknown endpoint', endpoint);
+    return null;
+  }
+  var collRef = _db.collection(p.coll);
+
+  // ── Attendance: use date-empId as composite doc ID to prevent duplicates
+  if(p.coll === 'attendance' && method === 'POST' && body && body.date && body.empId){
+    var attDocId = body.date + '-' + String(body.empId);
+    var attData = Object.assign({}, body, {id: attDocId});
+    await collRef.doc(attDocId).set(attData);
+    return attData;
+  }
+
+  if(method === 'GET'){
+    if(p.id){
+      var snap = await collRef.doc(String(p.id)).get();
+      if(!snap.exists) return null;
+      return Object.assign({id: snap.id}, snap.data());
+    } else {
+      var qsnap = await collRef.get();
+      return qsnap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
+    }
+
+  } else if(method === 'POST'){
+    // Auto-assign a numeric string ID (like old backend did)
+    var allSnap = await collRef.get();
+    var maxId = 0;
+    allSnap.docs.forEach(function(d){
+      var n = parseInt(d.id);
+      if(!isNaN(n) && n > maxId) maxId = n;
+    });
+    var newId = String(maxId + 1);
+    var docData = Object.assign({}, body, {id: newId});
+    await collRef.doc(newId).set(docData);
+    return docData;
+
+  } else if(method === 'PUT'){
+    if(!p.id){ throw new Error('PUT requires an id: ' + endpoint); }
+    var putData = Object.assign({}, body, {id: String(p.id)});
+    await collRef.doc(String(p.id)).set(putData, {merge: false});
+    return putData;
+
+  } else if(method === 'DELETE'){
+    if(!p.id){ throw new Error('DELETE requires an id: ' + endpoint); }
+    await collRef.doc(String(p.id)).delete();
+    return null;
+  }
+
+  throw new Error('Unsupported method: ' + method);
+}
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -447,16 +551,8 @@ var state = {
 
 // ===================== UTILS =====================
 // ===================== API CONFIG =====================
-var API_BASE = 'https://p3-business-production.up.railway.app';
-
-async function apiCall(endpoint, method, body){
-  var opts = { method: method||'GET', headers: {'Content-Type':'application/json'} };
-  if(body) opts.body = JSON.stringify(body);
-  var res = await fetch(API_BASE + endpoint, opts);
-  if(!res.ok){ var t=await res.text(); throw new Error(t||'API error '+res.status); }
-  var text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+// API_BASE kept for reference only — all calls now go to Firestore (see <head> script)
+var API_BASE = '';
 
 function fmt(n){return '₹'+parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
@@ -1930,7 +2026,7 @@ async function saveEditStaff(id){
   s.leaveBalance=parseInt(document.getElementById('ef-leave').value)||0;
   s.advance=parseFloat(document.getElementById('ef-advance').value)||0;
   try{
-    await apiCall('/api/staff/'+parseInt(id),'PUT',s);
+    await apiCall('/api/staff/'+String(id),'PUT',s);
     state.staff=await apiCall('/api/staff','GET')||[];
     closeModal();renderPage();
   }catch(e){alert('Failed to update staff: '+e.message);}
@@ -1938,7 +2034,7 @@ async function saveEditStaff(id){
 async function deleteStaff(id){
   if(confirm('Remove this employee?')){
     try{
-      await apiCall('/api/staff/'+parseInt(id),'DELETE');
+      await apiCall('/api/staff/'+String(id),'DELETE');
       state.staff=await apiCall('/api/staff','GET')||[];
       renderPage();
     }catch(e){alert('Failed to delete staff: '+e.message);}
@@ -2663,7 +2759,7 @@ async function saveEditProduct(id){
   p.stockMeta=JSON.stringify(stockMeta);
 
   try{
-    await apiCall('/api/products/'+parseInt(id),'PUT',p);
+    await apiCall('/api/products/'+String(id),'PUT',p);
     state.products=await apiCall('/api/products','GET')||[];
     window._epTotalPcs=0;
     closeModal();renderPage();
@@ -2679,14 +2775,14 @@ async function addStock(id){
   var qty=parseInt(document.getElementById('sk-qty').value)||0;
   p.stock+=qty;
   try{
-    await apiCall('/api/products/'+parseInt(id),'PUT',p);
+    await apiCall('/api/products/'+String(id),'PUT',p);
     closeModal();renderPage();
   }catch(e){alert('Failed to update stock: '+e.message);}
 }
 async function deleteProduct(id){
   if(confirm('Delete?')){
     try{
-      await apiCall('/api/products/'+parseInt(id),'DELETE');
+      await apiCall('/api/products/'+String(id),'DELETE');
       state.products=state.products.filter(function(p){return p.id!==id;});renderPage();
     }catch(e){alert('Failed to delete product: '+e.message);}
   }
@@ -2741,14 +2837,14 @@ async function saveEditRM(id){
   m.name=document.getElementById('erm-name').value;m.unit=document.getElementById('erm-unit').value;
   m.stock=parseFloat(document.getElementById('erm-stock').value)||0;m.price=parseFloat(document.getElementById('erm-price').value)||0;
   try{
-    await apiCall('/api/raw-materials/'+parseInt(id),'PUT',m);
+    await apiCall('/api/raw-materials/'+String(id),'PUT',m);
     closeModal();renderPage();
   }catch(e){alert('Failed to update raw material: '+e.message);}
 }
 async function deleteRM(id){
   if(confirm('Delete?')){
     try{
-      await apiCall('/api/raw-materials/'+parseInt(id),'DELETE');
+      await apiCall('/api/raw-materials/'+String(id),'DELETE');
       state.rawMaterials=state.rawMaterials.filter(function(m){return m.id!==id;});renderPage();
     }catch(e){alert('Failed to delete raw material: '+e.message);}
   }
@@ -3423,7 +3519,7 @@ async function deductInvoiceStock(items){
       }catch(e){}
     }
     try{
-      await apiCall('/api/products/'+parseInt(product.id),'PUT',product);
+      await apiCall('/api/products/'+String(product.id),'PUT',product);
     }catch(e){console.warn('Stock update failed for product '+product.id);}
   }
   // Reload fresh stock from backend
@@ -3801,7 +3897,7 @@ async function cancelOrder(orderId){
   if(!confirm('Cancel Order ORD#'+orderId+'?\nThis cannot be undone.')) return;
   o.status='cancelled';
   try{
-    await apiCall('/api/orders/'+parseInt(orderId),'PUT',o);
+    await apiCall('/api/orders/'+String(orderId),'PUT',o);
     state.customerOrders=await safeGet('/api/orders');
     renderPage();
     showToast('Order ORD#'+orderId+' cancelled.','amber');
@@ -3883,7 +3979,7 @@ async function restoreInvoiceStock(items){
         product.stockMeta=JSON.stringify(meta);
       }catch(e){}
     }
-    try{ await apiCall('/api/products/'+parseInt(product.id),'PUT',product); }catch(e){}
+    try{ await apiCall('/api/products/'+String(product.id),'PUT',product); }catch(e){}
   }
 }
 
@@ -4799,14 +4895,14 @@ async function saveEditCustomer(id){
   if(_ecAddrErr){alert(_ecAddrErr);return;}
   c.address=readAddr('ec-addr');c.baleBalance=parseInt(document.getElementById('ec-bale').value)||0;
   try{
-    await apiCall('/api/customers/'+parseInt(id),'PUT',c);
+    await apiCall('/api/customers/'+String(id),'PUT',c);
     closeModal();renderPage();
   }catch(e){alert('Failed to update customer: '+e.message);}
 }
 async function deleteCustomer(id){
   if(confirm('Delete this customer?')){
     try{
-      await apiCall('/api/customers/'+parseInt(id),'DELETE');
+      await apiCall('/api/customers/'+String(id),'DELETE');
       state.customers=state.customers.filter(function(c){return c.id!==id;});renderPage();
     }catch(e){alert('Failed to delete customer: '+e.message);}
   }
@@ -5309,14 +5405,14 @@ async function saveEditProspect(id){
   p.crmStatus=document.getElementById('ep2-status').value;
   p.notes=document.getElementById('ep2-notes').value;
   try{
-    await apiCall('/api/prospects/'+parseInt(id),'PUT',p);
+    await apiCall('/api/prospects/'+String(id),'PUT',p);
     closeModal();renderPage();
   }catch(e){alert('Failed to update prospect: '+e.message);}
 }
 async function deleteProspect(id){
   if(confirm('Delete this prospect?')){
     try{
-      await apiCall('/api/prospects/'+parseInt(id),'DELETE');
+      await apiCall('/api/prospects/'+String(id),'DELETE');
       state.prospects=state.prospects.filter(function(p){return p.id!==id;});
       state.customerOrders=state.customerOrders.filter(function(o){return o.prospectId!==id;});
       renderPage();
@@ -5725,7 +5821,7 @@ function showOrderDetailModal(orderId){
 async function deleteOrder(id){
   if(confirm('Delete this order?')){
     try{
-      await apiCall('/api/orders/'+parseInt(id),'DELETE');
+      await apiCall('/api/orders/'+String(id),'DELETE');
       state.customerOrders=state.customerOrders.filter(function(o){return o.id!==id;});renderPage();
     }catch(e){alert('Failed to delete order: '+e.message);}
   }
@@ -6166,14 +6262,14 @@ async function saveEditVendor(id){
   v.gstin=document.getElementById('ev-gstin').value;v.materials=document.getElementById('ev-materials').value;
   v.notes=document.getElementById('ev-notes').value;
   try{
-    await apiCall('/api/vendors/'+parseInt(id),'PUT',v);
+    await apiCall('/api/vendors/'+String(id),'PUT',v);
     closeModal();renderPage();
   }catch(e){alert('Failed to update vendor: '+e.message);}
 }
 async function deleteVendor(id){
   if(confirm('Delete this vendor? Their purchase orders will remain.')){
     try{
-      await apiCall('/api/vendors/'+parseInt(id),'DELETE');
+      await apiCall('/api/vendors/'+String(id),'DELETE');
       state.vendors=state.vendors.filter(function(v){return v.id!==id;});renderPage();
     }catch(e){alert('Failed to delete vendor: '+e.message);}
   }
@@ -6455,7 +6551,7 @@ async function savePOPayment(poId){
 async function deletePO(id){
   if(confirm('Delete this purchase order?')){
     try{
-      await apiCall('/api/purchase-orders/'+parseInt(id),'DELETE');
+      await apiCall('/api/purchase-orders/'+String(id),'DELETE');
       state.purchaseOrders=state.purchaseOrders.filter(function(p){return p.id!==id;});renderPage();
     }catch(e){alert('Failed to delete purchase order: '+e.message);}
   }
@@ -6879,14 +6975,14 @@ async function saveEditExpense(id){
   e.amount=parseFloat(document.getElementById('ee-amount').value)||0;
   e.reference=document.getElementById('ee-ref').value;
   try{
-    await apiCall('/api/expenses/'+parseInt(id),'PUT',e);
+    await apiCall('/api/expenses/'+String(id),'PUT',e);
     closeModal();renderPage();
   }catch(e2){alert('Failed to update expense: '+e2.message);}
 }
 async function deleteExpenseEntry(id){
   if(confirm('Delete this expense entry?')){
     try{
-      await apiCall('/api/expenses/'+parseInt(id),'DELETE');
+      await apiCall('/api/expenses/'+String(id),'DELETE');
       state.expenseEntries=(state.expenseEntries||[]).filter(function(e){return e.id!==id;});
       renderPage();
     }catch(e){alert('Failed to delete expense: '+e.message);}
@@ -7538,39 +7634,24 @@ async function verifyRegOTP(){
   var data = authState.regData;
 
   try {
-    const res = await fetch((API_BASE || '') + '/api/signup', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        password: data.pass
-      })
-    });
-
-    const text = await res.text();
-
-    if(!res.ok){
-      throw new Error(text || 'Registration failed');
+    // Check if email already exists
+    var existSnap = await _db.collection('users').where('email','==',data.email.toLowerCase()).limit(1).get();
+    if(!existSnap.empty){
+      throw new Error('An account with this email already exists.');
     }
-
-    const result = text ? JSON.parse(text) : {};
-
-    console.log("User registered:", result);
-
+    // Get max ID
+    var allSnap = await _db.collection('users').get();
+    var maxId = 0;
+    allSnap.docs.forEach(function(d){ var n=parseInt(d.id); if(!isNaN(n)&&n>maxId) maxId=n; });
+    var newId = String(maxId + 1);
+    var newUser = {id:newId, name:data.name, email:data.email.toLowerCase(), phone:data.phone, password:data.pass, role:'staff'};
+    await _db.collection('users').doc(newId).set(newUser);
+    console.log("User registered:", newUser);
     showAuthMsg('Registration successful! Please login.', 'success');
-
-    // 👉 move to login screen
     authState.authMode = 'login';
-    authState.regStep = 1; // reset step
+    authState.regStep = 1;
     renderAuth();
-
-    // optional: refresh users
     loadUsers();
-
   } catch (err) {
     console.error(err);
     showAuthMsg(err.message || 'Registration failed');
@@ -7640,33 +7721,36 @@ window.doLogin = async function(){
   }
 
   try {
-    const res = await fetch((API_BASE || '') + "/api/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        email: id,
-        password: pass
-      })
-    });
+    // Query Firestore users collection for matching email
+    var snap = await _db.collection('users')
+      .where('email', '==', id)
+      .limit(1)
+      .get();
 
-    const data = await res.json();
-
-    if(res.ok && data.success){
-      var _sd=JSON.stringify({user:data,expiry:Date.now()+(24*60*60*1000)});
-      sessionStorage.setItem('pranita_session',_sd);
-      localStorage.setItem('pranita_session',_sd);
-      authState.currentUser=data;
-      await bootApp(true);
-
-    } else {
-      showAuthMsg(data.message || 'Invalid credentials.');
+    if(snap.empty){
+      showAuthMsg('Invalid credentials.');
+      return;
     }
+
+    var userDoc = snap.docs[0];
+    var userData = Object.assign({id: userDoc.id}, userDoc.data());
+
+    if(userData.password !== pass){
+      showAuthMsg('Invalid credentials.');
+      return;
+    }
+
+    // Login success
+    var loginData = Object.assign({}, userData, {success: true});
+    var _sd = JSON.stringify({user: loginData, expiry: Date.now()+(24*60*60*1000)});
+    sessionStorage.setItem('pranita_session', _sd);
+    localStorage.setItem('pranita_session', _sd);
+    authState.currentUser = loginData;
+    await bootApp(true);
 
   } catch(e){
     console.error(e);
-    showAuthMsg('Server error. Please try again.');
+    showAuthMsg('Server error: ' + e.message);
   }
 };
 
@@ -7683,17 +7767,29 @@ function showResetPanel(){
   '<button class="auth-btn" onclick="doEmergencyReset()" style="background:#c0392b">Reset Login Accounts</button>'+
   '<div class="auth-link" style="margin-top:10px"><span onclick="authState.authMode=\'login\';renderAuth()">&#8592; Back to login</span></div>';
 }
-function doEmergencyReset(){
+async function doEmergencyReset(){
   if((document.getElementById('reset-confirm').value||'').trim()!=='RESET'){
     var el=document.getElementById('auth-msg');
     if(el) el.innerHTML='<div class="auth-error">Please type RESET exactly to confirm.</div>';return;
   }
-  var def=[{name:'Admin',email:'admin@pranita.com',phone:'9876543210',password:'admin123',role:'admin'}];
-  localStorage.setItem('pranita_users',JSON.stringify(def));
-  authState.users=def;
-  var el=document.getElementById('auth-msg');
-  if(el) el.innerHTML='<div class="auth-success">Reset done! Login: admin@pranita.com / admin123</div>';
-  setTimeout(function(){authState.authMode='login';renderAuth();},2000);
+  var defAdmin = {id:'1', name:'Admin', email:'admin@pranita.com', phone:'9876543210', password:'admin123', role:'admin'};
+  try {
+    // Delete all existing users from Firestore
+    var snap = await _db.collection('users').get();
+    var batch = _db.batch();
+    snap.docs.forEach(function(d){ batch.delete(d.ref); });
+    await batch.commit();
+    // Add default admin
+    await _db.collection('users').doc('1').set(defAdmin);
+    authState.users = [defAdmin];
+    localStorage.removeItem('pranita_users');
+    var el=document.getElementById('auth-msg');
+    if(el) el.innerHTML='<div class="auth-success">Reset done! Login: admin@pranita.com / admin123</div>';
+    setTimeout(function(){authState.authMode='login';renderAuth();},2000);
+  } catch(e) {
+    var el=document.getElementById('auth-msg');
+    if(el) el.innerHTML='<div class="auth-error">Reset failed: '+e.message+'</div>';
+  }
 }
 
 // ===================== LOGOUT & BOOT =====================
@@ -7821,9 +7917,18 @@ function _cloudSave(){
   // Cloud save now handled by individual API calls — this stub kept for compatibility
 }
 
-function saveUsers(){
-  localStorage.setItem('pranita_users', JSON.stringify(authState.users));
-  console.log("Users saved locally");
+async function saveUsers(){
+  // Save all users to Firestore
+  try {
+    var batch = _db.batch();
+    (authState.users||[]).forEach(function(u){
+      if(u.id) batch.set(_db.collection('users').doc(String(u.id)), u);
+    });
+    await batch.commit();
+    console.log("Users saved to Firestore");
+  } catch(e) {
+    console.warn("saveUsers Firestore failed:", e.message);
+  }
 }
 
 // ===================== CLOUD LOAD =====================
@@ -7903,10 +8008,16 @@ async function checkAutoLogin(){
 }
 async function loadUsers(){
   try{
-    var res=await fetch((API_BASE||'')+'/api/users');
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    authState.users=await res.json();
-    console.log('Users loaded:',authState.users.length);
+    var snap = await _db.collection('users').get();
+    authState.users = snap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
+    console.log('Users loaded:', authState.users.length);
+    // Seed default admin if no users exist
+    if(authState.users.length === 0){
+      var defAdmin = {id:'1', name:'Admin', email:'admin@pranita.com', phone:'9876543210', password:'admin123', role:'admin'};
+      await _db.collection('users').doc('1').set(defAdmin);
+      authState.users = [defAdmin];
+      console.log('Default admin seeded to Firestore');
+    }
   }catch(err){
     console.warn('loadUsers skipped:',err.message);
     authState.users=[];
