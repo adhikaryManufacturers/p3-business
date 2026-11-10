@@ -2891,8 +2891,8 @@ function renderCreateInvoice(){
   '<div id="inv-advance-row" style="display:none;margin-top:8px">'+
   '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
   '<div style="flex:1;min-width:160px;padding:7px 10px;border-radius:8px;background:#EAF3DE;font-size:13px;color:#3B6D11;font-weight:600">Advance Received</div>'+
-  '<input type="number" id="inv-advance-amt" placeholder="Advance (₹)" min="0" step="0.5" value="0" oninput="updateInvCalc()" '+
-  'style="width:130px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">'+
+  '<input type="number" id="inv-advance-amt" placeholder="Advance Amount (₹)" min="0" step="1" value="" oninput="updateInvCalc()" '+
+  'style="width:150px;padding:7px 10px;border:2px solid #3B6D11;border-radius:8px;font-size:13px;font-family:inherit;background:#FAFFF6">'+
   '</div></div></div>'+
   '</div></div>'+
   '<div class="card"><div class="card-header"><div class="card-title">Bill To (Customer)</div></div><div class="card-body">'+
@@ -3412,7 +3412,11 @@ function toggleCustomAmt(){
 function toggleAdvanceAmt(){
   var toggle=document.getElementById('inv-advance-toggle');
   var row=document.getElementById('inv-advance-row');
-  if(row) row.style.display=toggle&&toggle.checked?'block':'none';
+  if(row) row.style.display=(toggle&&toggle.checked)?'block':'none';
+  if(toggle&&toggle.checked){
+    var inp=document.getElementById('inv-advance-amt');
+    if(inp) setTimeout(function(){inp.focus();},50);
+  }
   updateInvCalc();
 }
 
@@ -8388,6 +8392,7 @@ window.resetStockInput=resetStockInput;
 window.closeSettingsPanel=closeSettingsPanel;
 window.goToCreateInvoice=goToCreateInvoice;
 window.toggleCustomAmt=toggleCustomAmt;
+window.toggleAdvanceAmt=toggleAdvanceAmt;
 window.deleteInvoice=deleteInvoice;
 window.invItemAmount=invItemAmount;
 window.invUnitRate=invUnitRate;
