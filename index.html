@@ -3584,7 +3584,7 @@ function buildInvoiceHTML(invId, forDownload){
       var meta2b={};try{if(p2&&p2.stockMeta)meta2b=JSON.parse(p2.stockMeta);}catch(e){}
       var ppu2=parseFloat(meta2b.pktPerUnit)||1;
       var ppu2pcs=parseFloat(meta2b.pcsPerPkt)||0;
-      var pcs2=ppu2pcs?(bq2*(unit2==='Pkt'?ppu2pcs:ppu2*ppu2pcs)):null;
+      var pcs2=ppu2pcs?(bq2*ppu2pcs):null;  // bq2 is already in Pkts, so total Pcs = Pkts × pcsPerPkt
       return '<tr><td>'+(i+1)+'</td><td>'+(item.desc||p2.name||'—')+'</td><td>'+(p2.hsn||'—')+'</td>'+
         '<td>'+bq2+(pcs2?' <span style="font-size:10px;color:#888">('+pcs2+' Pcs)</span>':'')+'</td>'+
         '<td>'+bl2+'</td><td>'+fmt(br2)+'/'+bl2+'</td>'+
@@ -3672,7 +3672,7 @@ function downloadInvoicePDF(invId){
     var pcs2  = _rb.pcs||0;
     var pcsNote='';
     if(pcs2>0){
-      var totalPcs = bq*(unit==='Pkt' ? pcs2 : ppu*pcs2);
+      var totalPcs = bq*pcs2;  // bq is already in Pkts from resolveItemBilling, so total Pcs = Pkts × pcsPerPkt
       pcsNote = '<br><span style="font-size:9px;color:#999">('+totalPcs+' Pcs)</span>';
     }
     var stripe = idx%2===0 ? '' : 'background:#fafaf7;';
