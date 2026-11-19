@@ -337,6 +337,8 @@ tr:hover td{background:var(--green-50);}
 .modal-body .form-group label span[style*="red-400"]{font-size:11px;}
 .req-note{font-size:11px;color:var(--text3);margin-bottom:12px;}
 .req-note span{color:var(--red-400);font-weight:700;}align-items:center;gap:4px;padding:12px 16px;border-top:1px solid var(--border);flex-wrap:wrap;}
+.tbl-search-bar input[type=text]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(39,80,10,0.12);}
+.tbl-search-bar{margin-bottom:2px;}
 .pg-btn{min-width:32px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all 0.15s;font-family:inherit;padding:0 6px;}
 .pg-btn:hover:not(:disabled){background:var(--green-50);border-color:var(--primary);color:var(--primary);}
 .pg-btn.active{background:var(--primary)!important;color:#fff!important;border-color:var(--primary)!important;}
@@ -1570,6 +1572,8 @@ window.onhashchange = function(){
 };
 
 function navigate(page){
+  // Clear table search state when navigating to a new page
+  if(window._tblSearchState) window._tblSearchState={};
   state.currentPage = page;
   localStorage.setItem('currentPage', page);
   window.location.hash = page;
@@ -3556,7 +3560,7 @@ async function deductInvoiceStock(items){
 
 // ===================== INVOICE SAVE/DOWNLOAD MODAL =====================
 function showInvoiceSaveModal(invId){
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   showModal('Invoice #'+invId+' Generated',
@@ -3586,7 +3590,7 @@ function showInvoiceSaveModal(invId){
 
 // ===================== INVOICE PREVIEW =====================
 function buildInvoiceHTML(invId, forDownload){
-  var inv=decodeInvoice(state.invoices.find(function(i){return i.id===invId;}));
+  var inv=decodeInvoice(state.invoices.find(function(i){return String(i.id)===String(invId);}));
   if(!inv) return '';
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
@@ -3662,7 +3666,7 @@ function buildInvoiceHTML(invId, forDownload){
   (forDownload?'</body></html>':'');
 }
 function showInvoicePreview(invId){
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   var due=getInvoiceDue(inv);
   showModal('Invoice #'+invId,
     buildInvoiceHTML(invId,false),
@@ -4591,7 +4595,7 @@ function applyMaxStock(itemId,ctx,maxCount){
 
 // ===================== RECORD PAYMENT =====================
 function showRecordPaymentModal(invId){
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   var cust=getCustomer(inv.custId);
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var due=getInvoiceDue(inv);
@@ -4613,7 +4617,7 @@ function showRecordPaymentModal(invId){
 }
 
 function updatePaymentPreview(invId){
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);
   var due=getInvoiceDue(inv);
   var amount=parseFloat((document.getElementById('rp-amount')||{}).value)||0;
@@ -4643,7 +4647,7 @@ function updatePaymentPreview(invId){
 }
 
 async function savePaymentRecord(invId){
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   var amount=parseFloat(document.getElementById('rp-amount').value)||0;
   if(amount<=0){alert('Please enter a valid payment amount.');return;}
   var due=getInvoiceDue(inv);
@@ -4727,11 +4731,13 @@ function renderOrders(){
 }
 
 function showDeliveryModal(invId){
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  if(!inv){alert('Invoice not found: '+invId);return;}
   var cust=getCustomer(inv.custId);
+  var custName=cust.name||'Unknown Customer (#'+inv.custId+')';
   showModal('Confirm Delivery — Invoice #'+invId,
     '<div style="background:var(--green-50);border-radius:8px;padding:12px;margin-bottom:16px">'+
-    '<div style="font-weight:600">Customer: '+cust.name+'</div>'+
+    '<div style="font-weight:600">Customer: '+custName+'</div>'+
     '<div style="font-size:13px;color:var(--text2)">Invoice Date: '+inv.date+' | Delivery Due: '+inv.deliveryDate+'</div>'+
     '</div>'+
     '<div class="form-group">'+
@@ -4742,7 +4748,7 @@ function showDeliveryModal(invId){
     '<button class="btn btn-primary" onclick="confirmDelivery('+invId+')">✓ Confirm Delivery</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
 }
 async function confirmDelivery(invId){
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   var date=document.getElementById('del-date').value;
   if(!date){alert('Please select a delivery date');return;}
   inv.delivered=true;inv.deliveredDate=date;
@@ -4875,7 +4881,7 @@ function renderCustomers(){
     var lastDel=getCustLastDeliveryDate(c.id);
     var daysSince=lastDel?Math.floor((new Date(today())-new Date(lastDel))/(1000*60*60*24)):null;
     return '<tr style="'+(isAlert?'background:#fff5f5;':'')+'">'+
-      '<td><span class="badge badge-blue">C'+String(c.id).padStart(3,'0')+'</span>'+(isAlert?'<span style="color:#e24b4a;margin-left:4px" title="Inactive 15+ days">&#9888;</span>':'')+'</td>'+
+      '<td><span class="badge badge-blue">C'+String(parseInt(c.id)||c.id).padStart(3,'0')+'</span>'+(isAlert?'<span style="color:#e24b4a;margin-left:4px" title="Inactive 15+ days">&#9888;</span>':'')+'</td>'+
       '<td><strong>'+c.name+'</strong></td>'+
       '<td>'+c.phone+'</td>'+
       '<td style="font-size:12px;color:var(--text2)">'+fmtAddr(c.address)+'</td>'+
@@ -5513,7 +5519,8 @@ function renderCustomerOrders(){
   '</tr></thead><tbody>'+
   (filtered.length?filtered.map(function(o){
     var name='—',typeLabel='',badge='badge-gray';
-    if(o.custId){var cv=getCustomer(o.custId);name=cv.name||'—';typeLabel='Customer';badge='badge-green';}
+    var _custMissing=false;
+    if(o.custId){var cv=getCustomer(o.custId);if(cv&&cv.name){name=cv.name;typeLabel='Customer';badge='badge-green';}else{name='<span style="color:#e24b4a;font-weight:600">⚠ Deleted Customer</span>';typeLabel='Customer';badge='badge-red';_custMissing=true;}}
     else if(o.prospectId){var pv=getProspect(o.prospectId);name=pv.name||'—';typeLabel='Prospect';badge='badge-amber';}
     var total=getOrderTotal(o);
     var dDiff=(new Date(o.deliveryDate)-new Date())/(1000*60*60*24);
@@ -5534,7 +5541,7 @@ function renderCustomerOrders(){
         (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder('+o.id+')">&#9998; Invoice</button>':'')+
         (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder('+o.id+')">Cancel</button>':'')+
         (o.status==='cancelled'?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>':'')+
-        (o.status!=='cancelled'?'<button class="btn btn-ghost btn-sm" onclick="deleteOrder('+o.id+')">Del</button>':'')+
+        '<button class="btn btn-ghost btn-sm" onclick="deleteOrder('+o.id+')">Del</button>'+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">No orders found for this filter</td></tr>')+
   '</tbody></table></div></div>';
@@ -5865,7 +5872,7 @@ async function deleteOrder(id){
   if(confirm('Delete this order?')){
     try{
       await apiCall('/api/orders/'+String(id),'DELETE');
-      state.customerOrders=state.customerOrders.filter(function(o){return o.id!==id;});renderPage();
+      state.customerOrders=state.customerOrders.filter(function(o){return String(o.id)!==String(id);});renderPage();
     }catch(e){alert('Failed to delete order: '+e.message);}
   }
 }
@@ -6072,7 +6079,7 @@ function showCustomerPayModal(custId){
 function updateCPPreview(custId){
   var invId=parseInt((document.getElementById('cp-inv')||{}).value)||0;
   var amount=parseFloat((document.getElementById('cp-amount')||{}).value)||0;
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   var el=document.getElementById('cp-preview');
   if(!el||!inv) return;
   var due=getInvoiceDue(inv);
@@ -6096,7 +6103,7 @@ async function saveCustomerPay(custId){
   var amount=parseFloat(document.getElementById('cp-amount').value)||0;
   if(amount<=0){alert('Please enter a valid amount.');return;}
   closeModal();
-  var inv=state.invoices.find(function(i){return i.id===invId;});
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
   if(!inv){alert('Invoice not found.');return;}
   var due=getInvoiceDue(inv);
   var remaining=Math.max(0,due-amount);
@@ -6720,18 +6727,111 @@ function paginatedTable(rows,key,theadHtml,extraClass){
 // ===================== BIND EVENTS =====================
 function bindEvents(){
   if(state.currentPage==='create-invoice'){setTimeout(function(){updateInvCalc();},50);}
-  // Apply DOM pagination to all tables after render
-  setTimeout(applyDOMPagination, 60);
+  // Apply DOM table search bars and pagination to all tables after render
+  setTimeout(function(){applyTableSearch();applyDOMPagination();}, 80);
 }
 
 // DOM-based pagination — runs after render, finds all tables and paginates them
+
+// ===================== DOM TABLE SEARCH =====================
+// Injects a live search bar above each table in #pageContent
+// and filters rows instantly without re-rendering the page.
+if(!window._tblSearchState) window._tblSearchState={};
+
+function applyTableSearch(){
+  var tables=document.querySelectorAll('#pageContent table');
+  tables.forEach(function(table, tIdx){
+    var tbody=table.querySelector('tbody');
+    if(!tbody) return;
+    var allRows=Array.from(tbody.querySelectorAll('tr'));
+    if(allRows.length===0) return;
+
+    var key='srch-'+state.currentPage+'-'+tIdx;
+    var wrap=table.closest('.table-wrap')||table.parentNode;
+    var container=wrap.parentNode||wrap;
+
+    // Only inject once per key
+    if(container.querySelector('.tbl-search-bar[data-key="'+key+'"]')) return;
+
+    var bar=document.createElement('div');
+    bar.className='tbl-search-bar';
+    bar.setAttribute('data-key',key);
+    bar.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 0 10px 0;';
+
+    var inp=document.createElement('input');
+    inp.type='text';
+    inp.placeholder='\uD83D\uDD0D Search...';
+    inp.value=window._tblSearchState[key]||'';
+    inp.style.cssText='flex:1;max-width:340px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text1);';
+
+    var clearBtn=document.createElement('button');
+    clearBtn.className='btn btn-ghost btn-sm';
+    clearBtn.textContent='Clear';
+    clearBtn.style.display=inp.value?'':'none';
+
+    var countSpan=document.createElement('span');
+    countSpan.style.cssText='font-size:12px;color:var(--text3);margin-left:4px;';
+
+    function doFilter(){
+      var q=(inp.value||'').toLowerCase().trim();
+      window._tblSearchState[key]=inp.value;
+      clearBtn.style.display=inp.value?'':'none';
+      var matchCount=0;
+      allRows.forEach(function(row){
+        var text=row.textContent.toLowerCase();
+        var show=!q||text.indexOf(q)>=0;
+        row.setAttribute('data-search-hidden', show?'':'1');
+        matchCount+=show?1:0;
+      });
+      countSpan.textContent=q?(matchCount+' result'+(matchCount!==1?'s':'')+' for "'+inp.value+'"'):'';
+      // Re-apply pagination after filtering
+      applyDOMPagination();
+    }
+
+    inp.oninput=doFilter;
+    clearBtn.onclick=function(){inp.value='';doFilter();inp.focus();};
+
+    bar.appendChild(inp);
+    bar.appendChild(clearBtn);
+    bar.appendChild(countSpan);
+    container.insertBefore(bar, wrap);
+
+    // Apply existing search state if any
+    if(window._tblSearchState[key]) doFilter();
+  });
+}
+
+// Patch applyDOMPagination to respect search-hidden rows
+var _origApplyDOMPagination=null;
+function _patchedApplyDOMPagination(){
+  var tables=document.querySelectorAll('#pageContent table');
+  tables.forEach(function(table, tIdx){
+    var tbody=table.querySelector('tbody');
+    if(!tbody) return;
+    // Mark rows hidden by search as display:none BEFORE pagination counts them
+    var allRows=Array.from(tbody.querySelectorAll('tr'));
+    allRows.forEach(function(row){
+      if(row.getAttribute('data-search-hidden')==='1') row.style.display='none';
+    });
+  });
+  _origApplyDOMPagination();
+}
+
 function applyDOMPagination(){
   var tables=document.querySelectorAll('#pageContent table');
   tables.forEach(function(table, tIdx){
     var tbody=table.querySelector('tbody');
     if(!tbody) return;
-    var rows=Array.from(tbody.querySelectorAll('tr'));
-    if(rows.length<=5) return; // no pagination for 5 or fewer rows
+    // All rows; filter out search-hidden ones for pagination counting
+    var allRowsRaw=Array.from(tbody.querySelectorAll('tr'));
+    // Hide search-filtered rows first
+    allRowsRaw.forEach(function(row){if(row.getAttribute('data-search-hidden')==='1') row.style.display='none';});
+    var rows=allRowsRaw.filter(function(r){return r.getAttribute('data-search-hidden')!=='1';});
+    if(rows.length<=5){
+      // Still show all visible rows when no pagination needed
+      rows.forEach(function(r){r.style.display='';});
+      return;
+    }
 
     var key='tbl-'+state.currentPage+'-'+tIdx;
     var size=getPageSize(key);
@@ -6791,7 +6891,9 @@ function applyDOMPagination(){
     // Info
     var info=document.createElement('span');
     info.className='pg-info';
-    info.textContent=(Math.min(start+1,total))+'–'+(Math.min(start+size,total))+' of '+total;
+    var searchKey='srch-'+state.currentPage+'-'+tIdx;
+    var searchQ=window._tblSearchState&&window._tblSearchState[searchKey]?window._tblSearchState[searchKey]:'';
+    info.textContent=(Math.min(start+1,total))+'–'+(Math.min(start+size,total))+' of '+total+(searchQ?' (filtered)':'');
     bar.appendChild(info);
 
     // Rows per page
@@ -8123,6 +8225,7 @@ window.downloadInvoice = downloadInvoice;
 window.showRecordPaymentModal = showRecordPaymentModal;
 window.showDeliveryModal = showDeliveryModal;
 window.confirmDelivery = confirmDelivery;
+window.coWhoChange = coWhoChange;
 window.showAddProspectModal = showAddProspectModal;
 window.renderPage = renderPage;
 window.saveNewProspect = saveNewProspect;
@@ -8154,6 +8257,7 @@ window.addPOItemRow=addPOItemRow;
 window.addStock=addStock;
 window.apiCall=apiCall;
 window.applyDOMPagination=applyDOMPagination;
+window.applyTableSearch=applyTableSearch;
 window.bindEvents=bindEvents;
 window.bootApp=bootApp;
 window.buildInvoiceHTML=buildInvoiceHTML;
