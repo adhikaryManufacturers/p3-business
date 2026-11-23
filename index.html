@@ -3857,7 +3857,10 @@ function downloadInvoicePDF(invId){
 function renderInvoices(){
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
   '<div><div class="section-title">All Invoices</div><div class="section-sub">Complete invoice history with carry-forward tracking</div></div>'+
-  '<button class="btn btn-primary" onclick="navigate(\'create-invoice\')">+ New Invoice</button></div>'+
+  '<div class="gap-12">'+
+  '<button class="btn btn-primary" onclick="navigate(\'create-invoice\')">+ New Invoice</button>'+
+  ((state.invoices||[]).some(function(i){return i.custId&&!getCustomer(i.custId).name;})?'<button class="btn btn-sm" style="background:#7f1d1d;color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px" onclick="deleteBrokenInvoices()">🗑 Remove Broken Records</button>':'')+
+  '</div></div>'+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
   '<th>Bill #</th><th>Customer</th><th>Date</th><th>Delivery</th><th>Current Bill</th><th>Prev Outstanding</th><th>Grand Total</th><th>Paid</th><th>Amount Due</th><th>Status</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
@@ -3975,6 +3978,23 @@ async function deleteInvoice(invId){
   }catch(e){alert('Failed to delete: '+e.message);}
 }
 window.deleteInvoice=deleteInvoice;
+
+async function deleteBrokenInvoices(){
+  var broken=(state.invoices||[]).filter(function(i){return i.custId&&!getCustomer(i.custId).name;});
+  if(broken.length===0){alert('No broken invoices found.');return;}
+  if(!confirm('Delete '+broken.length+' invoice(s) with deleted/missing customers? This cannot be undone.')){return;}
+  var failed=0;
+  for(var i=0;i<broken.length;i++){
+    try{
+      await apiCall('/api/invoices/'+String(broken[i].id),'DELETE');
+    }catch(e){failed++;}
+  }
+  state.invoices=await safeGet('/api/invoices');
+  if(failed>0){alert('Deleted '+(broken.length-failed)+' records. '+failed+' failed.');}
+  else{alert('Successfully deleted '+broken.length+' broken invoice(s).');}
+  renderPage();
+}
+window.deleteBrokenInvoices=deleteBrokenInvoices;
 
 async function cancelInvoice(invId){
   var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
@@ -5502,6 +5522,7 @@ function renderCustomerOrders(){
   '<div><div class="section-title">Customer Orders</div><div class="section-sub">Pre-orders from prospects and customers — generate invoice to confirm</div></div>'+
   '<div class="gap-12">'+
   '<button class="btn btn-secondary" onclick="showCreateOrderModal(null,null)">+ Create Order</button>'+
+  (orders.some(function(o){return o.custId&&!getCustomer(o.custId).name;})?'<button class="btn btn-sm" style="background:#7f1d1d;color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px" onclick="deleteBrokenOrders()">🗑 Remove Broken Records</button>':'')+
   '</div></div>'+
 
   // KPI summary
@@ -5544,7 +5565,7 @@ function renderCustomerOrders(){
         (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder('+o.id+')">&#9998; Invoice</button>':'')+
         (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder('+o.id+')">Cancel</button>':'')+
         (o.status==='cancelled'?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>':'')+
-        '<button class="btn btn-ghost btn-sm" onclick="deleteOrder('+o.id+')">Del</button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="deleteOrder(\''+o.id+'\')">Del</button>'+
       '</div></td></tr>';
   }).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">No orders found for this filter</td></tr>')+
   '</tbody></table></div></div>';
@@ -5878,6 +5899,21 @@ async function deleteOrder(id){
       state.customerOrders=state.customerOrders.filter(function(o){return String(o.id)!==String(id);});renderPage();
     }catch(e){alert('Failed to delete order: '+e.message);}
   }
+}
+async function deleteBrokenOrders(){
+  var broken=(state.customerOrders||[]).filter(function(o){return o.custId&&!getCustomer(o.custId).name;});
+  if(broken.length===0){alert('No broken orders found.');return;}
+  if(!confirm('Delete '+broken.length+' order(s) with deleted/missing customers? This cannot be undone.')){return;}
+  var failed=0;
+  for(var i=0;i<broken.length;i++){
+    try{
+      await apiCall('/api/orders/'+String(broken[i].id),'DELETE');
+      state.customerOrders=state.customerOrders.filter(function(o){return String(o.id)!==String(broken[i].id);});
+    }catch(e){failed++;}
+  }
+  if(failed>0){alert('Deleted '+(broken.length-failed)+' records. '+failed+' failed.');}
+  else{alert('Successfully deleted '+broken.length+' broken record(s).');}
+  renderPage();
 }
 function generateInvoiceFromOrder(orderId){
   var o=getCustOrder(orderId);
@@ -8249,6 +8285,7 @@ window.saveNewOrder = saveNewOrder;
 window.generateInvoiceFromOrder = generateInvoiceFromOrder;
 window.saveEditCustomer = saveEditCustomer;
 window.deleteOrder = deleteOrder;
+window.deleteBrokenOrders = deleteBrokenOrders;
 window.showEditOrderModal = showEditOrderModal;
 window.showEditProspectModal = showEditProspectModal;
 window.deleteProspect= deleteProspect;
