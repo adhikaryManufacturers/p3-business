@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v20261126-184705 -->
+<!DOCTYPE html><!-- v20261126-191951 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -862,7 +862,19 @@ function getProspect(id){id=String(id);return (state.prospects||[]).find(functio
 function getCustOrder(id){id=String(id);return (state.customerOrders||[]).find(function(o){return String(o.id)===id;})||{};}
 function prospectOrderCount(pId){return (state.customerOrders||[]).filter(function(o){return o.prospectId===pId;}).length;}
 function custOrderCount(cId){return (state.customerOrders||[]).filter(function(o){return o.custId===cId;}).length;}
-function getOrderTotal(order){return (order.items||[]).reduce(function(s,i){return s+(i.qty*i.rate);},0);}
+function getOrderTotal(order){return (order.items||[]).reduce(function(s,i){
+  // billingPkts is total Pkts; rate is per Pkt. Fall back to qty if billingPkts not set.
+  var bpkts=i.billingPkts||0;
+  if(bpkts>0) return s+(bpkts*i.rate);
+  // Legacy orders: qty is total Pcs, need to convert back to Pkts
+  var prod=getProduct(i.productId);var m={};try{if(prod&&prod.stockMeta)m=JSON.parse(prod.stockMeta);}catch(e){}
+  var pcs=parseFloat(m.pcsPerPkt)||parseFloat(m.count)||1;
+  var ppu=parseFloat(m.pktPerUnit)||1;
+  var qty=parseFloat(i.qty)||0;
+  // Try to derive Pkts from Pcs
+  var pkts=pcs>0?qty/pcs:qty;
+  return s+(pkts*i.rate);
+},0);}
 function getProduct(id){id=String(id);return state.products.find(function(p){return String(p.id)===id;})||{};}
 function getStaff(id){id=String(id);return state.staff.find(function(s){return String(s.id)===id;})||{};}
 function getVendor(id){id=String(id);return state.vendors.find(function(v){return String(v.id)===id;})||{};}
@@ -3614,7 +3626,7 @@ function showInvoiceSaveModal(invId){
     '<div style="font-weight:600;font-size:13px;margin-bottom:4px">Download HTML</div>'+
     '<div style="font-size:11px;color:var(--text3)">Open &amp; print</div></div></div>',
     '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\'+invId+\')">&#128065; Preview</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\'+invId+\')">&#128196; PDF</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="showPDFOptionsModal(\'+invId+\')">&#128196; PDF</button>'+
     '<button class="btn btn-download" onclick="downloadInvoice(\'+invId+\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
@@ -3681,7 +3693,7 @@ function buildInvoiceHTML(invId, forDownload){
     var hGrand=hSub+hPrev+hCustom-hAdvance;
     return '<tfoot>'+
     '<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px">Sub Total:</td><td style="padding:8px 12px;font-size:13px">'+fmt(hSub)+'</td></tr>'+
-    (hPrev>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#ba7517;font-weight:600">'+(inv.prevFromInvoice?'Carry Forward from #'+inv.prevFromInvoice:'Previous Outstanding')+':</td><td style="padding:8px 12px;color:#ba7517;font-weight:600">+ '+fmt(hPrev)+'</td></tr>':'')+
+    (hPrev>0&&mode!=='individual'?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#ba7517;font-weight:600">'+(inv.prevFromInvoice?'Carry Forward from #'+inv.prevFromInvoice:'Previous Outstanding')+':</td><td style="padding:8px 12px;color:#ba7517;font-weight:600">+ '+fmt(hPrev)+'</td></tr>':'')+
     (hCustom>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#1565c0;font-weight:600">'+(inv.customAmtLabel||'Additional Charge')+' *:</td><td style="padding:8px 12px;color:#1565c0;font-weight:600">+ '+fmt(hCustom)+'</td></tr>':'')+
     (hAdvance>0?'<tr><td colspan="6" style="text-align:right;padding:8px 12px;font-size:13px;color:#3B6D11;font-weight:600">Advance Received:</td><td style="padding:8px 12px;color:#3B6D11;font-weight:600">— '+fmt(hAdvance)+'</td></tr>':'')+
     '<tr><td colspan="6" style="text-align:right;padding:8px 12px;background:#27500A;color:#fff;font-weight:700;font-size:15px">Grand Total:</td><td style="padding:8px 12px;background:#27500A;color:#fff;font-weight:700;font-size:15px">'+fmt(hGrand)+'</td></tr>'+
@@ -3702,7 +3714,7 @@ function showInvoicePreview(invId){
   showModal('Invoice #'+invId,
     buildInvoiceHTML(invId,false),
     (due>0?'<button class="btn btn-primary" onclick="closeModal();showRecordPaymentModal(\''+invId+'\')">Record Payment</button>':'')+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="downloadInvoicePDF(\'+invId+\')">&#128196; PDF</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="showPDFOptionsModal(\'+invId+\')">&#128196; PDF</button>'+
     '<button class="btn btn-download" onclick="downloadInvoice(\'+invId+\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
@@ -3718,7 +3730,36 @@ function downloadInvoice(invId){
   document.body.removeChild(a);
 }
 
-function downloadInvoicePDF(invId){
+function showPDFOptionsModal(invId){
+  var inv=state.invoices.find(function(i){return String(i.id)===String(invId);});
+  var hasPrev=inv&&(inv.prevOutstanding||0)>0;
+  if(!hasPrev){
+    _buildAndPrintInvoicePDF(invId,'standard');
+    return;
+  }
+  var sid=String(invId);
+  var onclickStd="javascript:_buildAndPrintInvoicePDF('"+sid+"','standard');closeModal()";
+  var onclickInd="javascript:_buildAndPrintInvoicePDF('"+sid+"','individual');closeModal()";
+  showModal(
+    'Download Invoice PDF',
+    '<div style="padding:8px 0">'+
+    '<p style="color:var(--text2);font-size:13px;margin-bottom:18px">This invoice includes a carry-forward balance from a previous bill. Please select the format you wish to generate:</p>'+
+    '<div style="display:flex;flex-direction:column;gap:12px">'+
+    '<div style="border:1.5px solid var(--primary);border-radius:10px;padding:14px 16px;cursor:pointer;background:var(--green-50)" onclick="'+onclickStd+'">'+
+    '<div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:4px">&#128203; Continue with Last Invoice</div>'+
+    '<div style="font-size:12px;color:var(--text3)">Includes the outstanding balance carried forward from the previous invoice. Recommended for regular billing continuity.</div>'+
+    '</div>'+
+    '<div style="border:1.5px solid #666;border-radius:10px;padding:14px 16px;cursor:pointer;background:#f9f9f9" onclick="'+onclickInd+'">'+
+    '<div style="font-weight:700;font-size:14px;color:#333;margin-bottom:4px">&#128196; Generate as Individual Invoice</div>'+
+    '<div style="font-size:12px;color:var(--text3)">Generates a standalone invoice for this transaction only, without any previous balance. Use when billing independently of prior dues.</div>'+
+    '</div>'+
+    '</div></div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  );
+}
+window.showPDFOptionsModal = showPDFOptionsModal;
+
+function _buildAndPrintInvoicePDF(invId, mode){
   var inv=decodeInvoice(state.invoices.find(function(i){return String(i.id)===String(invId);}));
   if(!inv){alert('Invoice not found');return;}
   var cust=getCustomer(inv.custId);
@@ -3789,7 +3830,7 @@ function downloadInvoicePDF(invId){
 
   var html='<!DOCTYPE html><html lang="en"><head>'+
   '<meta charset="UTF-8">'+
-  '<title>Invoice #'+invId+' — Pranita Paper Plates</title>'+
+  '<title>'+cust.name+' — Invoice #'+invId+'</title>'+
   '<style>'+
   '*{box-sizing:border-box;margin:0;padding:0;}'+
   'body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#111;background:#fff;}'+
@@ -3872,7 +3913,7 @@ function downloadInvoicePDF(invId){
   var url=URL.createObjectURL(blob);
   var win=window.open(url,'_blank');
   if(!win){
-    var a=document.createElement('a');a.href=url;a.download='Invoice_'+invId+'.html';
+    var a=document.createElement('a');a.href=url;a.download=cust.name.replace(/[^a-zA-Z0-9]/g,'_')+'_Invoice_'+invId+'.html';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     showToast('Invoice downloaded — open and press Ctrl+P to save as PDF','amber');
   }else{
@@ -3947,7 +3988,7 @@ function renderInvoices(){
         '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
         '<td><div class="gap-12" style="flex-wrap:wrap">'+
           '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">👁 View</button>'+
-          (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="downloadInvoicePDF(\''+inv.id+'\')">&#128196; PDF</button>':'')+
+          (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="showPDFOptionsModal(\''+inv.id+'\')">&#128196; PDF</button>':'')+
           (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice(\''+inv.id+'\')">&#11015; HTML</button>':'')+
           (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal(\''+inv.id+'\')">💰 Pay</button>':'')+
           (inv.cfInvoiceId?'<span class="badge badge-blue" style="font-size:10px">&#8594; CF #'+inv.cfInvoiceId+'</span>':'')+
@@ -4134,7 +4175,7 @@ async function shareInvoiceWhatsApp(invId){
   if(phone && phone.length>=10){
     var url='https://wa.me/91'+phone.slice(-10)+'?text='+encodeURIComponent(msg);
     window.open(url,'_blank');
-    setTimeout(function(){downloadInvoicePDF(invId);},400);
+    setTimeout(function(){showPDFOptionsModal(invId);},400);
     showWAToast('WhatsApp opened! PDF downloading — attach it in the chat 📎');
   }else{
     showWhatsAppPickerModal(msg,'invoice');
@@ -4747,7 +4788,7 @@ async function savePaymentRecord(invId){
         '<div style="font-size:11px;color:var(--text3);margin-top:4px">Status: Unpaid</div>'+
         '</div></div>',
         '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\'+newId+\')">&#128065; View New Invoice #'+newId+'</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\'+newId+\')">&#128196; PDF</button>'+
+        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();showPDFOptionsModal(\'+newId+\')">&#128196; PDF</button>'+
         '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
     }
     renderPage();
@@ -5714,11 +5755,17 @@ function coHandleUnitClick(e, iid){
 
 
 function coGetBillingQty(item,meta){
-  var unit=item.qtyUnit||'Pkt';
+  // Return total Pkts — rate is per Pkt
+  if(item.billingPkts&&item.billingPkts>0) return item.billingPkts;
+  // Fallback: compute from meta
   if(!meta){try{var p=getProduct(item.productId);meta=JSON.parse(p.stockMeta||'{}');}catch(e){meta={};}}
+  var unit=item.qtyUnit||'Pkt';
   var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
-  if(unit==='Cartoon'||unit==='Bora') return (item.qtyCount||1)*pktPerUnit; // total pkts
-  return item.qtyCount||1; // pkts (Pkt or fallback)
+  var pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
+  if(unit==='Cartoon'||unit==='Bora') return (item.qtyCount||1)*pktPerUnit; // total Pkts
+  if(unit==='Pkt') return item.qtyCount||1; // already Pkts
+  // raw pcs mode — convert to pkts
+  return pcsPerPkt>0 ? (item.qtyCount||1)/pcsPerPkt : (item.qtyCount||1);
 }
 function coSelectProduct(itemId,productId){
   var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
@@ -5727,10 +5774,10 @@ function coSelectProduct(itemId,productId){
     item.productId=product.id;
     item.desc=product.name+(product.size?' - '+product.size:'');
     item.rate=product.price;
-    item.qtyUnit='Pkt';item.qtyCount=1;item.qty=1;item.unit='Pkt';
-    item._typeFilter=item._typeFilter||product.type;
+    item.qtyUnit='Pkt';item.qtyCount=1;item._typeFilter=item._typeFilter||product.type;
+    coRecalcItem(item); // sets qty, billingPkts, unit correctly
   } else if(item){
-    item.productId='';item.desc='';item.rate=0;
+    item.productId='';item.desc='';item.rate=0;item.billingPkts=0;item.qty=0;
   }
   redrawCoItems();
 }
@@ -5754,8 +5801,9 @@ function coUpdateQty(itemId,val){
 }
 function coUpdatePcs(itemId,val){
   var item=(window._coItems||[]).find(function(i){return String(i.id)===String(itemId);});
-  if(!item)return;item.qty=parseFloat(val)||1;item.qtyCount=item.qty;
-  var amtEl=document.getElementById('co-amt-'+itemId);if(amtEl)amtEl.textContent=fmt(item.qty*item.rate);
+  if(!item)return;item.qtyCount=parseFloat(val)||1;coRecalcItem(item);
+  var product=getProduct(item.productId);var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+  var amtEl=document.getElementById('co-amt-'+itemId);if(amtEl)amtEl.textContent=fmt(coGetBillingQty(item,meta)*item.rate);
   updateCoTotal();
 }
 function coUpdateRate(itemId,val){
@@ -5769,9 +5817,18 @@ function coRecalcItem(item){
   var product=getProduct(item.productId);var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
   var unit=item.qtyUnit||'Pkt',count=item.qtyCount||1;
   var pktPerUnit=parseFloat(meta.pktPerUnit)||1,pcsPerPkt=parseFloat(meta.pcsPerPkt)||1;
-  if(unit==='Cartoon'||unit==='Bora')item.qty=count*pktPerUnit*pcsPerPkt;
-  else if(unit==='Pkt')item.qty=count*pcsPerPkt;
-  else item.qty=count;
+  // item.qty = total Pcs (used by invoice PDF via resolveItemBilling)
+  // item.billingPkts = total Pkts (used for order total display, rate is per Pkt)
+  if(unit==='Cartoon'||unit==='Bora'){
+    item.billingPkts=count*pktPerUnit;
+    item.qty=item.billingPkts*pcsPerPkt;
+  } else if(unit==='Pkt'){
+    item.billingPkts=count;
+    item.qty=count*pcsPerPkt;
+  } else {
+    item.billingPkts=count;
+    item.qty=count;
+  }
   item.unit='Pcs';
 }
 function coRemoveItem(itemId){
@@ -5813,7 +5870,7 @@ async function saveNewOrder(){
   var items=[];
   (window._coItems||[]).forEach(function(item){
     if(!item.productId||item.qty<=0) return;
-    items.push({productId:item.productId,desc:item.desc||'',qty:item.qty,qtyCount:item.qtyCount||item.qty,qtyUnit:item.qtyUnit||'Pkt',unit:item.unit||'Pcs',rate:item.rate});
+    items.push({productId:item.productId,desc:item.desc||'',qty:item.qty,billingPkts:item.billingPkts||item.qty,qtyCount:item.qtyCount||item.qty,qtyUnit:item.qtyUnit||'Pkt',unit:item.unit||'Pcs',rate:item.rate});
   });
   if(!items.length){alert('Add at least one product item.');return;}
   var order={prospectId:prospectId,custId:custId,date:date,deliveryDate:delivery,items:items,notes:notes,status:'pending',invoiceId:null};
@@ -5912,7 +5969,20 @@ function showOrderDetailModal(orderId){
     '<div style="font-weight:700;font-size:15px">'+o.deliveryDate+'</div>'+
     '<div style="font-size:12px;color:var(--text3)">Expected delivery date</div></div></div>'+
     '<table class="inv-tbl"><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+(
-    (o.items||[]).map(function(item,i){var p=getProduct(item.productId);return '<tr><td>'+(i+1)+'</td><td>'+(p.name||'—')+'</td><td>'+item.qty+'</td><td>'+item.unit+'</td><td>'+fmt(item.rate)+'</td><td class="fw600">'+fmt(item.qty*item.rate)+'</td></tr>';}).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:24px;font-style:italic">No records found</td></tr>')
+    (o.items||[]).map(function(item,i){
+  var p=getProduct(item.productId);
+  // Determine billing qty in Pkts
+  var prod=getProduct(item.productId);var m={};try{if(prod&&prod.stockMeta)m=JSON.parse(prod.stockMeta);}catch(e){}
+  var pcs=parseFloat(m.pcsPerPkt)||parseFloat(m.count)||1;
+  var bpkts=item.billingPkts||0;
+  if(!bpkts||bpkts<=0){
+    // Legacy: derive from qty (total Pcs) ÷ pcsPerPkt
+    bpkts=pcs>0?(parseFloat(item.qty)||0)/pcs:(parseFloat(item.qty)||0);
+  }
+  bpkts=Math.round(bpkts*1000)/1000;
+  var amt=bpkts*item.rate;
+  return '<tr><td>'+(i+1)+'</td><td>'+(p.name||'—')+'</td><td>'+bpkts+'</td><td>Pkt</td><td>'+fmt(item.rate)+'</td><td class="fw600">'+fmt(amt)+'</td></tr>';
+}).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:24px;font-style:italic">No records found</td></tr>')
     +'</tbody><tfoot><tr><td colspan="5" style="text-align:right;padding:8px 12px;font-weight:700;background:#27500A;color:#fff">Est. Total:</td><td style="padding:8px 12px;font-weight:700;background:#27500A;color:#fff">'+fmt(total)+'</td></tr></tfoot></table>'+
     (o.notes?'<div style="margin-top:10px;font-size:12px;color:var(--text3)">Notes: '+o.notes+'</div>':'')+
     (o.invoiceId?'<div style="margin-top:10px;background:var(--green-50);border-radius:8px;padding:10px;font-size:13px;color:var(--primary);font-weight:600">&#10003; Invoiced — Invoice #'+o.invoiceId+'</div>':''),
@@ -5946,6 +6016,48 @@ async function deleteBrokenOrders(){
 function generateInvoiceFromOrder(orderId){
   var o=getCustOrder(orderId);
   if(!o||!o.id){alert('Order not found.');return;}
+  if(!o.custId&&o.prospectId){
+    convertToCustomer(o.prospectId,true);
+    o=getCustOrder(orderId);
+    if(!o.custId){alert('Could not assign customer. Please try again.');return;}
+  }
+  if(!o.custId){alert('Please assign a customer to this order first.');return;}
+
+  // Check if there is a previous outstanding balance for this customer
+  var prev=getCustomerTotalDue(o.custId);
+  if(prev>0){
+    // Ask user whether to include the carry-forward or treat as a standalone invoice
+    var sid=String(orderId);
+    var onclickCF="javascript:closeModal();_doGenerateInvoiceFromOrder('"+sid+"','standard')";
+    var onclickInd="javascript:closeModal();_doGenerateInvoiceFromOrder('"+sid+"','individual')";
+    var cust=getCustomer(o.custId);
+    showModal(
+      'Generate Invoice — Select Billing Mode',
+      '<div style="padding:8px 0">'+
+      '<p style="color:var(--text2);font-size:13px;margin-bottom:4px">Customer <strong>'+(cust.name||'')+'</strong> has an existing outstanding balance of <strong style="color:var(--red-400)">'+fmt(prev)+'</strong>.</p>'+
+      '<p style="color:var(--text2);font-size:13px;margin-bottom:18px">Please select how you would like to generate this invoice:</p>'+
+      '<div style="display:flex;flex-direction:column;gap:12px">'+
+      '<div style="border:1.5px solid var(--primary);border-radius:10px;padding:14px 16px;cursor:pointer;background:var(--green-50)" onclick="'+onclickCF+'">'+
+      '<div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:4px">&#128203; Continue with Last Invoice</div>'+
+      '<div style="font-size:12px;color:var(--text3)">Includes the carry-forward outstanding balance of '+fmt(prev)+' from the previous bill. Recommended for regular billing continuity.</div>'+
+      '</div>'+
+      '<div style="border:1.5px solid #666;border-radius:10px;padding:14px 16px;cursor:pointer;background:#f9f9f9" onclick="'+onclickInd+'">'+
+      '<div style="font-weight:700;font-size:14px;color:#333;margin-bottom:4px">&#128196; Generate as Individual Invoice</div>'+
+      '<div style="font-size:12px;color:var(--text3)">Generates a standalone invoice for this transaction only, without any previous outstanding balance. Use when billing independently of prior dues.</div>'+
+      '</div>'+
+      '</div></div>',
+      '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+    );
+  } else {
+    _doGenerateInvoiceFromOrder(orderId,'standard');
+  }
+}
+window.generateInvoiceFromOrder=generateInvoiceFromOrder;
+
+function _doGenerateInvoiceFromOrder(orderId, mode){
+  orderId=String(orderId);
+  var o=getCustOrder(orderId);
+  if(!o||!o.id){alert('Order not found.');return;}
 
   // If prospect — auto-convert silently (no confirm needed)
   if(!o.custId&&o.prospectId){
@@ -5961,8 +6073,8 @@ function generateInvoiceFromOrder(orderId){
     return {id:Date.now()+Math.random(),productId:item.productId,desc:p.name||'',qty:item.qty,unit:item.unit||'Pcs',rate:item.rate};
   });
 
-  // Get previous outstanding for this customer
-  var prev=getCustomerTotalDue(o.custId);
+  // Get previous outstanding for this customer (only if 'standard' mode)
+  var prev=(mode==='individual')?0:getCustomerTotalDue(o.custId);
 
   // Create invoice directly — no navigation to create-invoice page needed
   var newInv={
@@ -5998,9 +6110,9 @@ function generateInvoiceFromOrder(orderId){
   // Show success popup with invoice details + options
   var cust2=getCustomer(o.custId);
   var c2=calcInvoice(newInv);var _grand=getInvoiceGrand(newInv);
-  showModal('&#10003; Invoice Auto-Generated!',
+  showModal('✓ Invoice Auto-Generated!',
     '<div style="text-align:center;padding:10px 0 16px">'+
-    '<div style="font-size:40px;margin-bottom:8px">&#127881;</div>'+
+    '<div style="font-size:40px;margin-bottom:8px">🎉</div>'+
     '<div style="font-size:17px;font-weight:700;color:var(--primary);margin-bottom:4px">Invoice #'+newInvId+' Created</div>'+
     '<div style="font-size:13px;color:var(--text3);margin-bottom:16px">From Order ORD#'+orderId+' &nbsp;|&nbsp; Customer: '+cust2.name+'</div>'+
     '</div>'+
@@ -6015,15 +6127,17 @@ function generateInvoiceFromOrder(orderId){
     '</div>'+
     '<div style="background:var(--amber-50);border-radius:10px;padding:12px;text-align:center">'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Order Status</div>'+
-    '<div style="font-size:13px;font-weight:700;color:var(--amber-400)">&#10003; Invoiced</div>'+
+    '<div style="font-size:13px;font-weight:700;color:var(--amber-400)">✓ Invoiced</div>'+
     '</div>'+
     '</div>'+
-    (prev>0?'<div style="margin-top:10px;background:var(--amber-50);border-radius:8px;padding:10px;font-size:12px;color:var(--amber-400)">Previous outstanding '+fmt(prev)+' added to invoice total.</div>':''),
-    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\'+newInvId+\')">&#128065; View Invoice</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="closeModal();downloadInvoicePDF(\'+newInvId+\')">&#128196; PDF</button>'+
-    '<button class="btn btn-download" onclick="closeModal();downloadInvoice(\'+newInvId+\')">&#11015; HTML</button>'+
+    (prev>0?'<div style="margin-top:10px;background:var(--amber-50);border-radius:8px;padding:10px;font-size:12px;color:var(--amber-400)">Previous outstanding '+fmt(prev)+' included in invoice total.</div>':
+    (mode==='individual'?'<div style="margin-top:10px;background:#f0f0f0;border-radius:8px;padding:10px;font-size:12px;color:#555">Generated as an individual invoice — no previous balance included.</div>':'')),
+    '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+newInvId+'\')">👁 View Invoice</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="closeModal();showPDFOptionsModal(\''+newInvId+'\')">📄 PDF</button>'+
+    '<button class="btn btn-download" onclick="closeModal();downloadInvoice(\''+newInvId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
+window._doGenerateInvoiceFromOrder=_doGenerateInvoiceFromOrder;
 
 // Hook: after invoice generated from create-invoice page, mark order as invoiced
 function markOrderInvoiced(orderId,invId){
@@ -6211,7 +6325,7 @@ async function saveCustomerPay(custId){
         '<div style="font-size:12px;color:#0C447C">Balance: '+fmt(remaining)+'</div>'+
         '<div style="font-size:11px;color:var(--text3)">Status: Unpaid</div></div></div>',
         '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\'+newId+\')">&#128065; View #'+newId+'</button>'+
-        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();downloadInvoicePDF(\'+newId+\')">&#128196; PDF</button>'+
+        '<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="closeModal();showPDFOptionsModal(\'+newId+\')">&#128196; PDF</button>'+
         '<button class="btn btn-ghost btn-sm" onclick="closeModal()">Close</button>');
     }
     renderPage();
@@ -8287,7 +8401,8 @@ window.saveNewCustomer = saveNewCustomer;
 window.generateInvoice = generateInvoice;
 window.state = state;
 window.showInvoicePreview = showInvoicePreview;
-window.downloadInvoicePDF = downloadInvoicePDF;
+window.downloadInvoicePDF = _buildAndPrintInvoicePDF;
+window.showPDFOptionsModal = showPDFOptionsModal;
 window.downloadInvoice = downloadInvoice;
 window.showRecordPaymentModal = showRecordPaymentModal;
 window.showDeliveryModal = showDeliveryModal;
