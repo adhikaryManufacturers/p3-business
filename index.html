@@ -12,6 +12,19 @@
 <script src="https://www.unpkg.com/firebase@10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.unpkg.com/firebase@10.14.1/firebase-firestore-compat.js"></script>
 <script>
+// === DEBUG: catch y2mhnoTeKS2IUdayEHSw error and identify source ===
+window.addEventListener('error', function(e){
+  if(e.message && e.message.indexOf('y2mhno') !== -1){
+    var el = e.target || document.activeElement;
+    var info = 'TAG:' + (el ? el.tagName : '?') +
+               ' TEXT:' + (el ? (el.textContent||'').trim().slice(0,30) : '?') +
+               ' ONCLICK:' + (el ? (el.getAttribute ? (el.getAttribute('onclick')||'none') : '?') : '?') +
+               ' STACK:' + (e.error ? e.error.stack : '?');
+    alert('DEBUG - Error source:\n' + info);
+    console.error('FULL DEBUG:', info);
+  }
+});
+// === END DEBUG ===
 var _firebaseConfig = {
   apiKey: "AIzaSyDHw8-syGyRi_sLUn8SlB5Vhtw5_b3-wsM",
   authDomain: "pranita-suite-6a85f.firebaseapp.com",
