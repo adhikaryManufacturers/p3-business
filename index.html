@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v20261126-191951 -->
+<!DOCTYPE html><!-- v20261126-193333 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5378,6 +5378,7 @@ function renderAllContacts(){
         '<span style="font-size:11px;color:var(--text3);font-style:italic">No active invoices</span>':
       ''):'';
 
+    var pendingOrderId=String((contactOrders.find(function(o){return o.status==='pending';})||{id:0}).id);
     return '<tr>'+
       '<td style="color:var(--text3);font-size:11px">'+(idx+1)+'</td>'+
       '<td><strong>'+c.name+'</strong>'+(c.notes?'<div style="font-size:10px;color:var(--text3)">'+c.notes+'</div>':'')+'</td>'+
@@ -5391,7 +5392,7 @@ function renderAllContacts(){
       '<td><div class="gap-12">'+
         (c.type==='prospect'?
           '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+c.rawId+'\')">Edit</button>'+
-          (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder('+(contactOrders.find(function(o){return o.status==='pending';})||{id:0}).id+')">&#9998; Invoice</button>':
+          (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\''+pendingOrderId+'\')">&#9998; Invoice</button>':
           (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\''+c.rawId+'\',null)">+ Order</button>':
           (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\'+invoicedOrder.invoiceId+\')">View Invoice</button>':'')))+
           (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\''+c.rawId+'\',\'prospect\')">Orders</button>':''):
@@ -5903,55 +5904,101 @@ async function saveNewOrder(){
 }
 function showEditOrderModal(orderId){
   var o=getCustOrder(orderId);
+  if(!o||!o.id){alert('Order not found.');return;}
+  // Load order items into _coItems system (same as create order)
+  window._coItems=(o.items||[]).map(function(item){
+    var product=getProduct(item.productId);
+    var meta={};try{if(product.stockMeta)meta=JSON.parse(product.stockMeta);}catch(e){}
+    var pcsPerPkt=parseFloat(meta.pcsPerPkt)||parseFloat(meta.count)||1;
+    var pktPerUnit=parseFloat(meta.pktPerUnit)||1;
+    var unit=item.qtyUnit||'Pkt';
+    // Derive qtyCount from billingPkts or from stored qty
+    var billingPkts=item.billingPkts||0;
+    if(!billingPkts||billingPkts<=0){
+      // Legacy: derive from total pcs / pcsPerPkt to get pkts, then pkts / pktPerUnit to get count
+      var totalPcs=parseFloat(item.qty)||0;
+      billingPkts=pcsPerPkt>0?totalPcs/pcsPerPkt:totalPcs;
+    }
+    var qtyCount=(unit==='Bora'||unit==='Cartoon')?(pktPerUnit>0?billingPkts/pktPerUnit:billingPkts):billingPkts;
+    qtyCount=Math.round(qtyCount*1000)/1000;
+    return {
+      id:Date.now()+Math.random(),
+      productId:item.productId,
+      desc:item.desc||'',
+      rate:item.rate,
+      qtyUnit:unit,
+      qtyCount:qtyCount,
+      qty:parseFloat(item.qty)||0,
+      billingPkts:billingPkts,
+      unit:'Pcs'
+    };
+  });
   var prospectOpts=state.prospects.map(function(p){return '<option value="p_'+p.id+'" '+(o.prospectId===p.id?'selected':'')+'>'+p.name+' [Prospect]</option>';}).join('');
   var custOpts=buildSelectOpts(state.customers,function(c){return 'c_'+c.id;},function(c){return c.name+' [Customer]';},function(c){return o.custId===c.id?'selected':'';},
     'No customers yet','Add New Customer');
-  var itemRows=(o.items||[]).map(function(item,i){
-    return '<div class="form-grid" style="margin-bottom:8px" id="coi-'+i+'">'+
-    '<div class="form-group"><label>Product</label><select id="coi-prod-'+i+'" onchange="onOrderItemSelect(\'+i+\')" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%">'+
-    buildSelectOpts(state.products,function(p){return p.id;},function(p){return p.name;},function(p){return p.id===item.productId?'selected':'';},
-    'No products yet','Add New Product')+'</select></div>'+
-    '<div class="form-group"><label>Qty<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="number" id="coi-qty-'+i+'" value="'+item.qty+'" min="1" oninput="updateOrderTotal()"></div>'+
-    '<div class="form-group"><label>Unit</label><select id="coi-unit-'+i+'"><option '+(item.unit==='Pcs'?'selected':'')+'>Pcs</option><option '+(item.unit==='Kg'?'selected':'')+'>Kg</option><option '+(item.unit==='Box'?'selected':'')+'>Box</option></select></div>'+
-    '<div class="form-group"><label>Rate</label><input type="number" id="coi-rate-'+i+'" value="'+item.rate+'" step="0.25" oninput="updateOrderTotal()"></div>'+
-    '</div>';
-  }).join('');
+  var isCust=!!o.custId;
   showModal('Edit Order ORD#'+orderId,
     '<div class="form-grid">'+
-    '<div class="form-group full"><label>Customer / Prospect<span style="color:var(--red-400);margin-left:2px">*</span></label><select id="co-who" onchange="coWhoEditChange(this)"><option value="">—</option>'+prospectOpts+custOpts+'</select></div>'+
+    '<div class="form-group full"><label>Customer / Prospect<span style="color:var(--red-400);margin-left:2px">*</span></label>'+
+    '<select id="co-who" onchange="coWhoChange(this)"><option value="">— Select —</option>'+prospectOpts+custOpts+'</select></div>'+
     '<div class="form-group"><label>Order Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="co-date" value="'+o.date+'"></div>'+
     '<div class="form-group"><label>Delivery Date<span style="color:var(--red-400);margin-left:2px">*</span></label><input type="date" id="co-delivery" value="'+o.deliveryDate+'"></div>'+
     '<div class="form-group full"><label>Notes</label><input type="text" id="co-notes" value="'+(o.notes||'')+'"></div>'+
     '</div><div class="divider"></div>'+
-    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">Items</div>'+
-    '<div id="co-items-wrap">'+itemRows+'</div>'+
-    '<button class="btn btn-ghost btn-sm" onclick="addOrderItemRow()" style="margin:6px 0">+ Add Item</button>'+
-    '<div style="background:var(--green-50);border-radius:8px;padding:10px;font-size:13px;font-weight:600;color:var(--primary)" id="co-total-display">Est. Total: '+fmt(getOrderTotal(o))+'</div>',
-    '<button class="btn btn-primary" onclick="saveEditOrder(\'+orderId+\')">Update</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
-  window._coItemCount=o.items.length;
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+    '<div style="font-size:13px;font-weight:600;color:var(--text2)">Order Items</div>'+
+    '<button class="btn btn-ghost btn-sm" onclick="addCoItem()">+ Add Row</button></div>'+
+    '<div class="table-wrap" style="margin-bottom:12px"><table><thead><tr>'+
+    '<th>Product</th><th>HSN</th><th>Qty / Breakdown</th><th>Rate (₹)</th><th>Amount</th><th></th>'+
+    '</tr></thead><tbody id="co-items-body">'+buildCoItemRows()+'</tbody></table></div>'+
+    '<div style="background:var(--green-50);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--primary)" id="co-total-display">Est. Total: ₹0.00</div>',
+    '<button class="btn btn-primary" onclick="saveEditOrder(\''+orderId+'\')">Update</button>'+
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>');
+  // Set correct who value
+  setTimeout(function(){
+    var sel=document.getElementById('co-who');
+    if(sel){
+      if(o.custId) sel.value='c_'+o.custId;
+      else if(o.prospectId) sel.value='p_'+o.prospectId;
+    }
+    updateCoTotal();
+  },50);
 }
+window.showEditOrderModal=showEditOrderModal;
+
 async function saveEditOrder(orderId){
-  var o=getCustOrder(orderId);
-  var who=(document.getElementById('co-who').value||'');
+  var o=getCustOrder(String(orderId));
+  if(!o||!o.id){alert('Order not found.');return;}
+  var who=(document.getElementById('co-who').value||'').trim();
   if(who.startsWith('p_')){o.prospectId=parseInt(who.slice(2));o.custId=null;}
   else if(who.startsWith('c_')){o.custId=parseInt(who.slice(2));o.prospectId=null;}
   o.date=document.getElementById('co-date').value;
   o.deliveryDate=document.getElementById('co-delivery').value;
   o.notes=document.getElementById('co-notes').value;
-  var items=[];var n=window._coItemCount||1;
-  for(var i=0;i<n;i++){
-    var pid=parseInt((document.getElementById('coi-prod-'+i)||{}).value)||0;
-    var qty=parseFloat((document.getElementById('coi-qty-'+i)||{}).value)||0;
-    var unit=(document.getElementById('coi-unit-'+i)||{}).value||'Pcs';
-    var rate=parseFloat((document.getElementById('coi-rate-'+i)||{}).value)||0;
-    if(pid&&qty>0) items.push({productId:pid,qty:qty,unit:unit,rate:rate});
-  }
-  if(items.length) o.items=items;
+  // Collect items from _coItems (same system as create order)
+  var items=[];
+  (window._coItems||[]).forEach(function(item){
+    if(!item.productId||!(item.billingPkts>0||item.qty>0)) return;
+    items.push({
+      productId:item.productId,
+      desc:item.desc||'',
+      qty:item.qty,
+      billingPkts:item.billingPkts||item.qty,
+      qtyCount:item.qtyCount||1,
+      qtyUnit:item.qtyUnit||'Pkt',
+      unit:item.unit||'Pcs',
+      rate:item.rate
+    });
+  });
+  if(!items.length){alert('Add at least one product item.');return;}
+  o.items=items;
   try{
-    await apiCall('/api/orders/'+orderId,'PUT',o);
+    await apiCall('/api/orders/'+String(orderId),'PUT',o);
     closeModal();renderPage();
   }catch(e){alert('Failed to update order: '+e.message);}
 }
+window.saveEditOrder=saveEditOrder;
+
 function showOrderDetailModal(orderId){
   var o=getCustOrder(orderId);
   var name='—';
