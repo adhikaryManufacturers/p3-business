@@ -1805,20 +1805,20 @@ function renderDashboard(){
   var recentInv=[].concat(state.invoices).sort(function(a,b){return b.id-a.id;}).slice(0,5);
   return '<div class="section-title">Good morning 🌿</div><div class="section-sub">P3 Business Suite — Overview</div>'+
   '<div class="metrics">'+
-  '<div class="metric green"><div class="metric-label">Total Revenue</div><div class="metric-value">'+fmt(totalRevenue)+'</div><div class="metric-sub">Collected from invoices</div></div>'+
-  '<div class="metric red"><div class="metric-label">Outstanding Dues</div><div class="metric-value">'+fmt(totalDue)+'</div><div class="metric-sub">From customers</div></div>'+
-  '<div class="metric blue"><div class="metric-label">Active Staff</div><div class="metric-value">'+activeStaff+'</div><div class="metric-sub">Employees on roll</div></div>'+
-  '<div class="metric amber"><div class="metric-label">Pending Orders</div><div class="metric-value">'+pendingOrders+'</div><div class="metric-sub">Awaiting delivery</div></div>'+
-  '<div class="metric '+(lowStock>0?'red':'green')+'"><div class="metric-label">Low Stock Items</div><div class="metric-value">'+lowStock+'</div><div class="metric-sub">Below 100 units</div></div>'+
-  '<div class="metric '+(totalVendorDue>0?'amber':'green')+'" style="cursor:pointer" onclick="navigate(\'vendor-dashboard\')"><div class="metric-label">Vendor Dues</div><div class="metric-value">'+fmt(totalVendorDue)+'</div><div class="metric-sub" style="color:var(--amber-400)">Tap to view &#8594;</div></div>'+
-  '<div class="metric" style="cursor:pointer;border:1.5px solid var(--primary)" onclick="navigate(\'analytics\')"><div class="metric-label">Net Income (this month)</div><div class="metric-value fc-green">'+fmt(getMonthlyIncome())+'</div><div class="metric-sub" style="color:var(--primary)">Tap for analytics &#8594;</div></div>'+
+  '<div class="metric green" style="cursor:pointer" onclick="navigate(\'invoices\')"><div class="metric-label">Total Revenue</div><div class="metric-value">'+fmt(totalRevenue)+'</div><div class="metric-sub">Collected from invoices</div><div class="metric-sub" style="color:var(--primary);font-size:10px;margin-top:3px">Tap to view invoices &#8594;</div></div>'+
+  '<div class="metric red" style="cursor:pointer" onclick="navigate(\'customer-dues\')"><div class="metric-label">Outstanding Dues</div><div class="metric-value">'+fmt(totalDue)+'</div><div class="metric-sub">From customers</div><div class="metric-sub" style="color:var(--red-400);font-size:10px;margin-top:3px">Tap to view dues &#8594;</div></div>'+
+  '<div class="metric blue" style="cursor:pointer" onclick="navigate(\'staff-directory\')"><div class="metric-label">Active Staff</div><div class="metric-value">'+activeStaff+'</div><div class="metric-sub">Employees on roll</div><div class="metric-sub" style="color:#1a73e8;font-size:10px;margin-top:3px">Tap to view staff &#8594;</div></div>'+
+  '<div class="metric amber" style="cursor:pointer" onclick="navigate(\'orders\')"><div class="metric-label">Pending Orders</div><div class="metric-value">'+pendingOrders+'</div><div class="metric-sub">Awaiting delivery</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view orders &#8594;</div></div>'+
+  '<div class="metric '+(lowStock>0?'red':'green')+'" style="cursor:pointer" onclick="state.dashStockTab=\'Low Stock\';state.dashStockPage=1;navigate(\'products\')"><div class="metric-label">Low Stock Items</div><div class="metric-value">'+lowStock+'</div><div class="metric-sub">Below 100 units</div><div class="metric-sub" style="color:'+(lowStock>0?'var(--red-400)':'var(--primary)')+';font-size:10px;margin-top:3px">Tap to view stock &#8594;</div></div>'+
+  '<div class="metric '+(totalVendorDue>0?'amber':'green')+'" style="cursor:pointer" onclick="navigate(\'vendor-dashboard\')"><div class="metric-label">Vendor Dues</div><div class="metric-value">'+fmt(totalVendorDue)+'</div><div class="metric-sub">From vendors</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
+  '<div class="metric" style="cursor:pointer;border:1.5px solid var(--primary)" onclick="navigate(\'analytics\')"><div class="metric-label">Net Income (this month)</div><div class="metric-value fc-green">'+fmt(getMonthlyIncome())+'</div><div class="metric-sub">Estimated earnings</div><div class="metric-sub" style="color:var(--primary);font-size:10px;margin-top:3px">Tap for analytics &#8594;</div></div>'+
   '</div>'+
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'+
   '<div class="card"><div class="card-header"><div class="card-title">Recent Invoices</div><button class="btn btn-secondary btn-sm" onclick="navigate(&quot;invoices&quot;)">View All</button></div><div class="table-wrap"><table><thead><tr><th>Bill#</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+
   (recentInv.map(function(inv){
     var c2=calcInvoice(inv);var _grand=getInvoiceGrand(inv);var cust=getCustomer(inv.custId);
     var isCx=inv.status==='cancelled';
-    return '<tr style="'+(isCx?'opacity:0.7;background:#fff5f5':'')+'"><td><strong>#'+inv.id+'</strong></td><td>'+(cust.name||'Unknown')+'</td>'+
+    return '<tr style="cursor:pointer;'+(isCx?'opacity:0.7;background:#fff5f5':'')+'" onclick="showInvoicePreview(\''+inv.id+'\')" title="Click to view invoice #'+inv.id+'"><td><strong>#'+inv.id+'</strong></td><td>'+(cust.name||'Unknown')+'</td>'+
       '<td>'+(isCx?'<s style="color:var(--text3)">'+fmt(_grand)+'</s>':fmt(_grand))+'</td>'+
       '<td><span class="badge '+(isCx?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+
       (isCx?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td></tr>';
@@ -1827,7 +1827,7 @@ function renderDashboard(){
   '<div class="card"><div class="card-header"><div class="card-title">Staff Summary</div><button class="btn btn-secondary btn-sm" onclick="navigate(\'staff-directory\')">View All</button></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Leave</th><th>Pending Salary</th></tr></thead><tbody>'+
   (state.staff.map(function(s){
     var pending=getStaffTotalUnpaidBalance(s.id);
-    return '<tr><td><strong>'+s.name+'</strong></td><td>'+s.role+'</td><td><span class="badge '+(s.leaveBalance>2?'badge-green':s.leaveBalance>0?'badge-amber':'badge-red')+'">'+s.leaveBalance+' days</span></td><td>'+(pending>0?'<span class="fc-red fw600">'+fmt(pending)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td></tr>';
+    return '<tr style="cursor:pointer" onclick="navigate(\'payroll\')" title="Click to view payroll"><td><strong>'+s.name+'</strong></td><td>'+s.role+'</td><td><span class="badge '+(s.leaveBalance>2?'badge-green':s.leaveBalance>0?'badge-amber':'badge-red')+'">'+s.leaveBalance+' days</span></td><td>'+(pending>0?'<span class="fc-red fw600">'+fmt(pending)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div></div>'+
   '<div style="margin-top:16px" class="card">'+
