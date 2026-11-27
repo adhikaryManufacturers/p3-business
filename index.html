@@ -3668,7 +3668,7 @@ function showInvoiceSaveModal(invId){
     '<div style="font-weight:600;font-size:13px;margin-bottom:4px">Download HTML</div>'+
     '<div style="font-size:11px;color:var(--text3)">Open &amp; print</div></div></div>',
     '<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+invId+'\')">&#128065; Preview</button>'+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="_buildAndPrintInvoicePDF(\''+invId+'\','standard')">&#128196; PDF</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="_buildAndPrintInvoicePDF(\''+invId+'\',\'standard\')">&#128196; PDF</button>'+
     '<button class="btn btn-download" onclick="downloadInvoice(\''+invId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
@@ -3757,7 +3757,7 @@ function showInvoicePreview(invId){
   showModal('Invoice #'+invId,
     buildInvoiceHTML(invId,false,'standard'),
     (due>0?'<button class="btn btn-primary" onclick="closeModal();showRecordPaymentModal(\''+invId+'\')">Record Payment</button>':'')+
-    '<button class="btn btn-primary" style="background:#c0392b" onclick="_buildAndPrintInvoicePDF(\''+invId+'\','standard')">&#128196; PDF</button>'+
+    '<button class="btn btn-primary" style="background:#c0392b" onclick="_buildAndPrintInvoicePDF(\''+invId+'\',\'standard\')">&#128196; PDF</button>'+
     '<button class="btn btn-download" onclick="downloadInvoice(\''+invId+'\')">&#11015; HTML</button>'+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
@@ -4053,7 +4053,7 @@ function renderInvoices(){
           (!isCancelled?'<div class="inv-action-wrap" style="position:relative;display:inline-block">'+
             '<button class="btn btn-sm" style="background:var(--gray-600);color:#fff" onclick="toggleInvActionMenu(\''+inv.id+'\',event)">Actions &#9660;</button>'+
             '<div id="inv-menu-'+inv.id+'" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:200;min-width:130px;overflow:hidden">'+
-              '<button class="inv-menu-btn" onclick="_buildAndPrintInvoicePDF(\''+inv.id+'\','standard');closeInvActionMenus()">&#128196; PDF</button>'+
+              '<button class="inv-menu-btn" onclick="_buildAndPrintInvoicePDF(\''+inv.id+'\',\'standard\');closeInvActionMenus()">&#128196; PDF</button>'+
               '<button class="inv-menu-btn" onclick="downloadInvoice(\''+inv.id+'\');closeInvActionMenus()">&#11015; HTML</button>'+
               '<button class="inv-menu-btn" onclick="shareInvoiceWhatsApp(\''+inv.id+'\');closeInvActionMenus()">&#128362; Share</button>'+
             '</div>'+
