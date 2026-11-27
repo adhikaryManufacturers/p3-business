@@ -2416,6 +2416,21 @@ function prodStockHTML(p){
 function prodPriceUnit(p){
   try{var m=JSON.parse(p.stockMeta||'{}');return m.unitType&&m.unitType!=='Pieces'?'/Pkt':'/Pc';}catch(e){return '/Pc';}
 }
+function prodRowHTML(p){
+  return '<tr>'+
+    '<td><strong>'+p.name+'</strong></td>'+
+    '<td><span style="background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">'+p.type+'</span></td>'+
+    '<td>'+(p.size||'—')+'</td>'+
+    '<td>'+(p.hsn||'—')+'</td>'+
+    '<td>'+prodStockHTML(p)+'</td>'+
+    '<td class="fw600">'+fmt(p.price)+prodPriceUnit(p)+'</td>'+
+    '<td style="font-size:11px;color:var(--text3);">'+fmtTS(p.createdAt)+(p.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(p.updatedAt):'')+' </td>'+
+    '<td><div class="gap-12">'+
+    '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\''+p.id+'\')">Edit</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\''+p.id+'\')">+ Stock</button>'+
+    '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\''+p.id+'\')">Delete</button>'+
+    '</div></td></tr>';
+}
 function prodCardHTML(p){
   var stockColor=p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11';
   var stockBg=p.stock<100?'#fff5f5':p.stock<300?'#fffbf0':'#f0faf4';
@@ -2477,28 +2492,30 @@ function renderProducts(){
   '<button class="btn btn-primary" onclick="showAddProductModal()">+ Add Product</button>'+
   '</div></div>'+
 
-  // Tabs
-  '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">'+
+  // Type filter cards
+  '<div class="metrics" style="margin-bottom:16px">'+
   PRODUCT_TYPES.map(function(t){
     var active = t===tab;
-    var cnt = tabCounts[t];
-    return '<button onclick="state.productTab=\''+t+'\';state.productSearch=\'\';renderPage()" '+
-      'style="padding:7px 14px;border-radius:20px;border:1px solid '+(active?'var(--primary)':'var(--border)')+';'+
-      'background:'+(active?'var(--primary)':'var(--surface)')+';'+
-      'color:'+(active?'#fff':'var(--text2)')+';font-size:12.5px;font-weight:'+(active?'700':'500')+';cursor:pointer;transition:all 0.15s">'+
-      t+(cnt>0?' <span style="background:'+(active?'rgba(255,255,255,0.25)':'var(--primary-light)')+';color:'+(active?'#fff':'var(--primary)')+';padding:1px 7px;border-radius:10px;font-size:11px;margin-left:4px">'+cnt+'</span>':'')+
-      '</button>';
+    var cnt = t==='All' ? state.products.length : tabCounts[t]||0;
+    return '<div class="metric '+(active?'green':'')+'" style="cursor:pointer;'+(active?'box-shadow:0 0 0 3px var(--primary);':'')+'" '+
+      'onclick="state.productTab=\''+t+'\';state.productSearch=\'\';renderPage()">'+
+      '<div class="metric-label">'+t+'</div>'+
+      '<div class="metric-value" style="font-size:22px">'+cnt+'</div>'+
+      '<div class="metric-sub" style="'+(active?'color:var(--primary);':'')+'font-size:10px;margin-top:2px">'+(active?'Selected &#10003;':'Tap to filter')+'</div>'+
+    '</div>';
   }).join('')+
   '</div>'+
 
-  // Card grid
-  '<div id="prod-card-grid" class="prod-card-grid">'+
+  // Table
+  '<div class="card"><div class="table-wrap"><table><thead><tr>'+
+  '<th>Product Name</th><th>Type</th><th>Size</th><th>HSN</th><th>Stock</th><th>Price/Pkt</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Actions</th>'+
+  '</tr></thead><tbody id="prod-tbody">'+
   ([].concat(filtered).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(p){
-    return prodCardHTML(p);
+    return prodRowHTML(p);
   }).join('')||
-  '<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:40px;font-style:italic">'+
-  (search?'No products matching "'+state.productSearch+'"':'No products found')+'</div>')+
-  '</div>';
+  '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+
+  (search?'No products matching "'+state.productSearch+'"':'No products found')+'</td></tr>')+
+  '</tbody></table></div></div>';
 }
 
 function prodSearchFilter(val){
@@ -2514,11 +2531,11 @@ function prodSearchFilter(val){
       (p.hsn&&String(p.hsn).toLowerCase().includes(search));
     return matchTab&&matchSearch;
   });
-  var grid = document.getElementById('prod-card-grid');
-  if(!grid) return;
-  grid.innerHTML = [].concat(filtered).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(p){
-    return prodCardHTML(p);
-  }).join('')||'<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:40px;font-style:italic">'+(val?'No products matching "'+val+'"':'No products found')+'</div>';
+  var tbody = document.getElementById('prod-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = [].concat(filtered).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(p){
+    return prodRowHTML(p);
+  }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">'+(val?'No products matching "'+val+'"':'No products found')+'</td></tr>';
 }
 function showAddProductModal(){
   showModal('Add Product',
@@ -5186,12 +5203,12 @@ function renderSalesDashboard(){
 
   // KPI metrics
   '<div class="metrics" style="margin-bottom:20px">'+
-  '<div class="metric amber" style="cursor:pointer" onclick="navigate(\'crm\')"><div class="metric-label">Reached Out</div><div class="metric-value">'+contacted.length+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric blue" style="cursor:pointer" onclick="navigate(\'crm\')"><div class="metric-label">Order Given</div><div class="metric-value">'+orderGivenInRange.length+'</div><div class="metric-sub" style="color:#1a73e8;font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric green" style="cursor:pointer" onclick="navigate(\'customers\')"><div class="metric-label">Confirmed</div><div class="metric-value">'+confirmedInRange.length+'</div><div class="metric-sub" style="color:var(--primary);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
+  '<div class="metric amber"><div class="metric-label">Reached Out</div><div class="metric-value">'+contacted.length+'</div><div class="metric-sub">New contacts this period</div></div>'+
+  '<div class="metric blue"><div class="metric-label">Order Given</div><div class="metric-value">'+orderGivenInRange.length+'</div><div class="metric-sub">Gave order, pending invoice</div></div>'+
+  '<div class="metric green"><div class="metric-label">Confirmed</div><div class="metric-value">'+confirmedInRange.length+'</div><div class="metric-sub">Invoice generated</div></div>'+
   '<div class="metric '+(convRate>=50?'green':'amber')+'"><div class="metric-label">Conversion Rate</div><div class="metric-value">'+convRate+'%</div><div class="metric-sub">Contacts → confirmed</div></div>'+
-  '<div class="metric" style="cursor:pointer" onclick="navigate(\'orders\')"><div class="metric-label">Orders Placed</div><div class="metric-value">'+ordersInRange.length+'</div><div class="metric-sub" style="font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric green" style="cursor:pointer" onclick="navigate(\'invoices\')"><div class="metric-label">Invoiced Value</div><div class="metric-value" style="font-size:16px">'+fmt(invoicedValue)+'</div><div class="metric-sub" style="color:var(--primary);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
+  '<div class="metric"><div class="metric-label">Orders Placed</div><div class="metric-value">'+ordersInRange.length+'</div><div class="metric-sub">Est. value: '+fmt(orderValue)+'</div></div>'+
+  '<div class="metric green"><div class="metric-label">Invoiced Value</div><div class="metric-value" style="font-size:16px">'+fmt(invoicedValue)+'</div><div class="metric-sub">'+invoicedOrders.length+' orders invoiced</div></div>'+
   '</div>'+
 
   // Funnel visualization
@@ -5394,10 +5411,10 @@ function renderAllContacts(){
   // Summary metrics
   '<div class="metrics" style="margin-bottom:16px">'+
   '<div class="metric"><div class="metric-label">Total Contacts</div><div class="metric-value">'+totalContacts+'</div><div class="metric-sub">All stages</div></div>'+
-  '<div class="metric amber" style="cursor:pointer" onclick="document.getElementById(\'crm-reached-out\')&&document.getElementById(\'crm-reached-out\').scrollIntoView({behavior:\'smooth\'})"><div class="metric-label">Reached Out</div><div class="metric-value">'+reachedOut+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric blue" style="cursor:pointer" onclick="document.getElementById(\'crm-order-given\')&&document.getElementById(\'crm-order-given\').scrollIntoView({behavior:\'smooth\'})"><div class="metric-label">Order Given</div><div class="metric-value">'+orderGiven+'</div><div class="metric-sub" style="color:#1a73e8;font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  (newCust>0?'<div class="metric amber" style="cursor:pointer" onclick="navigate(\'customers\')"><div class="metric-label">New Customer</div><div class="metric-value">'+newCust+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>':'')+
-  '<div class="metric green" style="cursor:pointer" onclick="navigate(\'customers\')"><div class="metric-label">Confirmed</div><div class="metric-value">'+confirmed+'</div><div class="metric-sub" style="color:var(--primary);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
+  '<div class="metric amber"><div class="metric-label">Reached Out</div><div class="metric-value">'+reachedOut+'</div><div class="metric-sub">Contacted, no order</div></div>'+
+  '<div class="metric blue"><div class="metric-label">Order Given</div><div class="metric-value">'+orderGiven+'</div><div class="metric-sub">Order received</div></div>'+
+  (newCust>0?'<div class="metric amber"><div class="metric-label">New Customer</div><div class="metric-value">'+newCust+'</div><div class="metric-sub">No invoice yet</div></div>':'')+
+  '<div class="metric green"><div class="metric-label">Confirmed</div><div class="metric-value">'+confirmed+'</div><div class="metric-sub">Invoice generated</div></div>'+
   '</div>'+
 
   // Filter bar
@@ -5679,8 +5696,8 @@ function renderCustomerOrders(){
 
   // KPI summary
   '<div class="metrics" style="margin-bottom:16px">'+
-  '<div class="metric amber" style="cursor:pointer" onclick="state.coFilter=\'pending\';renderPage()"><div class="metric-label">Pending Orders</div><div class="metric-value">'+pendingCount+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to filter &#8594;</div></div>'+
-  '<div class="metric green" style="cursor:pointer" onclick="navigate(\'invoices\')"><div class="metric-label">Invoiced Orders</div><div class="metric-value">'+invoicedCount+'</div><div class="metric-sub" style="color:var(--primary);font-size:10px;margin-top:3px">Tap to invoices &#8594;</div></div>'+
+  '<div class="metric amber"><div class="metric-label">Pending Orders</div><div class="metric-value">'+pendingCount+'</div><div class="metric-sub">Invoice not yet generated</div></div>'+
+  '<div class="metric green"><div class="metric-label">Invoiced Orders</div><div class="metric-value">'+invoicedCount+'</div><div class="metric-sub">Invoice generated</div></div>'+
   '<div class="metric blue"><div class="metric-label">Total Orders</div><div class="metric-value">'+orders.length+'</div><div class="metric-sub">All time</div></div>'+
   '<div class="metric"><div class="metric-label">Est. Value (Pending)</div><div class="metric-value" style="font-size:16px">'+fmt(orders.filter(function(o){return o.status==='pending';}).reduce(function(s,o){return s+getOrderTotal(o);},0))+'</div><div class="metric-sub">Unconverted revenue</div></div>'+
   '</div>'+
@@ -6492,12 +6509,12 @@ function renderVendorDashboard(){
 
   // KPI metrics
   '<div class="metrics">'+
-  '<div class="metric red" style="cursor:pointer" onclick="navigate(\'purchase-orders\')"><div class="metric-label">Total Pending Payment</div><div class="metric-value">'+fmt(totalDue)+'</div><div class="metric-sub" style="color:var(--red-400);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric green" style="cursor:pointer" onclick="navigate(\'purchase-orders\')"><div class="metric-label">Total Paid to Vendors</div><div class="metric-value">'+fmt(totalPaid)+'</div><div class="metric-sub" style="color:var(--primary);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric amber" style="cursor:pointer" onclick="navigate(\'purchase-orders\')"><div class="metric-label">Partial Payments</div><div class="metric-value">'+partialOrders.length+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric '+(overdueOrders.length>0?'red':'green')+'" style="cursor:pointer" onclick="navigate(\'purchase-orders\')"><div class="metric-label">Overdue Orders</div><div class="metric-value">'+overdueOrders.length+'</div><div class="metric-sub" style="color:'+(overdueOrders.length>0?'var(--red-400)':'var(--primary)')+';font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric blue" style="cursor:pointer" onclick="navigate(\'purchase-orders\')"><div class="metric-label">Total Orders</div><div class="metric-value">'+totalOrders+'</div><div class="metric-sub" style="color:#1a73e8;font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric" style="cursor:pointer" onclick="navigate(\'vendors\')"><div class="metric-label">Vendors</div><div class="metric-value">'+state.vendors.length+'</div><div class="metric-sub" style="font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
+  '<div class="metric red"><div class="metric-label">Total Pending Payment</div><div class="metric-value">'+fmt(totalDue)+'</div><div class="metric-sub">Owed to vendors</div></div>'+
+  '<div class="metric green"><div class="metric-label">Total Paid to Vendors</div><div class="metric-value">'+fmt(totalPaid)+'</div><div class="metric-sub">All time</div></div>'+
+  '<div class="metric amber"><div class="metric-label">Partial Payments</div><div class="metric-value">'+partialOrders.length+'</div><div class="metric-sub">Orders partially paid</div></div>'+
+  '<div class="metric '+(overdueOrders.length>0?'red':'green')+'"><div class="metric-label">Overdue Orders</div><div class="metric-value">'+overdueOrders.length+'</div><div class="metric-sub">Past due date</div></div>'+
+  '<div class="metric blue"><div class="metric-label">Total Orders</div><div class="metric-value">'+totalOrders+'</div><div class="metric-sub">Purchase orders</div></div>'+
+  '<div class="metric"><div class="metric-label">Vendors</div><div class="metric-value">'+state.vendors.length+'</div><div class="metric-sub">Active suppliers</div></div>'+
   '</div>'+
 
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
@@ -7273,11 +7290,11 @@ function renderExpenditure(){
   // KPI cards
   '<div class="metrics" style="margin-bottom:20px">'+
   '<div class="metric red"><div class="metric-label">Total Expenditure</div><div class="metric-value">'+fmt(exp.total)+'</div><div class="metric-sub">'+monthName(selMonth)+'</div></div>'+
-  '<div class="metric amber" style="cursor:pointer" onclick="navigate(\'payroll\')"><div class="metric-label">Staff Salary</div><div class="metric-value">'+fmt(exp.salary)+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view payroll &#8594;</div></div>'+
-  '<div class="metric blue" style="cursor:pointer" onclick="state.expFilter=\'electricity\';navigate(\'expenses\')"><div class="metric-label">Electricity</div><div class="metric-value">'+fmt(exp.electricity)+'</div><div class="metric-sub" style="color:#1a73e8;font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric" style="cursor:pointer" onclick="state.expFilter=\'rent\';navigate(\'expenses\')"><div class="metric-label">Rent</div><div class="metric-value">'+fmt(exp.rent)+'</div><div class="metric-sub" style="font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric amber" style="cursor:pointer" onclick="state.expFilter=\'loan\';navigate(\'expenses\')"><div class="metric-label">Loan EMI</div><div class="metric-value">'+fmt(exp.loan)+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
-  '<div class="metric" style="cursor:pointer" onclick="state.expFilter=\'others\';navigate(\'expenses\')"><div class="metric-label">Others</div><div class="metric-value">'+fmt(exp.others)+'</div><div class="metric-sub" style="font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
+  '<div class="metric amber"><div class="metric-label">Staff Salary</div><div class="metric-value">'+fmt(exp.salary)+'</div><div class="metric-sub">From payroll records</div></div>'+
+  '<div class="metric blue"><div class="metric-label">Electricity</div><div class="metric-value">'+fmt(exp.electricity)+'</div><div class="metric-sub">Logged entries</div></div>'+
+  '<div class="metric"><div class="metric-label">Rent</div><div class="metric-value">'+fmt(exp.rent)+'</div><div class="metric-sub">Logged entries</div></div>'+
+  '<div class="metric amber"><div class="metric-label">Loan EMI</div><div class="metric-value">'+fmt(exp.loan)+'</div><div class="metric-sub">Logged entries</div></div>'+
+  '<div class="metric"><div class="metric-label">Others</div><div class="metric-value">'+fmt(exp.others)+'</div><div class="metric-sub">Logged entries</div></div>'+
   '</div>'+
 
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
@@ -7343,11 +7360,11 @@ function renderExpenses(){
 
   // This month KPIs
   '<div class="metrics" style="margin-bottom:16px">'+
-  '<div class="metric red" style="cursor:pointer" onclick="state.expFilter=\'all\';renderPage()"><div class="metric-label">This Month Total</div><div class="metric-value">'+fmt(thisMonthTotal)+'</div><div class="metric-sub" style="color:var(--red-400);font-size:10px;margin-top:3px">Tap to view all &#8594;</div></div>'+
-  '<div class="metric blue" style="cursor:pointer" onclick="state.expFilter=\'electricity\';renderPage()"><div class="metric-label">Electricity</div><div class="metric-value">'+fmt(catTotals.electricity)+'</div><div class="metric-sub" style="color:#1a73e8;font-size:10px;margin-top:3px">Tap to filter &#8594;</div></div>'+
-  '<div class="metric" style="cursor:pointer" onclick="state.expFilter=\'rent\';renderPage()"><div class="metric-label">Rent</div><div class="metric-value">'+fmt(catTotals.rent)+'</div><div class="metric-sub" style="font-size:10px;margin-top:3px">Tap to filter &#8594;</div></div>'+
-  '<div class="metric amber" style="cursor:pointer" onclick="state.expFilter=\'loan\';renderPage()"><div class="metric-label">Loan / EMI</div><div class="metric-value">'+fmt(catTotals.loan)+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to filter &#8594;</div></div>'+
-  '<div class="metric" style="cursor:pointer" onclick="state.expFilter=\'others\';renderPage()"><div class="metric-label">Others</div><div class="metric-value">'+fmt(catTotals.others)+'</div><div class="metric-sub" style="font-size:10px;margin-top:3px">Tap to filter &#8594;</div></div>'+
+  '<div class="metric red"><div class="metric-label">This Month Total</div><div class="metric-value">'+fmt(thisMonthTotal)+'</div><div class="metric-sub">'+monthName(thisMonth)+'</div></div>'+
+  '<div class="metric blue"><div class="metric-label">Electricity</div><div class="metric-value">'+fmt(catTotals.electricity)+'</div><div class="metric-sub">This month</div></div>'+
+  '<div class="metric"><div class="metric-label">Rent</div><div class="metric-value">'+fmt(catTotals.rent)+'</div><div class="metric-sub">This month</div></div>'+
+  '<div class="metric amber"><div class="metric-label">Loan / EMI</div><div class="metric-value">'+fmt(catTotals.loan)+'</div><div class="metric-sub">This month</div></div>'+
+  '<div class="metric"><div class="metric-label">Others</div><div class="metric-value">'+fmt(catTotals.others)+'</div><div class="metric-sub">This month</div></div>'+
   '<div class="metric green"><div class="metric-label">All Time Total</div><div class="metric-value" style="font-size:16px">'+fmt(totalAll)+'</div><div class="metric-sub">All entries</div></div>'+
   '</div>'+
 
@@ -7582,12 +7599,12 @@ function renderAnalytics(){
   '</div></div></div>'+
   // KPI metrics
   '<div class="metrics">'+
-  '<div class="metric green" style="cursor:pointer" onclick="navigate(\'invoices\')"><div class="metric-label">Total Sales</div><div class="metric-value">'+fmt(totalSales)+'</div><div class="metric-sub" style="color:var(--primary);font-size:10px;margin-top:3px">Tap to view invoices &#8594;</div></div>'+
-  '<div class="metric blue" style="cursor:pointer" onclick="navigate(\'invoices\')"><div class="metric-label">Collected</div><div class="metric-value">'+fmt(totalCollected)+'</div><div class="metric-sub" style="color:#1a73e8;font-size:10px;margin-top:3px">Tap to view invoices &#8594;</div></div>'+
-  '<div class="metric red" style="cursor:pointer" onclick="navigate(\'customer-dues\')"><div class="metric-label">Outstanding</div><div class="metric-value">'+fmt(totalDue)+'</div><div class="metric-sub" style="color:var(--red-400);font-size:10px;margin-top:3px">Tap to view dues &#8594;</div></div>'+
-  '<div class="metric amber" style="cursor:pointer" onclick="navigate(\'expenditure\')"><div class="metric-label">Actual Expenses</div><div class="metric-value">'+fmt(fixedExp)+'</div><div class="metric-sub" style="color:var(--amber-400);font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
+  '<div class="metric green"><div class="metric-label">Total Sales</div><div class="metric-value">'+fmt(totalSales)+'</div><div class="metric-sub">'+numInvoices+' invoices</div></div>'+
+  '<div class="metric blue"><div class="metric-label">Collected</div><div class="metric-value">'+fmt(totalCollected)+'</div><div class="metric-sub">Amount received</div></div>'+
+  '<div class="metric red"><div class="metric-label">Outstanding</div><div class="metric-value">'+fmt(totalDue)+'</div><div class="metric-sub">Pending payment</div></div>'+
+  '<div class="metric amber"><div class="metric-label">Actual Expenses</div><div class="metric-value">'+fmt(fixedExp)+'</div><div class="metric-sub">For '+Math.round(days)+' days</div></div>'+
   '<div class="metric '+(netIncome>=0?'green':'red')+'"><div class="metric-label">Net Income</div><div class="metric-value">'+fmt(Math.max(0,netIncome))+'</div><div class="metric-sub">20% of profit</div></div>'+
-  '<div class="metric" style="cursor:pointer" onclick="navigate(\'invoices\')"><div class="metric-label">Deliveries</div><div class="metric-value">'+numDelivered+'/'+numInvoices+'</div><div class="metric-sub" style="font-size:10px;margin-top:3px">Tap to view &#8594;</div></div>'+
+  '<div class="metric"><div class="metric-label">Deliveries</div><div class="metric-value">'+numDelivered+'/'+numInvoices+'</div><div class="metric-sub">Completed</div></div>'+
   '</div>'+
   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
   '<div class="card"><div class="card-header"><div class="card-title">Actual Expenditure Breakdown</div><button class="btn btn-secondary btn-sm" onclick="navigate(\'expenditure\')">Details</button></div><div class="card-body">'+
