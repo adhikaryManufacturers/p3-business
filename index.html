@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v20261126-193333 -->
+<!DOCTYPE html><!-- v20261126-195924 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5366,7 +5366,7 @@ function renderAllContacts(){
       (cancelledInvs.length>0?'<div style="font-size:10px;color:#e24b4a;margin-top:2px">'+cancelledInvs.length+' cancelled</div>':'')+
       (activeInvs.length===0&&cancelledInvs.length>0?'<div style="font-size:11px;color:var(--text3);font-style:italic">No active invoices</div>':'')+
       '</div>':
-      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\'+invoicedOrder.invoiceId+\')">#'+invoicedOrder.invoiceId+'</span>':'—');
+      (invoicedOrder?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\''+ invoicedOrder.invoiceId +'\')">#'+invoicedOrder.invoiceId+'</span>':'—');
 
     var actUnpaidInvs=(state.invoices||[]).filter(function(i){return String(i.custId)===String(c.rawId)&&i.status!=='paid'&&i.status!=='cancelled';});
     var payBtn=c.type==='customer'?(
@@ -5394,7 +5394,7 @@ function renderAllContacts(){
           '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+c.rawId+'\')">Edit</button>'+
           (hasPendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\''+pendingOrderId+'\')">&#9998; Invoice</button>':
           (!contactOrders.length?'<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\''+c.rawId+'\',null)">+ Order</button>':
-          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\'+invoicedOrder.invoiceId+\')">View Invoice</button>':'')))+
+          (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+ invoicedOrder.invoiceId +'\')">View Invoice</button>':'')))+
           (hasInvoices||invoicedOrder?'<button class="btn btn-ghost btn-sm" onclick="showCustOrdersModal(\''+c.rawId+'\',\'prospect\')">Orders</button>':''):
           '<button class="btn btn-secondary btn-sm" onclick="showEditCustomerModal(\''+c.rawId+'\')">Edit</button>'+
           '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(null,'+c.rawId+')">+ Order</button>'+
@@ -5479,7 +5479,7 @@ function renderCRM(){
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+p.id+'\')">Edit</button>'+
         (pendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\'+pendingOrder.id+\')">&#9998; Generate Invoice</button>':''+
-        (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\'+invoicedOrder.invoiceId+\')">View Invoice #'+invoicedOrder.invoiceId+'</button>':
+        (invoicedOrder?'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+ invoicedOrder.invoiceId +'\')">View Invoice #'+invoicedOrder.invoiceId+'</button>':
         '<button class="btn btn-ghost btn-sm" onclick="showCreateOrderModal(\''+p.id+'\',null)">+ Add Order</button>'))+
         '<button class="btn btn-danger btn-sm" onclick="deleteProspect(\''+p.id+'\')">Del</button>'+
       '</div></td></tr>';
@@ -5628,12 +5628,12 @@ function renderCustomerOrders(){
       '<td style="font-size:12px;color:var(--text2)">'+(o.items||[]).map(function(i){var p=getProduct(i.productId);return (p.name||'Item')+' &times;'+i.qty;}).join('<br>')+'</td>'+
       '<td class="fw600">'+fmt(total)+'</td>'+
       '<td><span class="badge '+(o.status==='invoiced'?'badge-green':'badge-amber')+'">'+(o.status==='invoiced'?'&#10003; Invoiced':'Pending')+'</span></td>'+
-      '<td>'+(o.invoiceId?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\'+o.invoiceId+\')">#'+o.invoiceId+'</span>':'—')+'</td>'+
+      '<td>'+(o.invoiceId?'<span class="badge badge-green" style="cursor:pointer" onclick="showInvoicePreview(\''+ o.invoiceId +'\')">#'+o.invoiceId+'</span>':'—')+'</td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showOrderDetailModal(\''+o.id+'\')">View</button>'+
         (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-primary btn-sm" onclick="showEditOrderModal(\''+o.id+'\')">Edit</button>':'')+
-        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder(\'+o.id+\')">&#9998; Invoice</button>':'')+
-        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder(\'+o.id+\')">Cancel</button>':'')+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-sm" style="background:var(--primary);color:#fff;padding:5px 10px;font-size:12px;border-radius:8px;border:none;cursor:pointer" onclick="generateInvoiceFromOrder(\''+ o.id +'\')">&#9998; Invoice</button>':'')+
+        (o.status!=='invoiced'&&o.status!=='cancelled'?'<button class="btn btn-danger btn-sm" onclick="cancelOrder(\''+ o.id +'\')">Cancel</button>':'')+
         (o.status==='cancelled'?'<span style="font-size:11px;color:#e24b4a;font-style:italic">Cancelled</span>':'')+
         '<button class="btn btn-ghost btn-sm" onclick="deleteOrder(\''+o.id+'\')">Del</button>'+
       '</div></td></tr>';
@@ -5895,7 +5895,7 @@ async function saveNewOrder(){
             '<div style="font-size:16px;font-weight:700;color:var(--primary);margin-bottom:6px">Order ORD#'+saved.id+' saved!</div>'+
             '<div style="font-size:13px;color:var(--text3)">Would you like to generate an invoice for this order now?</div>'+
             '</div>',
-            '<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\'+saved.id+\')">&#9998; Yes, Generate Invoice Now</button>'+
+            '<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\''+ saved.id +'\')">&#9998; Yes, Generate Invoice Now</button>'+
             '<button class="btn btn-ghost" onclick="closeModal()">No, Later</button>');
         },100);
       }
@@ -6033,7 +6033,7 @@ function showOrderDetailModal(orderId){
     +'</tbody><tfoot><tr><td colspan="5" style="text-align:right;padding:8px 12px;font-weight:700;background:#27500A;color:#fff">Est. Total:</td><td style="padding:8px 12px;font-weight:700;background:#27500A;color:#fff">'+fmt(total)+'</td></tr></tfoot></table>'+
     (o.notes?'<div style="margin-top:10px;font-size:12px;color:var(--text3)">Notes: '+o.notes+'</div>':'')+
     (o.invoiceId?'<div style="margin-top:10px;background:var(--green-50);border-radius:8px;padding:10px;font-size:13px;color:var(--primary);font-weight:600">&#10003; Invoiced — Invoice #'+o.invoiceId+'</div>':''),
-    (o.status!=='invoiced'?'<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\'+orderId+\')">&#9998; Generate Invoice</button>':'<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\'+o.invoiceId+\')">View Invoice #'+o.invoiceId+'</button>')+
+    (o.status!=='invoiced'?'<button class="btn btn-primary" onclick="closeModal();generateInvoiceFromOrder(\''+ orderId +'\')">&#9998; Generate Invoice</button>':'<button class="btn btn-secondary" onclick="closeModal();showInvoicePreview(\''+ o.invoiceId +'\')">View Invoice #'+o.invoiceId+'</button>')+
     (o.status!=='invoiced'?'<button class="btn btn-ghost" onclick="closeModal();showEditOrderModal(\''+orderId+'\')">Edit</button>':'')+
     '<button class="btn btn-ghost" onclick="closeModal()">Close</button>');
 }
@@ -6213,8 +6213,8 @@ function showCustOrdersModal(id,type){
         '<td>'+(o.invoiceId?'<span class="badge badge-green">Inv #'+o.invoiceId+'</span>':'<span class="badge badge-red">No Invoice</span>')+'</td>'+
         '<td>'+
           (o.status!=='invoiced'?
-            '<button class="btn btn-primary btn-sm" onclick="closeModal();generateInvoiceFromOrder(\'+o.id+\')">&#9998; Invoice</button>':
-            '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\'+o.invoiceId+\')">View Inv</button>')+
+            '<button class="btn btn-primary btn-sm" onclick="closeModal();generateInvoiceFromOrder(\''+ o.id +'\')">&#9998; Invoice</button>':
+            '<button class="btn btn-secondary btn-sm" onclick="closeModal();showInvoicePreview(\''+ o.invoiceId +'\')">View Inv</button>')+
           (o.status!=='invoiced'?'<button class="btn btn-ghost btn-sm" onclick="closeModal();showEditOrderModal(\''+o.id+'\')">Edit</button>':'')+
         '</td></tr>';
     }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">No orders yet for this customer</td></tr>')+
