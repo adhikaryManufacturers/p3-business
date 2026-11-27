@@ -1317,6 +1317,7 @@ function closeUserDropdown(){
 document.addEventListener('click',function(e){
   var btn=document.getElementById('userBtn');
   if(btn&&!btn.contains(e.target)) closeUserDropdown();
+  closeInvActionMenus();
 });
 
 function updateUserHeader(){
@@ -3771,7 +3772,6 @@ function toggleInvActionMenu(invId,e){
 function closeInvActionMenus(){
   document.querySelectorAll('[id^="inv-menu-"]').forEach(function(m){m.style.display='none';});
 }
-document.addEventListener('click',function(){closeInvActionMenus();});
 
 function downloadInvoice(invId){
   var html=buildInvoiceHTML(invId,true,'standard');
