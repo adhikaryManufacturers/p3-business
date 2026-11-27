@@ -1,4 +1,6 @@
-<!DOCTYPE html><!-- v20261127-142458 -->
+,
+    createdAt:nowISO()
+  }<!DOCTYPE html><!-- v20261127-150618 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -759,6 +761,14 @@ function coWhoChange(el){
 function poVendorChange(el){onSelectAddNew(el,'vendors');}
 function payrollEmpChange(el){onSelectAddNew(el,'staff');}
 function coWhoEditChange(el){onSelectAddNew(el,'customers');}
+function sortByCreatedDesc(arr){
+  return arr.slice().sort(function(a,b){
+    var ac=a.createdAt||'',bc=b.createdAt||'';
+    if(ac&&bc) return bc.localeCompare(ac);
+    if(ac) return -1; if(bc) return 1;
+    return (parseInt(b.id)||0)-(parseInt(a.id)||0);
+  });
+}
 function sortDesc(arr,field){
   return arr.slice().sort(function(a,b){
     var av=a[field]||0,bv=b[field]||0;
@@ -767,6 +777,27 @@ function sortDesc(arr,field){
   });
 }
 function today(){return new Date().toISOString().split('T')[0];}
+function nowISO(){return new Date().toISOString();}
+function fmtTS(iso){
+  if(!iso) return '<span style="color:var(--gray-400);font-size:11px">—</span>';
+  var d=new Date(iso);
+  var dd=d.getDate().toString().padStart(2,'0');
+  var mm=(d.getMonth()+1).toString().padStart(2,'0');
+  var yyyy=d.getFullYear();
+  var hh=d.getHours().toString().padStart(2,'0');
+  var min=d.getMinutes().toString().padStart(2,'0');
+  return '<span title="'+iso+'" style="font-size:11px;color:var(--gray-500)">'+dd+'/'+mm+'/'+yyyy+' '+hh+':'+min+'</span>';
+}
+function fmtTSPlain(iso){
+  if(!iso) return '—';
+  var d=new Date(iso);
+  var dd=d.getDate().toString().padStart(2,'0');
+  var mm=(d.getMonth()+1).toString().padStart(2,'0');
+  var yyyy=d.getFullYear();
+  var hh=d.getHours().toString().padStart(2,'0');
+  var min=d.getMinutes().toString().padStart(2,'0');
+  return dd+'/'+mm+'/'+yyyy+' '+hh+':'+min;
+}
 function monthName(m){if(!m||typeof m!=='string')return '—';var p=m.split('-');if(p.length<2)return m;return new Date(p[0],p[1]-1).toLocaleString('en',{month:'long',year:'numeric'});}
 
 // calcInvoice: GST and discount apply ONLY to current bill items, NOT to prevOutstanding
@@ -1910,6 +1941,7 @@ function renderStaffDirectory(){
         '<td>'+(s.advance>0?'<span class="fc-red">'+fmt(s.advance)+'</span>':'—')+'</td>'+
         '<td>'+(pending>0?'<span class="fc-red fw600">'+fmt(pending)+'</span><div style="font-size:11px;color:var(--text3)">Unpaid balance</div>':'<span class="badge badge-green">All Clear</span>')+'</td>'+
         '<td><button class="btn btn-secondary btn-sm" onclick="showStaffPayHistory(\''+s.id+'\')">Payment History</button></td>'+
+        '<td style="font-size:11px;color:var(--text3);min-width:120px">'+fmtTS(s.createdAt)+(s.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(s.updatedAt):'')+' </td>'+
         '<td><div class="gap-12">'+
           '<button class="btn btn-secondary btn-sm" onclick="showEditStaffModal(\''+s.id+'\')">Edit</button>'+
           '<button class="btn btn-primary btn-sm" onclick="showPartPayModal(\''+s.id+'\')">Pay Salary</button>'+
@@ -1917,7 +1949,7 @@ function renderStaffDirectory(){
         '</div></td></tr>';
     }),
     'staff',
-    '<thead><tr><th>Employee</th><th>Role</th><th>Contact</th><th>Monthly Salary</th><th>Leave Bal.</th><th>Advance</th><th>Pending Salary</th><th>Payment History</th><th>Actions</th></tr></thead>'
+    '<thead><tr><th>Employee</th><th>Role</th><th>Contact</th><th>Monthly Salary</th><th>Leave Bal.</th><th>Advance</th><th>Pending Salary</th><th>Payment History</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Actions</th></tr></thead>'
   )+'</div>';
 }
 
@@ -2044,7 +2076,7 @@ async function saveNewStaff(){
   var name=document.getElementById('sf-name').value;
   var role=document.getElementById('sf-role').value;
   if(!name||!role){alert('Name and role required');return;}
-  var staff={name:name,role:role,phone:document.getElementById('sf-phone').value,salary:parseFloat(document.getElementById('sf-salary').value)||0,advance:parseFloat(document.getElementById('sf-advance').value)||0,leaveBalance:5,joiningDate:document.getElementById('sf-join').value,active:true};
+  var staff={name:name,role:role,phone:document.getElementById('sf-phone').value,salary:parseFloat(document.getElementById('sf-salary').value)||0,advance:parseFloat(document.getElementById('sf-advance').value)||0,leaveBalance:5,joiningDate:document.getElementById('sf-join').value,active:true,createdAt:nowISO()};
   try{
     await apiCall('/api/staff','POST',staff);
     state.staff=await apiCall('/api/staff','GET')||[];
@@ -2074,6 +2106,7 @@ async function saveEditStaff(id){
   s.leaveBalance=parseInt(document.getElementById('ef-leave').value)||0;
   s.advance=parseFloat(document.getElementById('ef-advance').value)||0;
   try{
+    s.updatedAt=nowISO();
     await apiCall('/api/staff/'+String(id),'PUT',s);
     state.staff=await apiCall('/api/staff','GET')||[];
     closeModal();renderPage();
@@ -2163,7 +2196,7 @@ async function savePayroll(empId){
   var note=document.getElementById('pr-note').value;
   var deductions=leaveDays*daysSalary(s.salary);
   var net=s.salary-deductions-advance;
-  var record={empId:empId,month:month,baseSalary:s.salary,deductions:deductions,advance:advance,paid:paid,status:paid>=net?'paid':'partial',paidDate:today(),note:note};
+  var record={empId:empId,month:month,baseSalary:s.salary,deductions:deductions,advance:advance,paid:paid,status:paid>=net?'paid':'partial',paidDate:today(),note:note,createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/payroll','POST',record);
     state.payrollRecords.push(saved);
@@ -2291,7 +2324,7 @@ function renderPayroll(){
   '</div>'+
   '<div class="card"><div class="card-header"><div class="card-title">All Payment Transactions</div></div>'+
   paginatedTable(
-    sortDesc(state.payrollRecords,'id').map(function(r){
+    sortByCreatedDesc(state.payrollRecords).map(function(r){
       var s=getStaff(r.empId);var net=r.baseSalary-r.deductions-r.advance;
       return '<tr><td><strong>'+s.name+'</strong></td><td>'+monthName(r.month)+'</td><td>'+fmt(r.baseSalary)+'</td>'+
         '<td>'+(r.deductions>0?'<span class="fc-red">'+fmt(r.deductions)+'</span>':'—')+'</td>'+
@@ -2300,10 +2333,11 @@ function renderPayroll(){
         '<td><span class="badge '+(r.paid>=net?'badge-green':'badge-amber')+'">'+(r.paid>=net?'Full':'Partial')+'</span></td>'+
         '<td style="font-size:12px;color:var(--text3)">'+(r.note||'—')+'</td>'+
         '<td style="color:var(--text3)">'+r.paidDate+'</td>'+
+        '<td style="font-size:11px;color:var(--text3);">'+fmtTS(r.createdAt)+' </td>'+
         '<td><button class="btn btn-secondary btn-sm" onclick="showPayrollHistoryModal('+r.empId+',\''+r.month+'\')">View</button></td></tr>';
     }),
     'payroll-records',
-    '<thead><tr><th>Employee</th><th>Month</th><th>Base</th><th>Leave Ded.</th><th>Advance</th><th>Paid</th><th>Status</th><th>Note</th><th>Date</th><th>Action</th></tr></thead>'
+    '<thead><tr><th>Employee</th><th>Month</th><th>Base</th><th>Leave Ded.</th><th>Advance</th><th>Paid</th><th>Status</th><th>Note</th><th>Date</th><th style="font-size:11px">Created</th><th>Action</th></tr></thead>'
   )+'</div>';
 }
 
@@ -2397,7 +2431,7 @@ function renderProducts(){
 
   // Table
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th>Product Name</th><th>Type</th><th>Size</th><th>HSN</th><th>Stock</th><th>Price/Pkt</th><th>Actions</th>'+
+  '<th>Product Name</th><th>Type</th><th>Size</th><th>HSN</th><th>Stock</th><th>Price/Pkt</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   ([].concat(filtered).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(p){
     var stockBadge = p.stock<100?'badge-red':p.stock<300?'badge-amber':'badge-green';
@@ -2426,6 +2460,7 @@ function renderProducts(){
           return '<span style="font-weight:600;font-size:13px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
         })()+'</td>'+
       '<td class="fw600">'+fmt(p.price)+(p.stockMeta&&JSON.parse(p.stockMeta||'{}').unitType!=='Pieces'?'/Pkt':'/Pc')+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(p.createdAt)+(p.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(p.updatedAt):'')+' </td>'+
       '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\''+p.id+'\')">Edit</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\''+p.id+'\')">+ Stock</button>'+
@@ -2479,6 +2514,7 @@ function prodSearchFilter(val){
           return '<span style="font-weight:600;font-size:13px;color:'+(p.stock<100?'#e24b4a':p.stock<300?'#ba7517':'#3b6d11')+'">'+p.stock+' Pcs</span>';
         })()+'</td>'+
       '<td class="fw600">'+fmt(p.price)+(function(){try{var m=JSON.parse(p.stockMeta||'{}');return m.unitType&&m.unitType!=='Pieces'?'/Pkt':'/Pc';}catch(e){return '/Pc';}}())+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(p.createdAt)+(p.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(p.updatedAt):'')+' </td>'+
       '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditProductModal(\''+p.id+'\')">Edit</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="showStockModal(\''+p.id+'\')">+ Stock</button>'+
@@ -2649,7 +2685,8 @@ async function saveNewProduct(){
     unit:'Pcs',
     stock:totalPcs,
     price:parseFloat(document.getElementById('pd-price').value)||0,
-    stockMeta:JSON.stringify(stockMeta)
+    stockMeta:JSON.stringify(stockMeta),
+    createdAt:nowISO()
   };
   try{
     await apiCall('/api/products','POST',product);
@@ -2807,6 +2844,7 @@ async function saveEditProduct(id){
   p.stockMeta=JSON.stringify(stockMeta);
 
   try{
+    p.updatedAt=nowISO();
     await apiCall('/api/products/'+String(id),'PUT',p);
     state.products=await apiCall('/api/products','GET')||[];
     window._epTotalPcs=0;
@@ -2823,6 +2861,7 @@ async function addStock(id){
   var qty=parseInt(document.getElementById('sk-qty').value)||0;
   p.stock+=qty;
   try{
+    p.updatedAt=nowISO();
     await apiCall('/api/products/'+String(id),'PUT',p);
     closeModal();renderPage();
   }catch(e){alert('Failed to update stock: '+e.message);}
@@ -2841,11 +2880,12 @@ function renderRawMaterials(){
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
   '<div><div class="section-title">Raw Materials</div><div class="section-sub">Track paper, coatings and inputs</div></div>'+
   '<button class="btn btn-primary" onclick="showAddRMModal()">+ Add Material</button></div>'+
-  '<div class="card"><div class="table-wrap"><table><thead><tr><th>Material</th><th>Unit</th><th>Stock</th><th>Cost/Unit</th><th>Total Value</th><th>Actions</th></tr></thead><tbody>'+
+  '<div class="card"><div class="table-wrap"><table><thead><tr><th>Material</th><th>Unit</th><th>Stock</th><th>Cost/Unit</th><th>Total Value</th><th style="font-size:11px">Created / Updated</th><th>Actions</th></tr></thead><tbody>'+
   (sortDesc(state.rawMaterials,'id').map(function(m){
     return '<tr><td><strong>'+m.name+'</strong></td><td>'+m.unit+'</td>'+
       '<td><span class="badge '+(m.stock<50?'badge-red':m.stock<100?'badge-amber':'badge-green')+'">'+m.stock+' '+m.unit+'</span></td>'+
       '<td>'+fmt(m.price)+'</td><td class="fw600 fc-green">'+fmt(m.stock*m.price)+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(m.createdAt)+(m.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(m.updatedAt):'')+' </td>'+
       '<td><div class="gap-12"><button class="btn btn-secondary btn-sm" onclick="showEditRMModal(\''+m.id+'\')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteRM(\''+m.id+'\')">Delete</button></div></td></tr>';
   }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -2862,7 +2902,7 @@ function showAddRMModal(){
 }
 async function saveNewRM(){
   var name=document.getElementById('rm-name').value;if(!name){alert('Name required');return;}
-  var rm={name:name,unit:document.getElementById('rm-unit').value,stock:parseFloat(document.getElementById('rm-stock').value)||0,price:parseFloat(document.getElementById('rm-price').value)||0};
+  var rm={name:name,unit:document.getElementById('rm-unit').value,stock:parseFloat(document.getElementById('rm-stock').value)||0,price:parseFloat(document.getElementById('rm-price').value)||0,createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/raw-materials','POST',rm);
     state.rawMaterials.push(saved);
@@ -2885,6 +2925,7 @@ async function saveEditRM(id){
   m.name=document.getElementById('erm-name').value;m.unit=document.getElementById('erm-unit').value;
   m.stock=parseFloat(document.getElementById('erm-stock').value)||0;m.price=parseFloat(document.getElementById('erm-price').value)||0;
   try{
+    m.updatedAt=nowISO();
     await apiCall('/api/raw-materials/'+String(id),'PUT',m);
     closeModal();renderPage();
   }catch(e){alert('Failed to update raw material: '+e.message);}
@@ -3539,7 +3580,7 @@ async function generateInvoice(){
   if(customAmt>0||customAmtLabel||advanceAmt>0){
     enrichedItems.push({desc:'__meta__'+JSON.stringify({ca:customAmt,cl:customAmtLabel,aa:advanceAmt}),productId:null,qty:0,rate:0,unit:'Pcs'});
   }
-  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,advanceAmt:advanceAmt,status:'unpaid',delivered:false,deliveredDate:null};
+  var inv={custId:custId,date:date,deliveryDate:deliveryDate,items:enrichedItems,discount:discount,gstEnabled:gstEnabled,gstRate:gstRate,paid:0,prevOutstanding:prev,prevFromInvoice:prevInvoiceRef,customAmt:customAmt,customAmtLabel:customAmtLabel,advanceAmt:advanceAmt,status:'unpaid',delivered:false,deliveredDate:null,createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/invoices','POST',inv);
     state.invoices.push(saved);
@@ -3932,7 +3973,7 @@ function renderInvoices(){
   ((state.invoices||[]).some(function(i){return i.custId&&!getCustomer(i.custId).name;})?'<button class="btn btn-sm" style="background:#7f1d1d;color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px" onclick="deleteBrokenInvoices()">🗑 Remove Broken Records</button>':'')+
   '</div></div>'+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th>Bill #</th><th>Customer</th><th>Date</th><th>Delivery</th><th>Current Bill</th><th>Prev Outstanding</th><th>Grand Total</th><th>Paid</th><th>Amount Due</th><th>Status</th><th>Actions</th>'+
+  '<th>Bill #</th><th>Customer</th><th>Date</th><th>Delivery</th><th>Current Bill</th><th>Prev Outstanding</th><th>Grand Total</th><th>Paid</th><th>Amount Due</th><th>Status</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (function(){
     // Build a map of latest active invoice id per customer
@@ -3945,7 +3986,7 @@ function renderInvoices(){
       }
     });
 
-    return sortDesc(state.invoices,'id').map(function(inv){
+    return sortByCreatedDesc(state.invoices).map(function(inv){
       var _sub=getInvoiceSubTotal(inv);
       var _grand=getInvoiceGrand(inv);
       var due=getInvoiceDue(inv);
@@ -3987,8 +4028,9 @@ function renderInvoices(){
         '<td class="fc-green">'+fmt(inv.paid||0)+'</td>'+
         '<td>'+(isCancelled?'—':due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
         '<td><span class="badge '+(isCancelled?'" style="background:#e24b4a;color:#fff':inv.status==='paid'?'badge-green':inv.paid>0?'badge-amber':'badge-red')+'">'+(isCancelled?'Cancelled':inv.status==='paid'?'Paid':inv.paid>0?'Partial':'Unpaid')+'</span></td>'+
+        '<td style="font-size:11px;color:var(--text3);">'+fmtTS(inv.createdAt)+(inv.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(inv.updatedAt):'')+' </td>'+
         '<td><div class="gap-12" style="flex-wrap:wrap">'+
-          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">👁 View</button>'+
+          '<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">&#128065; View</button>'+
           (!isCancelled?'<button class="btn btn-sm" style="background:#c0392b;color:#fff" onclick="showPDFOptionsModal(\''+inv.id+'\')">&#128196; PDF</button>':'')+
           (!isCancelled?'<button class="btn btn-download btn-sm" onclick="downloadInvoice(\''+inv.id+'\')">&#11015; HTML</button>':'')+
           (!isCancelled&&isLatest&&due>0?'<button class="btn btn-primary btn-sm" onclick="showRecordPaymentModal(\''+inv.id+'\')">💰 Pay</button>':'')+
@@ -4012,6 +4054,7 @@ async function cancelOrder(orderId){
   if(!confirm('Cancel Order ORD#'+orderId+'?\nThis cannot be undone.')) return;
   o.status='cancelled';
   try{
+    o.updatedAt=nowISO();
     await apiCall('/api/orders/'+String(orderId),'PUT',o);
     state.customerOrders=await safeGet('/api/orders');
     renderPage();
@@ -4075,6 +4118,7 @@ async function cancelInvoice(invId){
   if(!confirm(confirmMsg)) return;
   inv.status='cancelled';
   try{
+    inv.updatedAt=nowISO();
     await apiCall('/api/invoices/'+invId,'PUT',inv);
     // Only restore stock if invoice was delivered (stock was deducted on delivery)
     if(wasDelivered) await restoreInvoiceStock(inv.items||[]);
@@ -4749,7 +4793,8 @@ async function savePaymentRecord(invId){
   try{
     if(remaining<=0){
       inv.status='paid';
-      await apiCall('/api/invoices/'+invId,'PUT',inv);
+      inv.updatedAt=nowISO();
+    await apiCall('/api/invoices/'+invId,'PUT',inv);
       closeModal();
       showModal('&#10003; Payment Recorded',
         '<div style="text-align:center;padding:20px">'+
@@ -4761,13 +4806,15 @@ async function savePaymentRecord(invId){
     } else {
       inv.status='partial';
       inv.cfInvoiceId=state.nextInvoiceId;
-      await apiCall('/api/invoices/'+invId,'PUT',inv);
+      inv.updatedAt=nowISO();
+    await apiCall('/api/invoices/'+invId,'PUT',inv);
       var newInv={custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
       var savedNewInv=await apiCall('/api/invoices','POST',newInv);
       state.invoices.push(savedNewInv);
       var newId=savedNewInv.id;
       inv.cfInvoiceId=newId;
-      await apiCall('/api/invoices/'+invId,'PUT',inv);
+      inv.updatedAt=nowISO();
+    await apiCall('/api/invoices/'+invId,'PUT',inv);
       closeModal();
       showModal('&#128203; Partial Payment Recorded',
         '<div style="text-align:center;padding:10px 0 16px">'+
@@ -4800,9 +4847,9 @@ async function savePaymentRecord(invId){
 function renderOrders(){
   return '<div style="margin-bottom:20px"><div class="section-title">Order List</div><div class="section-sub">Track and confirm deliveries</div></div>'+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th>Invoice #</th><th>Date</th><th>Customer</th><th>Delivery Due</th><th>Delivery Status</th><th>Total</th><th>Action</th>'+
+  '<th>Invoice #</th><th>Date</th><th>Customer</th><th>Delivery Due</th><th>Delivery Status</th><th>Total</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Action</th>'+
   '</tr></thead><tbody>'+
-  (sortDesc(state.invoices.filter(function(i){return i.status!=='cancelled';}), 'id').map(function(inv){
+  (sortByCreatedDesc(state.invoices.filter(function(i){return i.status!=='cancelled';})).map(function(inv){
     // Same grand total as PDF: resolveItemBilling sum + prevOutstanding + customAmt
     var di=decodeInvoice(inv);
     var pdfSub=(di.items||[]).reduce(function(s,it){return s+resolveItemBilling(it).amt;},0);
@@ -4816,6 +4863,7 @@ function renderOrders(){
       '<td class="'+(s.label==='Overdue'?'overdue':s.label==='Due Soon'?'due-soon':'')+'">'+inv.deliveryDate+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
       '<td class="fw600">'+fmt(grandTotal)+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(inv.createdAt)+(inv.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(inv.updatedAt):'')+' </td>'+
       '<td><div class="gap-12">'+
         (!inv.delivered?'<button class="btn btn-primary btn-sm" onclick="showDeliveryModal(\''+inv.id+'\')">Mark Delivered</button>':'<button class="btn btn-secondary btn-sm" onclick="showInvoicePreview(\''+inv.id+'\')">View</button>')+
       '</div></td></tr>';
@@ -4846,6 +4894,7 @@ async function confirmDelivery(invId){
   if(!date){alert('Please select a delivery date');return;}
   inv.delivered=true;inv.deliveredDate=date;
   try{
+    inv.updatedAt=nowISO();
     await apiCall('/api/invoices/'+invId,'PUT',inv);
     // ── Deduct stock on delivery ──
     if(inv.items&&inv.items.length){
@@ -4961,7 +5010,7 @@ function renderCustomers(){
     '<button class="btn btn-sm" style="margin-left:auto;background:#e24b4a;color:#fff" onclick="setCustFilter(\'alert\')">View</button>'+
     '</div>':'')+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Status</th><th>Last Delivery</th><th>Orders</th><th>Invoices</th><th>Total Due</th><th>Actions</th>'+
+  '<th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Status</th><th>Last Delivery</th><th>Orders</th><th>Invoices</th><th>Total Due</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (sortDesc(displayed.map(function(d){return d.c;}),'id').map(function(c){
     var st=getCustStatus(c.id);
@@ -4983,6 +5032,7 @@ function renderCustomers(){
       '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" data-cid="'+c.id+'" onclick="showCustOrdersModal(this.dataset.cid,\'customer\')">&#128203; '+ordCnt+'</button>':'<button class="btn btn-ghost btn-sm" data-cid2="'+c.id+'" onclick="showCreateOrderModal(null,this.dataset.cid2)">+ Order</button>')+'</td>'+
       '<td>'+(invCnt>0?'<button class="btn btn-ghost btn-sm" onclick="navigate(\'invoices\')" title="View all invoices" style="font-size:12px">&#128196; '+invCnt+(cancelledCnt>0?' <span style="color:#e24b4a">('+cancelledCnt+'✕)</span>':'')+'</button>':'<span style="color:var(--text3)">—</span>')+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(c.createdAt)+(c.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(c.updatedAt):'')+' </td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" data-eid="'+c.id+'" onclick="showEditCustomerModal(this.dataset.eid)">Edit</button>'+
         '<button class="btn btn-primary btn-sm" data-cid="'+c.id+'" onclick="goToCreateInvoice(this.dataset.cid)">+ Invoice</button>'+
@@ -5011,7 +5061,7 @@ async function saveNewCustomer(){
   if(!name){alert('Name required');return;}
   var _ncAddrErr=validateAddr('nc-addr');
   if(_ncAddrErr){alert(_ncAddrErr);return;}
-  var customer={name:name,phone:document.getElementById('nc-phone').value,address:readAddr('nc-addr'),baleBalance:parseInt(document.getElementById('nc-bale').value)||0,status:'new'};
+  var customer={name:name,phone:document.getElementById('nc-phone').value,address:readAddr('nc-addr'),baleBalance:parseInt(document.getElementById('nc-bale').value)||0,status:'new',createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/customers','POST',customer);
     state.customers.push(saved);
@@ -5037,6 +5087,7 @@ async function saveEditCustomer(id){
   if(_ecAddrErr){alert(_ecAddrErr);return;}
   c.address=readAddr('ec-addr');c.baleBalance=parseInt(document.getElementById('ec-bale').value)||0;
   try{
+    c.updatedAt=nowISO();
     await apiCall('/api/customers/'+String(id),'PUT',c);
     closeModal();renderPage();
   }catch(e){alert('Failed to update customer: '+e.message);}
@@ -5423,8 +5474,8 @@ function exportContactsCSV(){
 // ===================== CRM — PROSPECTS & LEADS =====================
 function renderCRM(){
   var prospects=state.prospects||[];
-  var reachedOut=sortDesc(prospects.filter(function(p){return p.crmStatus==='reached-out';}),'id');
-  var orderGiven=sortDesc(prospects.filter(function(p){return p.crmStatus==='order-given';}),'id');
+  var reachedOut=sortByCreatedDesc(prospects.filter(function(p){return p.crmStatus==='reached-out';}));
+  var orderGiven=sortByCreatedDesc(prospects.filter(function(p){return p.crmStatus==='order-given';}));
   return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
   '<div><div class="section-title">CRM — Prospects &amp; Leads</div><div class="section-sub">Track contacts before they become confirmed customers</div></div>'+
   '<div class="gap-12">'+
@@ -5442,9 +5493,9 @@ function renderCRM(){
   // Reached Out table
   '<div class="section-title" style="font-size:15px;margin-bottom:10px">Reached Out <span class="badge badge-amber" style="vertical-align:middle">'+reachedOut.length+'</span></div>'+
   '<div class="card" style="margin-bottom:16px"><div class="table-wrap"><table><thead><tr>'+
-  '<th>Name</th><th>Phone</th><th>Address</th><th>Contacted On</th><th>CRM Status</th><th>Notes</th><th>Actions</th>'+
+  '<th>Name</th><th>Phone</th><th>Address</th><th>Contacted On</th><th>CRM Status</th><th>Notes</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
-  (reachedOut.length?sortDesc(reachedOut,'id').map(function(p){
+  (reachedOut.length?reachedOut.map(function(p){
     var ordCnt=prospectOrderCount(p.id);
     return '<tr>'+
       '<td><strong>'+p.name+'</strong></td><td>'+p.phone+'</td>'+
@@ -5452,6 +5503,7 @@ function renderCRM(){
       '<td>'+p.contactedOn+'</td>'+
       '<td><span class="badge badge-amber">Reached Out</span></td>'+
       '<td style="font-size:12px;color:var(--text3)">'+p.notes+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(p.createdAt)+(p.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(p.updatedAt):'')+' </td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+p.id+'\')">Edit</button>'+
         '<button class="btn btn-primary btn-sm" onclick="showCreateOrderModal(\''+p.id+'\',null)">+ Order</button>'+
@@ -5466,7 +5518,7 @@ function renderCRM(){
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
   '<th>Name</th><th>Phone</th><th>Address</th><th>Contacted On</th><th>CRM Status</th><th>Orders</th><th>Notes</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
-  (orderGiven.length?sortDesc(orderGiven,'id').map(function(p){
+  (orderGiven.length?orderGiven.map(function(p){
     var ordCnt=prospectOrderCount(p.id);
     var pendingOrder=(state.customerOrders||[]).find(function(o){return o.prospectId===p.id&&o.status==='pending';});
     var invoicedOrder=(state.customerOrders||[]).find(function(o){return o.prospectId===p.id&&o.status==='invoiced';});
@@ -5477,6 +5529,7 @@ function renderCRM(){
       '<td><span class="badge badge-blue">Order Given</span></td>'+
       '<td>'+(ordCnt>0?'<button class="btn btn-secondary btn-sm" onclick="showCustOrdersModal(\''+p.id+'\',\'prospect\')">&#128203; '+ordCnt+' Orders</button>':'—')+'</td>'+
       '<td style="font-size:12px;color:var(--text3)">'+p.notes+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(p.createdAt)+(p.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(p.updatedAt):'')+' </td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditProspectModal(\''+p.id+'\')">Edit</button>'+
         (pendingOrder?'<button class="btn btn-primary btn-sm" onclick="generateInvoiceFromOrder(\''+pendingOrder.id+'\')">&#9998; Generate Invoice</button>':''+
@@ -5511,7 +5564,7 @@ async function saveNewProspect(){
   if(!name){alert('Name required');return;}
   var _apAddrErr=validateAddr('ap-addr');
   if(_apAddrErr){alert(_apAddrErr);return;}
-  var prospect={name:name,phone:document.getElementById('ap-phone').value,address:readAddr('ap-addr'),contactedOn:document.getElementById('ap-date').value,crmStatus:document.getElementById('ap-status').value,notes:document.getElementById('ap-notes').value};
+  var prospect={name:name,phone:document.getElementById('ap-phone').value,address:readAddr('ap-addr'),contactedOn:document.getElementById('ap-date').value,crmStatus:document.getElementById('ap-status').value,notes:document.getElementById('ap-notes').value,createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/prospects','POST',prospect);
     state.prospects.push(saved);
@@ -5548,6 +5601,7 @@ async function saveEditProspect(id){
   p.crmStatus=document.getElementById('ep2-status').value;
   p.notes=document.getElementById('ep2-notes').value;
   try{
+    p.updatedAt=nowISO();
     await apiCall('/api/prospects/'+String(id),'PUT',p);
     closeModal();renderPage();
   }catch(e){alert('Failed to update prospect: '+e.message);}
@@ -5875,7 +5929,7 @@ async function saveNewOrder(){
     items.push({productId:item.productId,desc:item.desc||'',qty:item.qty,billingPkts:item.billingPkts||item.qty,qtyCount:item.qtyCount||item.qty,qtyUnit:item.qtyUnit||'Pkt',unit:item.unit||'Pcs',rate:item.rate});
   });
   if(!items.length){alert('Add at least one product item.');return;}
-  var order={prospectId:prospectId,custId:custId,date:date,deliveryDate:delivery,items:items,notes:notes,status:'pending',invoiceId:null};
+  var order={prospectId:prospectId,custId:custId,date:date,deliveryDate:delivery,items:items,notes:notes,status:'pending',invoiceId:null,createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/orders','POST',order);
     state.customerOrders.push(saved);
@@ -5994,6 +6048,7 @@ async function saveEditOrder(orderId){
   if(!items.length){alert('Add at least one product item.');return;}
   o.items=items;
   try{
+    o.updatedAt=nowISO();
     await apiCall('/api/orders/'+String(orderId),'PUT',o);
     closeModal();renderPage();
   }catch(e){alert('Failed to update order: '+e.message);}
@@ -6139,7 +6194,8 @@ function _doGenerateInvoiceFromOrder(orderId, mode){
     status:'unpaid',
     delivered:false,
     deliveredDate:null,
-    fromOrderId:orderId  // track source order
+    fromOrderId:orderId,  // track source order
+    createdAt:nowISO()
   };
   state.invoices.push(newInv);
   var newInvId=state.nextInvoiceId;
@@ -6340,7 +6396,8 @@ async function saveCustomerPay(custId){
   try{
     if(remaining<=0){
       inv.status='paid';
-      await apiCall('/api/invoices/'+invId,'PUT',inv);
+      inv.updatedAt=nowISO();
+    await apiCall('/api/invoices/'+invId,'PUT',inv);
       showModal('&#10003; Payment Recorded',
         '<div style="text-align:center;padding:20px">'+
         '<div style="font-size:44px;margin-bottom:10px">&#10003;</div>'+
@@ -6350,13 +6407,15 @@ async function saveCustomerPay(custId){
         '<button class="btn btn-primary" onclick="closeModal()">Done</button>');
     } else {
       inv.status='partial';
-      await apiCall('/api/invoices/'+invId,'PUT',inv);
+      inv.updatedAt=nowISO();
+    await apiCall('/api/invoices/'+invId,'PUT',inv);
       var newInv={custId:inv.custId,date:today(),deliveryDate:inv.deliveryDate,items:[],discount:0,gstEnabled:false,gstRate:inv.gstRate||12,paid:0,prevOutstanding:remaining,prevFromInvoice:invId,status:'unpaid',delivered:inv.delivered,deliveredDate:inv.deliveredDate,isCarryForward:true};
       var savedNewInv=await apiCall('/api/invoices','POST',newInv);
       state.invoices.push(savedNewInv);
       var newId=savedNewInv.id;
       inv.cfInvoiceId=newId;
-      await apiCall('/api/invoices/'+invId,'PUT',inv);
+      inv.updatedAt=nowISO();
+    await apiCall('/api/invoices/'+invId,'PUT',inv);
       showModal('&#128203; Partial Payment Recorded',
         '<div style="text-align:center;padding:10px 0 14px">'+
         '<div style="font-size:34px;margin-bottom:8px">&#128203;</div>'+
@@ -6456,6 +6515,7 @@ function renderVendorDashboard(){
       '<td class="fc-green">'+fmt(po.paid||0)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(inv.createdAt)+(inv.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(inv.updatedAt):'')+' </td>'+
       '<td>'+(due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal(\''+po.id+'\')">Pay</button>':'—')+'</td></tr>';
   }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
   +'</tbody></table></div></div>';
@@ -6467,7 +6527,7 @@ function renderVendors(){
   '<div><div class="section-title">Vendor Directory</div><div class="section-sub">All raw material suppliers</div></div>'+
   '<button class="btn btn-primary" onclick="showAddVendorModal()">+ Add Vendor</button></div>'+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th>Vendor</th><th>Phone</th><th>Address</th><th>GSTIN</th><th>Materials</th><th>Orders</th><th>Paid</th><th>Due</th><th>Actions</th>'+
+  '<th>Vendor</th><th>Phone</th><th>Address</th><th>GSTIN</th><th>Materials</th><th>Orders</th><th>Paid</th><th>Due</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
   (sortDesc(state.vendors,'id').map(function(v){
     var due=getVendorTotalDue(v.id);
@@ -6482,6 +6542,7 @@ function renderVendors(){
       '<td>'+orders+'</td>'+
       '<td class="fw600 fc-green">'+fmt(paid)+'</td>'+
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(v.createdAt)+(v.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(v.updatedAt):'')+' </td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showEditVendorModal(\''+v.id+'\')">Edit</button>'+
         '<button class="btn btn-primary btn-sm" onclick="showAddPOModal(\''+v.id+'\')">+ PO</button>'+
@@ -6510,7 +6571,7 @@ async function saveNewVendor(){
   if(!name){alert('Vendor name required');return;}
   var _vnAddrErr=validateAddr('vn-addr');
   if(_vnAddrErr){alert(_vnAddrErr);return;}
-  var vendor={name:name,contact:document.getElementById('vn-contact').value,phone:document.getElementById('vn-phone').value,address:readAddr('vn-addr'),gstin:document.getElementById('vn-gstin').value,materials:document.getElementById('vn-materials').value,notes:document.getElementById('vn-notes').value};
+  var vendor={name:name,contact:document.getElementById('vn-contact').value,phone:document.getElementById('vn-phone').value,address:readAddr('vn-addr'),gstin:document.getElementById('vn-gstin').value,materials:document.getElementById('vn-materials').value,notes:document.getElementById('vn-notes').value,createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/vendors','POST',vendor);
     state.vendors.push(saved);
@@ -6541,6 +6602,7 @@ async function saveEditVendor(id){
   v.gstin=document.getElementById('ev-gstin').value;v.materials=document.getElementById('ev-materials').value;
   v.notes=document.getElementById('ev-notes').value;
   try{
+    v.updatedAt=nowISO();
     await apiCall('/api/vendors/'+String(id),'PUT',v);
     closeModal();renderPage();
   }catch(e){alert('Failed to update vendor: '+e.message);}
@@ -6573,9 +6635,9 @@ function renderPurchaseOrders(){
     return '<div class="period-tab '+(filter===f?'active':'')+'" onclick="state.poFilter=\''+f+'\';renderPage()">'+labels[f]+'</div>';
   }).join('')+'</div>'+
   '<div class="card"><div class="table-wrap"><table><thead><tr>'+
-  '<th>PO#</th><th>Vendor</th><th>Date</th><th>Items</th><th>Total</th><th>Paid</th><th>Balance</th><th>Due Date</th><th>Status</th><th>Actions</th>'+
+  '<th>PO#</th><th>Vendor</th><th>Date</th><th>Items</th><th>Total</th><th>Paid</th><th>Balance</th><th>Due Date</th><th>Status</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Actions</th>'+
   '</tr></thead><tbody>'+
-  (sortDesc(filtered,'id').map(function(po){
+  (sortByCreatedDesc(filtered).map(function(po){
     var v=getVendor(po.vendorId);var s=poStatus(po);var due=getPODue(po);
     var dDiff=(new Date(po.dueDate)-new Date())/(1000*60*60*24);
     return '<tr>'+
@@ -6588,6 +6650,8 @@ function renderPurchaseOrders(){
       '<td>'+(due>0?'<span class="fc-red fw600">'+fmt(due)+'</span>':'<span class="badge badge-green">Cleared</span>')+'</td>'+
       '<td class="'+(dDiff<0&&po.status!=='paid'?'overdue':dDiff<=3&&po.status!=='paid'?'due-soon':'')+'">'+po.dueDate+'</td>'+
       '<td><span class="badge '+s.cls+'">'+s.label+'</span></td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(inv.createdAt)+(inv.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(inv.updatedAt):'')+' </td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(po.createdAt)+(po.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(po.updatedAt):'')+' </td>'+
       '<td><div class="gap-12">'+
         '<button class="btn btn-secondary btn-sm" onclick="showPODetailModal(\''+po.id+'\')">View</button>'+
         (due>0?'<button class="btn btn-primary btn-sm" onclick="showPOPaymentModal(\''+po.id+'\')">Pay</button>':'')+
@@ -6768,7 +6832,7 @@ async function savePO(){
     total+=amt;
   }
   if(!vendorId||!items.length){alert('Please select a vendor and add at least one item.');return;}
-  var po={vendorId:vendorId,date:date,items:items,totalAmount:total,paid:0,status:'unpaid',dueDate:dueDate,notes:notes};
+  var po={vendorId:vendorId,date:date,items:items,totalAmount:total,paid:0,status:'unpaid',dueDate:dueDate,notes:notes,createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/purchase-orders','POST',po);
     state.purchaseOrders.push(saved);
@@ -6823,6 +6887,7 @@ async function savePOPayment(poId){
   if(po.paid>=po.totalAmount){po.status='paid';}
   else if(po.paid>0){po.status='partial';}
   try{
+    po.updatedAt=nowISO();
     await apiCall('/api/purchase-orders/'+poId,'PUT',po);
     closeModal();renderPage();
   }catch(e){alert('Failed to record PO payment: '+e.message);}
@@ -6884,6 +6949,7 @@ async function saveVendorPay(vendorId){
   if(po.paid>=po.totalAmount) po.status='paid';
   else if(po.paid>0) po.status='partial';
   try{
+    po.updatedAt=nowISO();
     await apiCall('/api/purchase-orders/'+poId,'PUT',po);
     closeModal();renderPage();
   }catch(e){alert('Failed to record vendor payment: '+e.message);}
@@ -7215,10 +7281,11 @@ function renderExpenditure(){
   (monthEntries.length?
     '<div class="card"><div class="card-header"><div class="card-title">Recent Expense Entries — '+monthName(selMonth)+'</div>'+
     '<button class="btn btn-secondary btn-sm" onclick="navigate(\'expenses\')">View All</button></div>'+
-    '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Action</th></tr></thead><tbody>'+
+    '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th style="font-size:11px;white-space:nowrap">Created / Updated</th><th>Action</th></tr></thead><tbody>'+
     (sortDesc(monthEntries,'date').slice(0,8).map(function(e){
       var cats={electricity:'&#9889; Electricity',rent:'&#127968; Rent',loan:'&#127974; Loan/EMI',others:'&#128196; Others'};
       return '<tr><td>'+e.date+'</td><td>'+( cats[e.category]||e.category)+'</td><td style="color:var(--text2)">'+e.description+'</td><td class="fw600 fc-red">'+fmt(e.amount)+'</td>'+
+      '<td style="font-size:11px;color:var(--text3);">'+fmtTS(e.createdAt)+(e.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(e.updatedAt):'')+' </td>'+
       '<td><button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry(\''+e.id+'\')">Del</button></td></tr>';
     }).join('')||'<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:20px;font-style:italic">No records found</td></tr>')
     +'</tbody></table></div></div>':''+
@@ -7231,7 +7298,7 @@ function renderExpenditure(){
 function renderExpenses(){
   var filterCat=state.expFilter||'all';
   var filterMonth=state.expFilterMonth||'';
-  var entries=sortDesc(state.expenseEntries||[],'date');
+  var entries=sortByCreatedDesc(state.expenseEntries||[]);
   if(filterCat!=='all') entries=entries.filter(function(e){return e.category===filterCat;});
   if(filterMonth) entries=entries.filter(function(e){return e.date.slice(0,7)===filterMonth;});
 
@@ -7278,7 +7345,7 @@ function renderExpenses(){
     '<td>'+e.description+'</td>'+
     '<td class="fw600 fc-red">'+fmt(e.amount)+'</td>'+
     '<td style="font-size:12px;color:var(--text3)">'+(e.reference||'—')+'</td>'+
-    '<td style="font-size:11px;color:var(--text3)">'+(e.addedOn||'—')+'</td>'+
+    '<td style="font-size:11px;color:var(--text3);">'+fmtTS(e.createdAt||e.addedOn)+(e.updatedAt?'<br><span style="font-size:10px">upd: </span>'+fmtTS(e.updatedAt):'')+' </td>'+
     '<td><div class="gap-12">'+
       '<button class="btn btn-secondary btn-sm" onclick="showEditExpenseModal(\''+e.id+'\')">Edit</button>'+
       '<button class="btn btn-danger btn-sm" onclick="deleteExpenseEntry(\''+e.id+'\')">Del</button>'+
@@ -7315,7 +7382,7 @@ async function saveExpenseEntry(){
   var amount=parseFloat(document.getElementById('ae-amount').value)||0;
   var ref=document.getElementById('ae-ref').value;
   if(!date||!desc||amount<=0){alert('Date, description and amount are required.');return;}
-  var entry={date:date,category:cat,description:desc,amount:amount,reference:ref,addedOn:today()};
+  var entry={date:date,category:cat,description:desc,amount:amount,reference:ref,addedOn:today(),createdAt:nowISO()};
   try{
     var saved=await apiCall('/api/expenses','POST',entry);
     if(!state.expenseEntries) state.expenseEntries=[];
@@ -7349,6 +7416,7 @@ async function saveEditExpense(id){
   e.amount=parseFloat(document.getElementById('ee-amount').value)||0;
   e.reference=document.getElementById('ee-ref').value;
   try{
+    e.updatedAt=nowISO();
     await apiCall('/api/expenses/'+String(id),'PUT',e);
     closeModal();renderPage();
   }catch(e2){alert('Failed to update expense: '+e2.message);}
