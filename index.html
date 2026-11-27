@@ -4031,12 +4031,23 @@ function renderInvoices(){
         cfNote+='<div style="font-size:10px;color:var(--primary)">&#128203; ORD#'+inv.fromOrderId+'</div>';
       }
 
-      var rowBg=isCancelled?'background:#fff5f5;opacity:0.75;':inv.isCarryForward?'background:var(--blue-50);':isSuperseded&&!isCancelled?'background:#fafaf7;opacity:0.85;':'';
+      // Partial payment carry-forward: OLD = this invoice was partially paid and carried forward
+      //                                NEW = this is the carry-forward invoice (active/latest)
+      var isPartialCF = !isCancelled && !!inv.cfInvoiceId && inv.paid > 0 && inv.paid < getInvoiceGrand(inv);
+      var isNewCF     = !isCancelled && inv.isCarryForward && isLatest;
+
+      var rowBg=isCancelled?'background:#fff5f5;opacity:0.75;':
+                isPartialCF?'background:#fff8f0;border-left:3px solid var(--amber-400);':
+                isNewCF?'background:#f0faf4;border-left:3px solid var(--primary);':
+                inv.isCarryForward?'background:var(--blue-50);':
+                isSuperseded&&!isCancelled?'background:#fafaf7;opacity:0.85;':'';
 
       return '<tr style="'+rowBg+'">'+
         '<td><strong>#'+inv.id+'</strong>'+cfNote+
-          (inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':'')+
-          (!isCancelled&&isSuperseded&&!inv.cfInvoiceId?'<span class="badge" style="background:#aaa;color:#fff;font-size:9px;margin-left:4px">OLD</span>':'')+
+          (isPartialCF?'<span class="badge" style="background:#d97706;color:#fff;font-size:9px;margin-left:4px">OLD — Partial</span>':'')+
+          (isNewCF?'<span class="badge" style="background:var(--primary);color:#fff;font-size:9px;margin-left:4px">NEW</span>':
+            (!isPartialCF&&inv.isCarryForward?'<span class="badge badge-blue" style="font-size:9px;margin-left:4px">CF</span>':''))+
+          (!isCancelled&&isSuperseded&&!inv.cfInvoiceId&&!inv.isCarryForward?'<span class="badge" style="background:#aaa;color:#fff;font-size:9px;margin-left:4px">OLD</span>':'')+
           (isCancelled?'<span class="badge" style="background:#e24b4a;color:#fff;font-size:9px;margin-left:4px">CANCELLED</span>':'')+'</td>'+
         '<td>'+cust.name+'</td><td>'+inv.date+'</td><td>'+inv.deliveryDate+'</td>'+
         '<td>'+(isCancelled?'<s style="color:var(--text3)">'+fmt(_sub)+'</s>':fmt(_sub))+'</td>'+
